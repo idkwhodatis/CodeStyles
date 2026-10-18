@@ -2,11 +2,12 @@
 import io
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import stat
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 import smoke_package as smoke
@@ -45,7 +46,11 @@ class ExtractionTests(unittest.TestCase):
                 root = Path(temp)
                 archive = root / "bad.zip"
                 with zipfile.ZipFile(archive, "w") as out:
-                    out.writestr(name, b"bad")
+                    # Assign after construction to retain literal backslashes
+                    # even on Windows, where ZipInfo normally normalizes them.
+                    info = zipfile.ZipInfo("placeholder")
+                    info.filename = info.orig_filename = name
+                    out.writestr(info, b"bad")
                 with self.assertRaises(ValueError):
                     smoke.extract_archive(archive, root / "extracted")
         with tempfile.TemporaryDirectory() as temp:
@@ -61,6 +66,43 @@ class ExtractionTests(unittest.TestCase):
 
 
 class SmokeTests(unittest.TestCase):
+
+    def test_windows_extended_drive_and_unc_prefixes_compare_equally(self):
+        for extended, ordinary in [
+            (r"\\?\C:\CodeStyles 安装\resources", r"c:\codestyles 安装\resources"),
+            (r"\\?\UNC\server\share\安装\resources", r"\\SERVER\share\安装\resources"),
+        ]:
+            with self.subTest(path=extended):
+                self.assertEqual(smoke.windows_comparison_path(extended), PureWindowsPath(ordinary))
+        # Volume/device paths are not interchangeable with ordinary drive paths.
+        volume = r"\\?\Volume{123}\resources"
+        self.assertEqual(smoke.windows_comparison_path(volume), PureWindowsPath(volume))
+
+    def test_windows_prefixed_resource_containment_and_cache_equality(self):
+        # Pure path fixtures run on Linux/macOS too; real filesystem resolve is
+        # exercised by the native Windows package smoke lane.
+        with mock.patch.object(smoke, "resolved_comparison_path", side_effect=smoke.windows_comparison_path):
+            for install, resources, cache, reported_cache in [
+                (r"C:\安装", r"\\?\C:\安装\resources", r"C:\cache", r"\\?\C:\cache"),
+                (r"\\server\share\安装", r"\\?\UNC\server\share\安装\resources",
+                 r"\\server\share\cache", r"\\?\UNC\server\share\cache"),
+            ]:
+                with self.subTest(install=install):
+                    self.assertTrue(smoke.is_within(resources, install))
+                    self.assertFalse(smoke.is_within(install + " sibling", install))
+                    report = {"status": "passed", "mode": "headless_standalone_preview",
+                              "resources": {"root": resources, "discovery": "beside_executable",
+                                            "checksums_verified": True},
+                              "dprint_executable": resources + r"\bin\dprint.exe",
+                              "cache_directory": reported_cache, "checks": []}
+                    # Reaching language validation proves both containment and
+                    # the differently prefixed cache paths were accepted.
+                    with self.assertRaisesRegex(ValueError, "eight languages"):
+                        smoke.validate_backend_report(report, install, cache)
+                    report["cache_directory"] += " sibling"
+                    with self.assertRaisesRegex(ValueError, "fresh external cache"):
+                        smoke.validate_backend_report(report, install, cache)
+
     def test_clean_environment_uses_cold_external_cache(self):
         with tempfile.TemporaryDirectory() as temp:
             env = smoke.isolated_environment(Path(temp))

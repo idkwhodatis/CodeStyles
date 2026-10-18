@@ -10,7 +10,7 @@ import csv
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import shutil
 import stat
 import subprocess
@@ -47,7 +47,9 @@ def extract_archive(archive_path, destination):
     if zipfile.is_zipfile(archive_path):
         with zipfile.ZipFile(archive_path) as archive:
             for member in archive.infolist():
-                path = target(member.filename)
+                # ZipInfo.filename normalizes backslashes on Windows. Check the
+                # original stored name so malformed members cannot be hidden.
+                path = target(member.orig_filename)
                 mode = member.external_attr >> 16
                 if stat.S_ISLNK(mode):
                     raise ValueError(f"Archive symlinks are unsupported: {member.filename}")
@@ -163,9 +165,30 @@ def isolated_environment(workspace):
     return env
 
 
+def windows_comparison_path(resolved_path):
+    """Normalize an already resolved Windows path for lexical comparison.
+
+    Rust canonicalize emits extended-length drive/UNC paths; Python's resolve
+    can emit ordinary paths. Keep filesystem resolution separate so symlink
+    containment remains checked before normalizing the equivalent prefixes.
+    """
+    value = str(resolved_path)
+    if value[:8].upper() == "\\\\?\\UNC\\":
+        value = "\\\\" + value[8:]
+    elif (value.startswith("\\\\?\\") and len(value) >= 7
+          and value[4].lower() in "abcdefghijklmnopqrstuvwxyz" and value[5:7] == ":\\"):
+        value = value[4:]
+    return PureWindowsPath(value)
+
+
+def resolved_comparison_path(path):
+    resolved = Path(path).resolve()
+    return windows_comparison_path(resolved) if os.name == "nt" else resolved
+
+
 def is_within(path, root):
     try:
-        Path(path).resolve().relative_to(root.resolve())
+        resolved_comparison_path(path).relative_to(resolved_comparison_path(root))
         return True
     except ValueError:
         return False
@@ -181,7 +204,7 @@ def validate_backend_report(report, install, cache):
         raise ValueError("Verified resources are not inside the extracted installation")
     if not is_within(report.get("dprint_executable", ""), install):
         raise ValueError("Formatter executable is outside the installation")
-    if Path(report.get("cache_directory", "")).resolve() != cache.resolve():
+    if resolved_comparison_path(report.get("cache_directory", "")) != resolved_comparison_path(cache):
         raise ValueError("Self-test did not use the fresh external cache")
     checks = report.get("checks", [])
     if len(checks) != 8 or {item.get("extension") for item in checks} != EXPECTED_EXTENSIONS:

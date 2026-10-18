@@ -34,6 +34,9 @@ jobs:
       APPLE_APP_PASSWORD: ${{ secrets.MACOS_APP_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - name: Verify trusted successful source run and configured credentials
         env:
           GH_TOKEN: ${{ github.token }}
@@ -72,7 +75,7 @@ jobs:
       - name: Sign, test, notarize and staple
         run: |
           ditto -x -k unsigned/*.app.zip extracted
-          python scripts/sign_macos.py --app extracted/CodeStyles.app --target '${{ matrix.target }}' --identity "$SIGNING_IDENTITY" --notary-profile codestyles-notary --output signed
+          python scripts/sign_macos.py --app extracted/CodeStyles.app --target '${{ matrix.target }}' --identity "$SIGNING_IDENTITY" --notary-profile codestyles-notary --notary-keychain "$RUNNER_TEMP/signing.keychain-db" --output signed
           python scripts/audit_compatibility.py --target '${{ matrix.target }}' --bundle extracted/CodeStyles.app --report signed/compatibility.json
       - uses: actions/upload-artifact@v4
         with:

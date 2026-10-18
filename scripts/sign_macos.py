@@ -21,16 +21,19 @@ def run(*args):
     subprocess.run(list(map(str, args)), check=True)
 
 
-def notarize(path, profile, report):
-    result = subprocess.run(['xcrun', 'notarytool', 'submit', str(path),
-                             '--keychain-profile', profile, '--wait', '--output-format', 'json'],
+def notarize(path, profile, report, keychain=None):
+    command = ['xcrun', 'notarytool', 'submit', str(path),
+               '--keychain-profile', profile, '--wait', '--output-format', 'json']
+    if keychain is not None:
+        command += ['--keychain', str(keychain)]
+    result = subprocess.run(command,
                             check=True, capture_output=True, text=True)
     report.write_text(result.stdout)
     if json.loads(result.stdout).get('status') != 'Accepted':
         raise RuntimeError(f'Apple did not accept notarization; see {report}')
 
 
-def sign(app, target, identity, profile, output):
+def sign(app, target, identity, profile, output, keychain=None):
     app = app.resolve()
     resources = app / 'Contents/Resources/resources'
     manifest_path = resources / 'manifest.json'
@@ -72,7 +75,7 @@ def sign(app, target, identity, profile, output):
     with tempfile.TemporaryDirectory(prefix='codestyles-notary-') as temporary:
         submission = Path(temporary) / 'submission.zip'
         run('ditto', '-c', '-k', '--keepParent', app, submission)
-        notarize(submission, profile, output / f'{target}-app-notarization.json')
+        notarize(submission, profile, output / f'{target}-app-notarization.json', keychain)
     run('xcrun', 'stapler', 'staple', app)
     run('xcrun', 'stapler', 'validate', app)
     run('spctl', '--assess', '--type', 'execute', '--verbose=2', app)
@@ -86,7 +89,7 @@ def sign(app, target, identity, profile, output):
         run('hdiutil', 'create', '-volname', 'CodeStyles', '-srcfolder', stage,
             '-ov', '-format', 'UDZO', dmg)
     run('codesign', '--sign', identity, '--timestamp', dmg)
-    notarize(dmg, profile, output / f'{target}-dmg-notarization.json')
+    notarize(dmg, profile, output / f'{target}-dmg-notarization.json', keychain)
     run('xcrun', 'stapler', 'staple', dmg)
     run('xcrun', 'stapler', 'validate', dmg)
 
@@ -97,9 +100,10 @@ def main():
     parser.add_argument('--target', choices=['x86_64-apple-darwin', 'aarch64-apple-darwin'], required=True)
     parser.add_argument('--identity', required=True)
     parser.add_argument('--notary-profile', required=True)
+    parser.add_argument('--notary-keychain', type=Path, help='File-based keychain used when storing the profile')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    sign(args.app, args.target, args.identity, args.notary_profile, args.output)
+    sign(args.app, args.target, args.identity, args.notary_profile, args.output, args.notary_keychain)
 
 
 if __name__ == '__main__':

@@ -220,12 +220,15 @@
       "msvcp140_atomic_wait.dll",
       "msvcp140_codecvt_ids.dll",
       "concrt140.dll"
-    ]
+    ],
+    "subsystem_version_ceiling": "10.0",
+    "os_header_version_ceiling": "10.0"
   },
   "audit_limitations": [
     "Static audit success is not minimum-OS certification. validated_minimum_os stays null until separately recorded native testing on the claimed minimum OS.",
     "OS API availability, CPU instruction requirements, runtime-loaded libraries/plugins, external libraries' own dependencies, display servers, graphics backends, GPU drivers and interactive behavior are not fully established by binary metadata.",
     "The six native CI lanes must run the exact final binaries. Newer-host execution and parity checks do not validate older operating systems.",
-    "All native files are found by magic, independent of filename. Unsupported or malformed native headers fail; this audit does not execute target code or resolve dependencies against the audit host."
+    "All native files are found by magic, independent of filename. Unsupported or malformed native headers fail; this audit does not execute target code or resolve dependencies against the audit host.",
+    "Dependency resolution follows each packaged executable separately. Unreferenced Windows DLLs have no proven process loader context and cannot satisfy non-system imports by assuming the main application directory. Native loadable-library kind is checked for bundled import targets."
   ]
 }

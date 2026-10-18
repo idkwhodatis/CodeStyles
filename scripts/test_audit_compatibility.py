@@ -245,6 +245,16 @@ class AuditTests(unittest.TestCase):
                                   (pe(dll=True), 'marked as a DLL'), (pe(delay=('custom.dll',)), 'custom.dll')]:
             self.assertError(self.run_audit({'codestyles.exe': content}, WIN), expected)
 
+    def test_windows_header_versions_above_goal_fail_for_all_binaries(self):
+        for offset, field in [(48, 'subsystem_version'), (40, 'os_header_version')]:
+            data = bytearray(pe(subsystem=3))
+            struct.pack_into('<HH', data, 0x98 + offset, 11, 0)
+            self.assertError(self.run_audit({'codestyles.exe': pe(), 'resources/dprint.exe': bytes(data)}, WIN), field)
+
+    def test_dprint_must_be_an_executable(self):
+        self.assertError(self.run_audit({'codestyles.exe': pe(), 'dprint.exe': pe(dll=True)}, WIN), 'marked as a DLL')
+        self.assertError(self.run_audit({'codestyles': mach(), 'dprint': mach(filetype=6)}, MAC), 'must be MH_EXECUTE')
+
     def test_pe_bundled_dll_is_audited_and_case_insensitive(self):
         report = self.run_audit({'codestyles.exe': pe(imports=('CUSTOM.dll',), delay=()),
                                  'custom.DLL': pe(dll=True)}, WIN)
@@ -258,6 +268,36 @@ class AuditTests(unittest.TestCase):
         self.assertPass(self.run_audit({'codestyles.exe': main, 'VCRUNTIME140.dll': pe(dll=True, delay=())}, WIN))
         self.assertError(self.run_audit({'codestyles.exe': main, 'VCRUNTIME140.dll': pe(machine=0xaa64, dll=True, delay=())}, WIN), 'architecture')
 
+    def test_pe_dprint_cannot_borrow_main_executable_dll_directory(self):
+        files = {'codestyles.exe': pe(delay=()),
+                 'resources/bin/dprint.exe': pe(subsystem=3, delay=('VCRUNTIME140.dll',)),
+                 'VCRUNTIME140.dll': pe(dll=True, delay=())}
+        self.assertError(self.run_audit(files, WIN), 'resources/bin/dprint.exe: missing bundled Visual C++ runtime')
+        files['resources/bin/VCRUNTIME140.dll'] = files.pop('VCRUNTIME140.dll')
+        self.assertPass(self.run_audit(files, WIN))
+
+    def test_macho_dprint_has_own_executable_path_and_inherited_rpaths(self):
+        files = {'CodeStyles.app/Contents/MacOS/codestyles': mach(),
+                 'CodeStyles.app/Contents/Resources/dprint': mach(dylibs=('@executable_path/libcustom.dylib',)),
+                 'CodeStyles.app/Contents/MacOS/libcustom.dylib': mach(filetype=6)}
+        self.assertError(self.run_audit(files, MAC), 'unresolved external dependency @executable_path/libcustom.dylib')
+        files['CodeStyles.app/Contents/Resources/libcustom.dylib'] = files.pop('CodeStyles.app/Contents/MacOS/libcustom.dylib')
+        self.assertPass(self.run_audit(files, MAC))
+        files['CodeStyles.app/Contents/Resources/dprint'] = mach(dylibs=('@rpath/libcustom.dylib',), rpaths=('@executable_path',))
+        files['CodeStyles.app/Contents/Resources/libcustom.dylib'] = mach(filetype=6, dylibs=('@rpath/libsecond.dylib',))
+        files['CodeStyles.app/Contents/Resources/libsecond.dylib'] = mach(filetype=6)
+        self.assertPass(self.run_audit(files, MAC))
+
+    def test_dependency_must_be_shared_library_not_executable(self):
+        self.assertError(self.run_audit({'codestyles.exe': pe(delay=('VCRUNTIME140.dll',)),
+                                        'VCRUNTIME140.dll': pe(dll=False, delay=())}, WIN), 'not a DLL')
+        self.assertError(self.run_audit({'codestyles': mach(dylibs=('@loader_path/local.dylib',)),
+                                        'local.dylib': mach(filetype=2)}, MAC), 'not a matching-architecture dylib')
+        executable = bytearray(elf())
+        struct.pack_into('<H', executable, 16, 2)
+        self.assertError(self.run_audit({'codestyles': elf(needed=('local.so',), rpath='$ORIGIN'),
+                                        'local.so': bytes(executable)}), 'not a loadable shared object')
+
     def test_pe_exact_uninstaller_exception_is_recorded_not_skipped(self):
         helper = pe(machine=0x14c, is64=False)
         report = self.run_audit({'codestyles.exe': pe(), 'unins000.exe': helper}, WIN)
@@ -267,6 +307,15 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(report['binaries'][1]['architecture'], 'x86')
         self.assertError(self.run_audit({'codestyles.exe': pe(), 'tools/unins000.exe': helper}, WIN), 'architecture')
         self.assertError(self.run_audit({'codestyles.exe': pe(), 'unins000.exe': pe(machine=0x14c, is64=False, subsystem=3)}, WIN), 'helper has unexpected subsystem')
+
+    def test_uninstaller_cannot_load_mismatched_architecture_dll(self):
+        self.assertError(self.run_audit({'codestyles.exe': pe(),
+                                        'unins000.exe': pe(machine=0x14c, is64=False, delay=('custom.dll',)),
+                                        'custom.dll': pe(dll=True)}, WIN), 'does not match importer')
+
+    def test_duplicate_macho_architecture_cannot_hide_a_slice(self):
+        content = fat([(0x1000007, mach(dylibs=('/private/hidden.dylib',))), (0x1000007, mach())])
+        self.assertError(self.run_audit({'codestyles': content}, MAC), 'multiple Mach-O fat slices')
 
     def test_wrong_format_truncated_and_disguised_native_files_fail(self):
         self.assertError(self.run_audit({'codestyles': elf(), 'foreign': pe()}), 'expected ELF')
@@ -279,6 +328,21 @@ class AuditTests(unittest.TestCase):
     def test_missing_and_ambiguous_main_fail(self):
         self.assertError(self.run_audit({'dprint': elf()}), 'exactly one main executable')
         self.assertError(self.run_audit({'a/codestyles': elf(), 'b/codestyles': elf()}), 'exactly one main executable')
+
+    def test_elf_string_table_can_cross_contiguous_load_segments(self):
+        data = bytearray(elf(interpreter=None))
+        # Split the original LOAD through the dynamic string table, as found
+        # in real post-link-optimized Python builds. File/virtual mapping stays
+        # contiguous even though neither segment contains the whole table.
+        struct.pack_into('<H', data, 56, 3)
+        struct.pack_into('<QQ', data, 64 + 32, 0x410, 0x410)
+        struct.pack_into('<IIQQQQQQ', data, 176, 1, 4, 0x410, 0x400410, 0x400410,
+                         len(data) - 0x410, len(data) - 0x410, 1)
+        self.assertEqual(audit.parse_elf(bytes(data))['needed'], ['libc.so.6'])
+        # A virtual gap must still fail rather than reading unrelated bytes.
+        struct.pack_into('<Q', data, 176 + 16, 0x400420)
+        with self.assertRaisesRegex(audit.AuditError, 'not file-backed'):
+            audit.parse_elf(bytes(data))
 
     def test_malformed_elf_version_chain_fails(self):
         data = bytearray(elf(versions=('GLIBC_2.28', 'GLIBC_2.29')))
@@ -340,7 +404,23 @@ class AuditTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform.startswith('linux') and shutil.which('readelf'), 'requires native Linux readelf')
     def test_real_native_elf_matches_readelf_dynamic_dependencies(self):
-        path = Path('/bin/ls')
+        # Python/coreutils paths can be scripts or launcher shims in build
+        # images. Resolve /proc/self/exe in this process before invoking readelf:
+        # passing that proc path to readelf would inspect readelf itself.
+        candidates = [Path('/proc/self/exe'), Path(sys.executable),
+                      Path('/bin/true'), Path('/bin/ls'), Path(shutil.which('readelf'))]
+        path = None
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve(strict=True)
+                with resolved.open('rb') as source:
+                    magic = source.read(4)
+                if magic == b'\x7fELF':
+                    path = resolved
+                    break
+            except OSError:
+                continue
+        self.assertIsNotNone(path, 'Linux test environment has no readable real ELF candidate')
         record = audit.parse_elf(path.read_bytes())
         output = subprocess.check_output(['readelf', '-d', str(path)], text=True)
         import re

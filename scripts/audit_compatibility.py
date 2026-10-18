@@ -85,9 +85,18 @@ def parse_elf(data):
             interpreter = r.string(off, off + size)
 
     def mapped(addr, length=1):
+        # Linker/post-link optimizers may split a table across adjacent LOAD
+        # segments. Accept that only when the complete virtual range remains
+        # backed by the same contiguous file mapping, with no holes or jumps.
         for base, size, off in segments:
-            if base <= addr and addr + length <= base + size:
-                return off + addr - base
+            if base <= addr < base + size:
+                first = off + addr - base
+                cursor = addr
+                for next_base, next_size, next_off in sorted(segments):
+                    if next_base <= cursor < next_base + next_size and next_off - next_base == first - addr:
+                        cursor = min(addr + length, next_base + next_size)
+                        if cursor == addr + length:
+                            return first
         raise AuditError(f'ELF virtual address is not file-backed: {addr:#x}')
 
     tags = {}
@@ -148,6 +157,7 @@ def parse_elf(data):
             'rpath': [p for v in tags.get(15, []) for p in dynstr(v).split(':')],
             'runpath': [p for v in tags.get(29, []) for p in dynstr(v).split(':')],
             'soname': [dynstr(v) for v in tags.get(14, [])],
+            'flags_1': tags.get(0x6ffffffb, []),
             'required_symbol_versions': versions}
 
 
@@ -226,6 +236,8 @@ def parse_mach(data):
         record = parse_mach_slice(content)
         if record['architecture'] != {0x1000007: 'x86_64', 0x100000c: 'aarch64'}.get(cpu, f'mach-cpu-{cpu}'):
             raise AuditError('fat architecture disagrees with Mach-O slice')
+        if any(part['architecture'] == record['architecture'] for part in slices):
+            raise AuditError('multiple Mach-O fat slices for one architecture are unsupported')
         slices.append(record)
     return {'format': 'Mach-O', 'slices': slices}
 
@@ -236,6 +248,8 @@ def parse_pe(data):
     if r.bytes(peoff, 4) != b'PE\0\0':
         raise AuditError('DOS executable is not PE')
     machine, sections, _, _, _, optsize, characteristics = r.unpack('HHIIIHH', peoff + 4)
+    if not characteristics & 0x2:
+        raise AuditError('PE lacks IMAGE_FILE_EXECUTABLE_IMAGE')
     opt = peoff + 24
     magic = r.unpack('H', opt)[0]
     if magic not in (0x10b, 0x20b):
@@ -455,16 +469,18 @@ def audit(bundle, target, policy, main_executable=None):
         record.setdefault('dependencies', []).append(result)
         if status == 'unresolved':
             errors.append(f'{record["path"]}: undeclared or unresolved external dependency {name}')
+        return bundled
 
     for record in records:
         name = record['path']
         if record['format'] != expected:
             continue
         parent = posixpath.dirname(name)
+        executable = name == main or PurePosixPath(name).name.lower() in ('dprint', 'dprint.exe')
         if record['format'] == 'ELF':
             config = policy['linux']
-            if name == main and record['elf_type'] not in (2, 3):
-                errors.append(f'{name}: main ELF must be an executable or PIE')
+            if executable and record['elf_type'] not in (2, 3):
+                errors.append(f'{name}: ELF executable must be ET_EXEC or PIE')
             if record['endian'] != '<':
                 errors.append(f'{name}: expected little-endian ELF')
             interpreter = record['interpreter']
@@ -501,28 +517,98 @@ def audit(bundle, target, policy, main_executable=None):
                     errors.append(f'{name}: non-relocatable ELF search path {path!r}')
             for needed in record['needed']:
                 candidates = [posixpath.normpath(posixpath.join(path, needed)) for path in search_paths]
-                dependency(record, needed, candidates, needed in config['external_libraries'])
+                resolved = dependency(record, needed, candidates, needed in config['external_libraries'])
+                if resolved:
+                    library = by_name[resolved]
+                    if library['format'] != 'ELF' or library['elf_type'] != 3 or any(flags & 0x08000000 for flags in library['flags_1']):
+                        errors.append(f'{name}: ELF dependency is not a loadable shared object: {resolved}')
             record['external_runtime_prerequisites'] = config['runtime_prerequisites']
         elif record['format'] == 'Mach-O':
-            main_parent = posixpath.dirname(main or '')
-            def expand(path):
-                return posixpath.normpath(path.replace('@loader_path', parent or '.').replace('@executable_path', main_parent or '.'))
             for part in record['slices']:
-                if name == main and part['file_type'] != 2:
-                    errors.append(f'{name}: main Mach-O must be MH_EXECUTE')
+                if executable and part['file_type'] != 2:
+                    errors.append(f'{name}: Mach-O executable must be MH_EXECUTE')
                 if not part['minimum_os']:
                     errors.append(f'{name}: Mach-O slice has no minimum-OS load command')
                 for minimum in part['minimum_os']:
                     if minimum['platform'] != 'macos' or version_tuple(minimum['version']) > version_tuple(selected['desired_minimum_os']):
                         errors.append(f'{name}: {part["architecture"]} requires {minimum["platform"]} {minimum["version"]}, target ceiling {selected["desired_minimum_os"]}')
-                rpaths = list(part['rpath'])
-                if main in by_name and by_name[main]['format'] == 'Mach-O' and main != name:
-                    for main_slice in by_name[main]['slices']:
-                        rpaths.extend(p.replace('@loader_path', '@executable_path') for p in main_slice['rpath'])
+        else:
+            config = policy['windows']
+            for field in ('subsystem_version', 'os_header_version'):
+                if version_tuple(record[field]) > version_tuple(config[field + '_ceiling']):
+                    errors.append(f'{name}: PE {field} {record[field]} exceeds policy ceiling {config[field + "_ceiling"]}')
+            if executable and record['is_dll']:
+                errors.append(f'{name}: executable is marked as a DLL')
+            if name == main and record['subsystem'] != config['main_subsystem']:
+                errors.append(f'{name}: main executable must use Windows GUI subsystem (2), found {record["subsystem"]}')
+
+    # Each executable is a separate loader entrypoint. In particular dprint is
+    # launched as its own process: it cannot borrow codestyles' DLL directory or
+    # @executable_path. Resolve reachable shared libraries in each actual context.
+    if expected == 'PE':
+        pe_records = {name: record for name, record in by_name.items() if record['format'] == 'PE'}
+        visited, queue = set(), [(name, name) for name, record in pe_records.items() if not record['is_dll']]
+        def walk_pe():
+            while queue:
+                name, entrypoint = queue.pop()
+                if (name, entrypoint) in visited:
+                    continue
+                visited.add((name, entrypoint))
+                record = pe_records[name]
+                directory = posixpath.dirname(entrypoint) if entrypoint else None
+                for imported in record['imports'] + record['delay_imports']:
+                    dep = imported.lower()
+                    # Normal unpackaged Windows search uses the process's app
+                    # directory, not the directory containing an imported DLL.
+                    candidates = [lower_names.get(posixpath.join(directory, dep).lower())] if directory is not None else []
+                    system = ('/' not in dep and '\\' not in dep) and (dep in policy['windows']['external_libraries'] or dep.startswith(tuple(policy['windows']['system_import_prefixes'])))
+                    resolved = dependency(record, imported, candidates, system, entrypoint=entrypoint)
+                    if resolved:
+                        if resolved not in pe_records or not pe_records[resolved]['is_dll']:
+                            errors.append(f'{name}: PE import target is not a DLL: {resolved}')
+                        elif (pe_records[resolved]['architecture'], pe_records[resolved]['bits']) != (record['architecture'], record['bits']):
+                            errors.append(f'{name}: PE import target architecture does not match importer: {resolved}')
+                        else:
+                            queue.append((resolved, entrypoint))
+                    if record['dependencies'][-1]['status'] == 'unresolved' and re.match(r'(?:vcruntime|msvcp|msvcr(?!t)|concrt)', dep):
+                        errors.append(f'{name}: missing bundled Visual C++ runtime DLL {imported}; a clean Windows installation does not guarantee the Redistributable')
+        walk_pe()
+        reached = {name for name, _ in visited}
+        queue.extend((name, None) for name in pe_records if name not in reached)
+        walk_pe()
+        for record in pe_records.values():
+            record['external_crt_requirements'] = sorted({dep['name'] for dep in record.get('dependencies', [])
+                                                         if dep['status'] != 'bundled' and dep['name'] in record['crt_imports']})
+    elif expected == 'Mach-O':
+        slices = {(name, part['architecture']): part for name, record in by_name.items()
+                  if record['format'] == 'Mach-O' for part in record['slices']}
+        visited = set()
+        queue = [(name, arch, name, (), ()) for (name, arch), part in slices.items() if part['file_type'] == 2]
+        def walk_mach():
+            while queue:
+                name, arch, entrypoint, inherited_rpaths, ancestors = queue.pop()
+                key = (name, arch, entrypoint, inherited_rpaths)
+                if key in visited or name in ancestors:
+                    continue
+                visited.add(key)
+                part, record = slices[(name, arch)], by_name[name]
+                parent = posixpath.dirname(name) or '.'
+                executable_dir = (posixpath.dirname(entrypoint) or '.') if entrypoint else None
+                def expand(path):
+                    if '@executable_path' in path and executable_dir is None:
+                        return None
+                    result = posixpath.normpath(path.replace('@loader_path', parent).replace('@executable_path', executable_dir or '.'))
+                    if result == '..' or result.startswith(('../', '/')) or '@' in result:
+                        return None
+                    return result
+                local_rpaths = []
                 for path in part['rpath']:
-                    resolved = expand(path)
-                    if not path.startswith(('@loader_path', '@executable_path')) or resolved.startswith(('../', '/')) or resolved == '..':
-                        errors.append(f'{name}: non-relocatable Mach-O rpath {path}')
+                    expanded = expand(path)
+                    if not (path in ('@loader_path', '@executable_path') or path.startswith(('@loader_path/', '@executable_path/'))) or expanded is None:
+                        errors.append(f'{name}: non-relocatable or unresolved Mach-O rpath {path}')
+                    else:
+                        local_rpaths.append(expanded)
+                rpaths = tuple(dict.fromkeys(local_rpaths + list(inherited_rpaths)))
                 for dylib in part['dylibs']:
                     dep = dylib['name']
                     system = dep.startswith(tuple(policy['macos']['system_dylib_prefixes'])) and posixpath.normpath(dep) == dep
@@ -530,24 +616,17 @@ def audit(bundle, target, policy, main_executable=None):
                     if dep.startswith(('@loader_path/', '@executable_path/')):
                         candidates = [expand(dep)]
                     elif dep.startswith('@rpath/'):
-                        candidates = [posixpath.normpath(posixpath.join(expand(p), dep[len('@rpath/'):])) for p in rpaths]
-                    dependency(record, dep, candidates, system, architecture=part['architecture'], weak=dylib['weak'])
-        else:
-            config = policy['windows']
-            if name == main and record['is_dll']:
-                errors.append(f'{name}: main executable is marked as a DLL')
-            if name == main and record['subsystem'] != config['main_subsystem']:
-                errors.append(f'{name}: main executable must use Windows GUI subsystem (2), found {record["subsystem"]}')
-            for imported in record['imports'] + record['delay_imports']:
-                dep = imported.lower()
-                candidates = [lower_names.get(posixpath.join(parent, dep).lower()),
-                              lower_names.get(posixpath.join(posixpath.dirname(main or ''), dep).lower())]
-                system = ('/' not in dep and '\\' not in dep) and (dep in config['external_libraries'] or dep.startswith(tuple(config['system_import_prefixes'])))
-                dependency(record, imported, candidates, system)
-                if record['dependencies'][-1]['status'] == 'unresolved' and re.match(r'(?:vcruntime|msvcp|msvcr(?!t)|concrt)', dep):
-                    errors.append(f'{name}: missing bundled Visual C++ runtime DLL {imported}; a clean Windows installation does not guarantee the Redistributable')
-            record['external_crt_requirements'] = [dep['name'] for dep in record.get('dependencies', [])
-                                                   if dep['status'] != 'bundled' and dep['name'] in record['crt_imports']]
+                        candidates = [posixpath.normpath(posixpath.join(path, dep[len('@rpath/'):])) for path in rpaths]
+                    resolved = dependency(record, dep, candidates, system, architecture=arch, weak=dylib['weak'], entrypoint=entrypoint)
+                    if resolved:
+                        if (resolved, arch) not in slices or slices[(resolved, arch)]['file_type'] != 6:
+                            errors.append(f'{name}: Mach-O dependency is not a matching-architecture dylib: {resolved}')
+                        else:
+                            queue.append((resolved, arch, entrypoint, rpaths, ancestors + (name,)))
+        walk_mach()
+        reached = {(name, arch) for name, arch, _, _ in visited}
+        queue.extend((name, arch, None, (), ()) for name, arch in slices if (name, arch) not in reached)
+        walk_mach()
     if not records:
         errors.append('no native binaries found')
     if main and main not in by_name:
