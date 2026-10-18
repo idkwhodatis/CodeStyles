@@ -1,3 +1,55 @@
+# P3 validation — 2026-10-18
+
+## Executed on Linux x86-64
+
+- `cargo fmt --check`, `git diff --check`, `cargo check --locked`, native debug
+  build, and all-target clippy with warnings denied pass.
+- 65 library tests, 18 real preview parity tests, 11 project integration tests,
+  and 7 pure native UI-state tests pass.
+- Python integrity/packaging: 7 tests pass; 11 local runtime resources verify.
+- Eight-language preview parity includes pinned Markdown 0.26.0/TOML 0.9.0,
+  all built-in examples, changed settings and nested fenced-code formatting.
+- Real dprint project coverage includes NDJSON check results/exit 20, no-write
+  checks, explicit selected/all formatting, saved config gates, spaces/Chinese
+  paths, LF/CRLF, nested configs, literal metacharacter/leading-dash names,
+  local extends preservation, plugin preparation, missing plugins, refused
+  downloads, live-download cancellation and source/config preservation.
+- Unix fixture coverage verifies timeout and descendant-held pipe cleanup.
+  Windows uses a suspended process assigned to an owned Job Object before resume;
+  a Windows-only compiled regression fixture covers descendants that keep pipes
+  open after their CLI-shaped parent exits. Native Windows CI must establish it.
+- Review fixed Save As report invalidation, added safe settings-JSON copying,
+  and closed formatting-protection gaps for local file-URL dependencies and
+  unresolved remote/local dependency graphs. These forms now fail closed before
+  writing; read-only Check can still use dprint's ordinary resolution. Local
+  plugin files and descriptors are also excluded from formatting.
+
+Initial six-target CI found a Windows-only dependency protection issue: expanded
+`${configDir}` paths used the canonical verbatim prefix with forward slashes.
+The fix normalizes dependency separators for Windows filesystem lookup; the
+existing local-plugin protection regression covers this exact case. Every native
+lane must rerun on the corrected head before acceptance.
+
+## Boundaries and acceptance
+
+Formatting is not transactional. Cancellation/error can leave already-formatted
+sources changed. No source snapshot rollback is promised. Configuration/source
+preflight checks do not lock out unrelated external writers between checks and
+CLI execution; do not modify the project concurrently. Trust is not sandboxing:
+user-approved process plugins have the user's account permissions.
+
+Project writes currently require a locally resolvable configuration dependency
+graph: ordinary relative/absolute paths and `${configDir}` are supported.
+Remote/package extends, file URLs, home-relative dependencies and unresolved
+placeholders are rejected for formatting rather than risking a configuration
+rewrite. Preview and read-only Check retain their own dprint semantics. Path
+representations ambiguous to dprint's stdin/glob/range protocol are rejected.
+
+No native display/GPU session is available here. Interactive layout, focus,
+file pickers, confirmation dialogs, IME, VS Code setup and actual clipboard use
+are not established by headless tests or compilation. The six native CI lanes
+must pass for the exact P3 head; they still do not prove interactive acceptance.
+
 # P2 validation — 2026-10-18
 
 ## Executed on Linux x86-64

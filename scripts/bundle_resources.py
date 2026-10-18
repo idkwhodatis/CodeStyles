@@ -93,7 +93,7 @@ def main():
             with zipfile.ZipFile(args.output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
                 names = [f['path'] for f in files] + ['manifest.json', 'README.md', 'THIRD_PARTY_NOTICES.md']
                 names += [p.relative_to(RESOURCES).as_posix() for p in (RESOURCES / 'licenses').glob('*')]
-                for name in sorted(names):
+                for name in sorted(set(names)):
                     info = zipfile.ZipInfo('resources/' + name, date_time=(2020, 1, 1, 0, 0, 0))
                     mode = 0o755 if name.startswith('bin/') else 0o644
                     info.external_attr = (0o100000 | mode) << 16

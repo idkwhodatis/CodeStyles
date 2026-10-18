@@ -1,5 +1,5 @@
 //! Explicit, checksummed runtime resources. Never searches PATH for dprint.
-use crate::backend::Backend;
+use crate::{backend::Backend, schema::PinnedPlugin};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
@@ -11,7 +11,7 @@ fn target() -> Result<&'static str, String> {
         ("macos", "aarch64") => Ok("aarch64-apple-darwin"),
         ("windows", "x86_64") => Ok("x86_64-pc-windows-msvc"),
         ("windows", "aarch64") => Ok("aarch64-pc-windows-msvc"),
-        _ => Err("This architecture is not included in the P0 resource bundle.".into()),
+        _ => Err("This architecture is not included in the resource bundle.".into()),
     }
 }
 
@@ -53,8 +53,8 @@ pub fn backend_from_root(root: &Path) -> Result<Backend, String> {
         target()?,
         if cfg!(windows) { ".exe" } else { "" }
     );
-    let plugins = ["plugins/typescript-0.96.1.wasm", "plugins/json-0.25.2.wasm"];
-    for name in std::iter::once(executable.as_str()).chain(plugins) {
+    let plugins = PinnedPlugin::ALL.map(|plugin| format!("plugins/{}", plugin.filename()));
+    for name in std::iter::once(executable.as_str()).chain(plugins.iter().map(String::as_str)) {
         let entry = files
             .iter()
             .find(|entry| entry["path"].as_str() == Some(name))

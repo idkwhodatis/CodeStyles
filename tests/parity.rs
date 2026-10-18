@@ -1,6 +1,7 @@
 use codestyles::{
     backend::{Backend, FormatRequest},
     config::ConfigDocument,
+    schema::PinnedPlugin,
 };
 use serde_json::json;
 use std::{
@@ -45,10 +46,10 @@ fn assets() -> (PathBuf, Vec<PathBuf>) {
     );
     (
         executable,
-        vec![
-            root.join("plugins/typescript-0.96.1.wasm"),
-            root.join("plugins/json-0.25.2.wasm"),
-        ],
+        PinnedPlugin::ALL
+            .iter()
+            .map(|plugin| root.join("plugins").join(plugin.filename()))
+            .collect(),
     )
 }
 fn cli(exe: &Path, config: &Path, path: &Path, input: &str) -> String {
@@ -100,7 +101,7 @@ fn request(
 }
 
 #[test]
-fn all_six_languages_match_saved_configuration_byte_for_byte() {
+fn all_eight_languages_match_saved_configuration_byte_for_byte() {
     let (exe, plugins) = assets();
     let backend = Backend::new(exe.clone(), plugins.clone());
     let dir = tempfile::tempdir().unwrap();
@@ -123,6 +124,11 @@ fn all_six_languages_match_saved_configuration_byte_for_byte() {
         ),
         ("{\"a\":{\"b\":[1,2,3]}}", "json"),
         ("{ /* comment */ \"a\":{\"b\":[1,2,3],},}", "jsonc"),
+        ("# Example\n\n*   Preview **formatting**\n", "md"),
+        (
+            "[preview]\nenabled=true\nlabels=[\"saved\",\"draft\"]\n",
+            "toml",
+        ),
     ] {
         for indent in [2, 4] {
             for semi in ["always", "asi"] {
@@ -508,8 +514,9 @@ fn standalone_export_is_portable_and_reopens_with_offline_bundled_preview() {
     let path = dir.path().join("dprint.jsonc");
     document.save_as(&path).unwrap();
     let exported = fs::read_to_string(&path).unwrap();
-    assert!(exported.contains("https://plugins.dprint.dev/typescript-0.96.1.wasm"));
-    assert!(exported.contains("https://plugins.dprint.dev/json-0.25.2.wasm"));
+    for plugin in PinnedPlugin::ALL {
+        assert!(exported.contains(plugin.url()));
+    }
     assert!(!exported.contains(env!("CARGO_MANIFEST_DIR")));
     let reopened = ConfigDocument::load(&path).unwrap();
     let snapshot = reopened.snapshot();
@@ -524,4 +531,94 @@ fn standalone_export_is_portable_and_reopens_with_offline_bundled_preview() {
     assert!(output.contains("\n    return"));
     assert_eq!(reopened.draft_text(), exported);
     assert_eq!(fs::read_to_string(path).unwrap(), exported);
+}
+
+#[test]
+fn markdown_and_toml_samples_match_pinned_cli_with_saved_and_changed_settings() {
+    use codestyles::comparison::{BuiltinSample, SourceLanguage};
+    let (exe, plugins) = assets();
+    let backend = Backend::new(exe.clone(), plugins.clone());
+    let dir = tempfile::tempdir().unwrap();
+    for changed in [false, true] {
+        let mut document = ConfigDocument::standalone(&plugins).unwrap();
+        let mut expected_config = json!({"plugins":plugins});
+        if changed {
+            let markdown = json!({"textWrap":"always", "lineWidth":45, "emphasisKind":"asterisks", "list.unorderedMarker":"asterisks"});
+            let toml = json!({"spaceSurroundingEquals":false, "quoteStyle":"preferSingle", "indentEntries":"always", "indentWidth":4});
+            document.set(&["markdown"], markdown.clone()).unwrap();
+            document.set(&["toml"], toml.clone()).unwrap();
+            expected_config["markdown"] = markdown;
+            expected_config["toml"] = toml;
+        }
+        let saved = dir.path().join("expected.json");
+        fs::write(&saved, serde_json::to_vec(&expected_config).unwrap()).unwrap();
+        for language in [SourceLanguage::Markdown, SourceLanguage::Toml] {
+            for sample in BuiltinSample::ALL {
+                let source = sample.source(language);
+                let path = dir.path().join(format!("sample.{}", language.extension()));
+                let input = FormatRequest {
+                    source: source.into(),
+                    source_path: path.clone(),
+                    config: document.snapshot(),
+                };
+                let output = backend
+                    .format(&input, Arc::new(AtomicBool::new(false)))
+                    .unwrap();
+                assert_eq!(
+                    output,
+                    cli(&exe, &saved, &path, source),
+                    "{language:?} {sample:?} changed={changed}"
+                );
+                assert!(!output.is_empty());
+                assert_eq!(input.source, source);
+            }
+        }
+    }
+}
+
+#[test]
+fn markdown_fences_use_bundled_typescript_json_and_toml_plugins() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
+    let backend = codestyles::resources::backend_from_root(&root).unwrap();
+    let document = backend.standalone_config().unwrap();
+    let input = FormatRequest {
+        source: "```ts\nconst n=1\n```\n\n```json\n{\"a\":1}\n```\n\n```toml\na=1\n```\n".into(),
+        source_path: "fences.md".into(),
+        config: document.snapshot(),
+    };
+    let output = backend
+        .format(&input, Arc::new(AtomicBool::new(false)))
+        .unwrap();
+    assert!(output.contains("const n = 1;"));
+    assert!(output.contains("\"a\": 1"));
+    assert!(output.contains("a = 1"));
+}
+
+#[test]
+fn corrupted_markdown_and_toml_bundles_are_rejected_before_use() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
+    let (exe, plugins) = assets();
+    for plugin in [PinnedPlugin::Markdown, PinnedPlugin::Toml] {
+        let dir = tempfile::tempdir().unwrap();
+        fs::copy(root.join("manifest.json"), dir.path().join("manifest.json")).unwrap();
+        let copied_exe = dir.path().join(exe.strip_prefix(&root).unwrap());
+        fs::create_dir_all(copied_exe.parent().unwrap()).unwrap();
+        fs::copy(&exe, copied_exe).unwrap();
+        fs::create_dir_all(dir.path().join("plugins")).unwrap();
+        for path in &plugins {
+            fs::copy(
+                path,
+                dir.path().join("plugins").join(path.file_name().unwrap()),
+            )
+            .unwrap();
+        }
+        fs::write(
+            dir.path().join("plugins").join(plugin.filename()),
+            b"corrupt",
+        )
+        .unwrap();
+        let error = codestyles::resources::backend_from_root(dir.path()).unwrap_err();
+        assert!(error.contains("checksum mismatch"));
+        assert!(error.contains(plugin.filename()));
+    }
 }

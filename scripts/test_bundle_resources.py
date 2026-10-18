@@ -33,6 +33,39 @@ class IntegrityTests(unittest.TestCase):
             self.assertTrue(any(f["path"] == record["path"] and f["sha256"] == record["sha256"]
                                 for f in manifest["files"]))
 
+    def test_all_pinned_plugins_have_verified_wasm_schema_and_matching_records(self):
+        manifest = json.loads((bundle.RESOURCES / 'manifest.json').read_text())
+        self.assertEqual(manifest['plugins'], {
+            'typescript': '0.96.1', 'json': '0.25.2',
+            'markdown': '0.26.0', 'toml': '0.9.0',
+        })
+        files = {entry['path']: entry for entry in manifest['files']}
+        artifacts = {entry['path']: entry for entry in manifest['artifacts']}
+        self.assertEqual(len(files), len(manifest['files']))
+        self.assertEqual(len(artifacts), len(manifest['artifacts']))
+        for name, version in manifest['plugins'].items():
+            for folder, extension, kind in [('plugins', 'wasm', 'wasm'), ('schemas', 'json', 'schema')]:
+                path = f'{folder}/{name}-{version}.{extension}'
+                artifact = artifacts[path]
+                self.assertEqual(artifact['version'], version)
+                self.assertEqual(artifact['kind'], kind)
+                self.assertEqual(artifact['repository'], f'dprint/dprint-plugin-{name}')
+                self.assertEqual(artifact['release_url'],
+                                 f'https://github.com/dprint/dprint-plugin-{name}/releases/tag/{version}')
+                for key in ('path', 'sha256', 'bytes', 'kind', 'version'):
+                    self.assertEqual(files[path][key], artifact[key])
+                bundle.verify(bundle.RESOURCES / path, artifact)
+            self.assertEqual((bundle.RESOURCES / f'plugins/{name}-{version}.wasm').read_bytes()[:4], b'\0asm')
+            schema = json.loads((bundle.RESOURCES / f'schemas/{name}-{version}.json').read_text())
+            self.assertEqual(schema['type'], 'object')
+            self.assertTrue(schema['properties'])
+        for name in ('markdown', 'toml'):
+            artifact = artifacts[f'licenses/dprint-plugin-{name}.txt']
+            bundle.verify(bundle.RESOURCES / artifact['path'], artifact)
+            self.assertEqual(artifact['kind'], 'license')
+            self.assertEqual(artifact['url'],
+                             f'https://raw.githubusercontent.com/dprint/dprint-plugin-{name}/{manifest["plugins"][name]}/LICENSE')
+
     def test_valid_and_corrupt_resources(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'resource'
@@ -87,8 +120,11 @@ class IntegrityTests(unittest.TestCase):
             executable.write_bytes(b'formatter fixture')
             record = {'path': relative, 'bytes': executable.stat().st_size,
                       'sha256': hashlib.sha256(executable.read_bytes()).hexdigest()}
+            license_bytes = (resources / 'licenses' / 'plugin.txt').read_bytes()
             (resources / 'manifest.json').write_text(json.dumps({'artifacts': [
-                {'kind': 'executable-archive', 'target': target, 'executable': record}]}))
+                {'kind': 'executable-archive', 'target': target, 'executable': record},
+                {'kind': 'license', 'path': 'licenses/plugin.txt', 'bytes': len(license_bytes),
+                 'sha256': hashlib.sha256(license_bytes).hexdigest()}]}))
             binary = root / 'app'
             binary.write_bytes(b'application fixture')
             license_file = root / 'LICENSE'
@@ -102,7 +138,7 @@ class IntegrityTests(unittest.TestCase):
                                 '--output', str(output)], check=True, capture_output=True)
                 packages.append(output.read_bytes())
                 with zipfile.ZipFile(output) as archive:
-                    self.assertIn('resources/licenses/plugin.txt', archive.namelist())
+                    self.assertEqual(archive.namelist().count('resources/licenses/plugin.txt'), 1)
                     self.assertTrue(all('\\' not in name for name in archive.namelist()))
                     for info in archive.infolist():
                         self.assertEqual(info.date_time, (2020, 1, 1, 0, 0, 0))

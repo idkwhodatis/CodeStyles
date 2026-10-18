@@ -1,14 +1,47 @@
 # CodeStyles
 
 Native, offline-first code-style preview using Rust, GPUI Kit **0.7.3** and the
-bundled **dprint 0.63.0** executable. P2 adds native schema-driven style controls,
-editable source, and saved-versus-draft comparisons on the P1 lossless editor.
+bundled **dprint 0.63.0** executable. P3 adds Markdown/TOML controls, project
+checking and explicit formatting, plus editor/CI setup guidance on the P1/P2 editor.
+
+## P3 project workflow
+
+- Markdown **0.26.0** and TOML **0.9.0** join TypeScript and JSON in the same
+  checksummed bundle, schema controls and built-in/custom sample workflow.
+- The Project page uses the selected saved configuration's directory as its root.
+  Save or discard all pending raw/form/draft changes before running a project
+  operation. Unsaved standalone configurations cannot operate on project files.
+- Check invokes real `dprint check --json` and displays filenames and unified
+  diffs. Exit 20 means formatting differences, not a failed process. Reports are
+  point-in-time snapshots; rerun after external source changes.
+- Prepare plugins uses the pinned CLI and reports failures. Project operations
+  use saved plugin references and normal nested config discovery, unlike the
+  preview-only bundled plugin remapping. A cold project cache can need network
+  access even for known pinned plugin URLs.
+- Every project action asks for trust covering the saved and nested configuration,
+  inherited resources and process plugins. Formatting selected files or the whole
+  project additionally asks before writing sources. Trust does not sandbox plugins.
+- Operations run off the UI thread. Cancel stops remaining work and waits for the
+  child process to stop; formatting is not a transaction and already-written files
+  are not rolled back. While an operation runs, configuration switches and saves
+  are blocked. Close asks you to cancel and wait first.
+- Selected files are restricted to the project, handled as literal paths rather
+  than user-supplied flags, and verified against dprint's file discovery. Project
+  configuration files are protected from formatting. Unsupported ambiguous path
+  representations fail clearly rather than being interpreted as CLI instructions.
+  Formatting also fails closed for remote/package extends, file-URL/home-relative
+  dependencies and unresolved path placeholders because their local dependency
+  closure cannot be safely protected. Read-only Check remains available; ordinary
+  relative/absolute extends, `${configDir}`, inheritance and overrides retain their
+  native dprint semantics. Local plugin resources are protected from formatting.
+- Editor & CI shows the verified bundled executable path, a copy-path action,
+  user-level VS Code settings and version-pinned CI guidance. It never edits the
+  editor or workspace settings. See [editor integration](EDITOR_INTEGRATION.md).
 
 ## P2 style tuning
 
-- Search the pinned TypeScript 0.96.1 and JSON 0.25.2 schemas by setting name,
-  description or group. Select a group and then a setting. All 185 TypeScript
-  properties and 16 JSON properties appear; unsupported complex fields explicitly
+- Search the pinned TypeScript 0.96.1, JSON 0.25.2, Markdown 0.26.0 and TOML 0.9.0 schemas by setting name,
+  description or group. Select a group and then a setting. All bundled schema properties appear; unsupported complex fields explicitly
   direct you to JSONC instead of approximating their schema.
 - Native controls support local `$ref`, boolean, number/integer, string, typed
   `enum`, `const` and finite scalar `oneOf` choices. Unsupported constraints,
@@ -69,14 +102,14 @@ editable source, and saved-versus-draft comparisons on the P1 lossless editor.
 
 ## Preview foundation
 
-- Native schema controls for TS/JS/TSX/JSX/JSON/JSONC formatting.
+- Native schema controls for TS/JS/TSX/JSX/JSON/JSONC/Markdown/TOML formatting.
 - Built-in or editable custom source beside formatted output or saved/draft diff.
 - A 150 ms debounce, one background formatter worker, cancellation and revision
   gating. Stale results cannot replace the latest preview. The last successful
   output remains visible with an explicit stale label during updates or errors.
 - CLI-only formatting using argv and three concurrently serviced pipes. Closing
   the view cancels, kills and reaps work. Errors and timeouts are displayed.
-- Checksummed, pinned CLI, TypeScript 0.96.1 and JSON 0.25.2 WASM resources.
+- Checksummed, pinned CLI, TypeScript 0.96.1, JSON 0.25.2, Markdown 0.26.0 and TOML 0.9.0 WASM resources.
   The released application never downloads a formatter at startup.
 - Draft project configuration is a unique, non-discoverable file beside the
   original config. Relative `extends`, ancestor `inherit: true`, `${configDir}` and plugin overrides are
@@ -86,7 +119,8 @@ editable source, and saved-versus-draft comparisons on the P1 lossless editor.
 Project preview supports local configuration files, not remote config URLs. The
 selected config may itself contain remote references. Sample source paths for an
 imported project are placed beside that config to exercise its path semantics.
-Original project source files are never written.
+Preview never writes original project source files. The Project page writes them only
+after an explicit formatting action and confirmation.
 
 ## Build and run
 
@@ -118,7 +152,8 @@ The backend gives dprint a dedicated `CodeStyles/dprint` directory under the OS
 user cache (LOCALAPPDATA on Windows, Library/Caches on macOS, XDG_CACHE_HOME or
 ~/.cache on Linux). `DPRINT_CACHE_DIR` explicitly overrides it, useful when the
 normal user cache is read-only. A cold cache compiles bundled WASM locally without
-network access. Config discovery is disabled; the selected draft is explicit.
+network access. Preview config discovery is disabled; the selected draft is explicit. Project
+commands retain normal nested discovery with the saved configuration.
 
 ```sh
 cargo build --locked --release

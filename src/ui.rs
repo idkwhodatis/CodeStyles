@@ -5,7 +5,10 @@ use codestyles::{
     backend::FormatRequest,
     comparison::{BuiltinSample, DiffKind, SourceLanguage, SourceState, line_diff},
     config::ConfigDocument,
+    integration,
     preview::PreviewController,
+    project::{ProjectAction, ProjectReport, ProjectRequest},
+    project_worker::ProjectController,
     resources,
     schema::{FieldKind, PinnedPlugin, SchemaCatalog, SchemaField},
 };
@@ -22,6 +25,12 @@ use serde_json::Value;
 
 pub struct PreviewWindow {
     controller: Option<PreviewController>,
+    project_controller: Option<ProjectController>,
+    executable: Option<PathBuf>,
+    page: Page,
+    project_report: Option<ProjectReport>,
+    project_status: String,
+    project_error: bool,
     document: Option<ConfigDocument>,
     // Only the checksummed bundle's exact plugin references have a known schema.
     schema: Result<SchemaCatalog, String>,
@@ -57,7 +66,16 @@ pub struct PreviewWindow {
 
 impl PreviewWindow {
     pub fn new(cx: &mut Context<Self>) -> Self {
-        let (controller, document, status, error) = match resources::bundled_backend() {
+        let backend = resources::bundled_backend();
+        let executable = backend
+            .as_ref()
+            .ok()
+            .map(|backend| backend.executable().to_path_buf());
+        let project_controller = backend
+            .as_ref()
+            .ok()
+            .map(|backend| ProjectController::new(backend.clone()));
+        let (controller, document, status, error) = match backend {
             Ok(backend) => match backend.standalone_config() {
                 Ok(document) => (
                     Some(PreviewController::new(backend)),
@@ -71,6 +89,13 @@ impl PreviewWindow {
         };
         let mut view = Self {
             controller,
+            project_controller,
+            executable,
+            page: Page::Styles,
+            project_report: None,
+            project_status:
+                "Choose a saved project configuration to check or format its directory.".into(),
+            project_error: false,
             document,
             schema: SchemaCatalog::bundled(),
             source: SourceState::default(),
@@ -111,6 +136,21 @@ impl PreviewWindow {
                     .await;
                 let Some(view) = this.upgrade() else { break };
                 view.update(cx, |view, cx| {
+                    if let Some(result) = view.project_controller.as_mut().and_then(|c| c.poll()) {
+                        match result.result {
+                            Ok(report) => {
+                                view.project_status = report.summary.clone();
+                                view.project_error = false;
+                                view.project_report = Some(report);
+                            }
+                            Err(error) => {
+                                view.project_status = error;
+                                view.project_error = true;
+                                view.project_report = None;
+                            }
+                        }
+                        cx.notify();
+                    }
                     let Some(result) = view.controller.as_mut().and_then(|c| c.poll()) else {
                         return;
                     };
@@ -147,6 +187,11 @@ impl PreviewWindow {
     }
 
     pub fn should_close(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.project_busy() {
+            self.project_status = "Cancel the running project operation and wait for it to stop before closing. Files already formatted are not rolled back.".into();
+            cx.notify();
+            return false;
+        }
         if !self.dirty() && self.source.custom_source().is_none() {
             return true;
         }
@@ -198,7 +243,7 @@ impl PreviewWindow {
     }
 
     fn request_preview(&mut self, cx: &mut Context<Self>) {
-        if !self.trusted || self.raw_dirty {
+        if self.project_busy() || !self.trusted || self.raw_dirty {
             self.cancel_preview();
             cx.notify();
             return;
@@ -343,7 +388,7 @@ impl PreviewWindow {
     }
 
     fn open_config(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.dialog_pending {
+        if self.dialog_pending || self.project_busy() {
             return;
         }
         self.dialog_pending = true;
@@ -407,6 +452,8 @@ impl PreviewWindow {
                         match loaded {
                             Ok(document) => {
                                 this.cancel_preview();
+                                this.project_report = None;
+                                this.project_status = "Project changed. Check again to refresh results.".into();
                                 this.document = Some(document);
                                 this.disk_warning = None;
                                 this.document_version += 1;
@@ -492,7 +539,11 @@ impl PreviewWindow {
     }
 
     pub fn save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.raw_dirty || self.field_draft.is_dirty() || self.dialog_pending {
+        if self.raw_dirty
+            || self.field_draft.is_dirty()
+            || self.dialog_pending
+            || self.project_busy()
+        {
             return;
         }
         if let Err(error) = self.validate_for_save() {
@@ -510,6 +561,9 @@ impl PreviewWindow {
         match document.save() {
             Ok(()) => {
                 self.document_version += 1;
+                self.project_report = None;
+                self.project_status =
+                    "Configuration saved. Check again to refresh project results.".into();
                 self.disk_warning = None;
                 self.status = "Configuration saved atomically. Draft and saved file match.".into();
                 self.error = false;
@@ -524,6 +578,7 @@ impl PreviewWindow {
         if self.raw_dirty
             || self.field_draft.is_dirty()
             || self.dialog_pending
+            || self.project_busy()
             || self.document.is_none()
         {
             return;
@@ -563,6 +618,8 @@ impl PreviewWindow {
                                 Ok(()) => {
                                     let moved = previous_path.as_deref() != document.path();
                                     this.disk_warning = None;
+                                    this.project_report = None;
+                                    this.project_status = "Configuration saved to a new location. Check again to refresh project results.".into();
                                     this.document_version += 1;
                                     if moved {
                                         this.trusted = false;
@@ -602,11 +659,7 @@ fn dialog_is_current(opened_version: u64, current_version: u64) -> bool {
 
 impl PreviewWindow {
     fn plugin(&self) -> PinnedPlugin {
-        if self.source.language().is_json() {
-            PinnedPlugin::Json
-        } else {
-            PinnedPlugin::TypeScript
-        }
+        self.source.language().plugin()
     }
 
     fn selected_schema_field(&self) -> Option<SchemaField> {
@@ -1061,6 +1114,253 @@ impl PreviewWindow {
     }
 }
 
+fn project_can_start(dirty: bool, dialog: bool, running: bool, saved: bool, backend: bool) -> bool {
+    !dirty && !dialog && !running && saved && backend
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Page {
+    Styles,
+    Project,
+    Integration,
+}
+
+impl PreviewWindow {
+    fn project_busy(&self) -> bool {
+        self.project_controller
+            .as_ref()
+            .is_some_and(ProjectController::is_running)
+    }
+
+    fn project_ready(&self) -> bool {
+        project_can_start(
+            self.dirty(),
+            self.dialog_pending,
+            self.project_busy(),
+            self.document
+                .as_ref()
+                .is_some_and(|doc| doc.path().is_some()),
+            self.project_controller.is_some(),
+        )
+    }
+
+    fn project_action(
+        &mut self,
+        action: ProjectAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.project_ready() {
+            return;
+        }
+        let document = self.document.as_ref().unwrap();
+        let root = document.path().unwrap().parent().unwrap().to_path_buf();
+        let version = self.document_version;
+        let writes = matches!(
+            action,
+            ProjectAction::FormatProject | ProjectAction::FormatSelected(_)
+        );
+        let scope = match &action {
+            ProjectAction::FormatSelected(paths) => format!(
+                "{} selected files:\n{}",
+                paths.len(),
+                paths
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ),
+            _ => format!("Project directory: {}", root.display()),
+        };
+        let explanation = format!(
+            "{scope}\n\nUses the saved configuration and dprint's normal nested configuration discovery. Review this project's nested configs, extends and plugin sources: they may download resources and execute process plugins with your account's permissions. {}",
+            if writes {
+                "This operation writes source files. Review or back up your work first. Cancellation stops remaining work; files already written are not rolled back."
+            } else {
+                "This operation does not intentionally format source files. Plugin preparation may populate dprint's cache. Trust is not a sandbox."
+            }
+        );
+        self.dialog_pending = true;
+        let prompt = window.prompt(
+            PromptLevel::Warning,
+            if writes {
+                "Trust project and format files?"
+            } else {
+                "Trust project configuration and plugins?"
+            },
+            Some(&explanation),
+            &[
+                "Cancel",
+                if writes {
+                    "Trust and format"
+                } else {
+                    "Trust and continue"
+                },
+            ],
+            cx,
+        );
+        cx.spawn_in(window, async move |this, cx| {
+            let accepted = prompt.await == Ok(1);
+            let _ = this.update(cx, |this, cx| {
+                this.dialog_pending = false;
+                if !accepted { cx.notify(); return; }
+                if !dialog_is_current(version, this.document_version) || !this.project_ready() {
+                    this.project_status = "Configuration changed during confirmation. Review it again before running.".into();
+                    this.project_error = true;
+                    cx.notify(); return;
+                }
+                let request = ProjectRequest::new(root, this.document.as_ref().unwrap(), action, true);
+                match request.and_then(|request| this.project_controller.as_mut().unwrap().submit(request)) {
+                    Ok(_) => {
+                        this.cancel_preview();
+                        this.page = Page::Project;
+                        this.project_report = None;
+                        this.project_error = false;
+                        this.project_status = "Running bundled dprint with the saved project configuration…".into();
+                    }
+                    Err(error) => { this.project_status = error; this.project_error = true; }
+                }
+                cx.notify();
+            });
+        }).detach();
+        cx.notify();
+    }
+
+    fn choose_project_files(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.project_ready() {
+            return;
+        }
+        self.dialog_pending = true;
+        let version = self.document_version;
+        let selection = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: true,
+            prompt: Some("Select source files inside the project directory".into()),
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let selected = selection.await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                this.dialog_pending = false;
+                if !dialog_is_current(version, this.document_version) {
+                    this.project_status =
+                        "Configuration changed while choosing files. Choose them again.".into();
+                    this.project_error = true;
+                } else {
+                    match selected {
+                        Ok(Ok(Some(paths))) if !paths.is_empty() => {
+                            this.project_action(ProjectAction::FormatSelected(paths), window, cx)
+                        }
+                        Ok(Ok(_)) => {}
+                        Ok(Err(error)) => {
+                            this.project_status = format!("Cannot choose source files: {error}");
+                            this.project_error = true;
+                        }
+                        Err(error) => {
+                            this.project_status = format!("File picker closed: {error}");
+                            this.project_error = true;
+                        }
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn render_project(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let disabled = !self.project_ready();
+        let root = self
+            .document
+            .as_ref()
+            .and_then(|doc| doc.path())
+            .and_then(|path| path.parent())
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "Save or open a configuration first.".into());
+        let text = self.project_report.as_ref().map(|report| {
+            let mut text = format!("{}\n{} · {} source files · {} protected config/plugin files\nFormatting reports show pre-write diffs. Rerun Check project for current state.\n\n{}\n", report.summary, report.cli_version, report.checked_files, report.protected_configs, report.diagnostics);
+            for file in &report.files {
+                text.push_str(&format!("\n{}\n{}\n", file.path.display(), file.diff));
+            }
+            text
+        }).unwrap_or_else(|| "No current project report. A check reads project sources; formatting requires an explicit confirmation. Check results are a point-in-time report, not a live filesystem view.".into());
+        div().flex().flex_col().flex_1().min_h_0().gap_3()
+            .child(div().text_sm().child(format!("Project root · {root}")))
+            .child(div().text_sm().child("Saved configuration only · normal nested discovery · check exit 20 means formatting differences"))
+            .when(self.dirty(), |panel| panel.child(div().text_color(cx.theme().warning).child("Save or discard all draft, JSONC and pending value edits before project operations.")))
+            .child(div().flex().flex_wrap().gap_2()
+                .child(Button::new("project-check").label("Check project…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::Check, window, cx))))
+                .child(Button::new("project-prepare").label("Prepare plugins…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::PreparePlugins, window, cx))))
+                .child(Button::new("project-format-selected").label("Format selected files…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.choose_project_files(window, cx))))
+                .child(Button::new("project-format-all").label("Format project…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::FormatProject, window, cx))))
+                .child(Button::new("project-cancel").label("Cancel operation").disabled(!self.project_busy()).on_click(cx.listener(|this, _, _, cx| {
+                    if let Some(controller) = &mut this.project_controller { controller.cancel(); }
+                    this.project_status = "Cancellation requested. Waiting for dprint to stop; files already written are not rolled back.".into(); cx.notify();
+                }))))
+            .child(div().text_sm().text_color(if self.project_error { cx.theme().danger } else { cx.theme().muted_foreground }).child(self.project_status.clone()))
+            .child(code_pane("project-report", "Project report · saved config".into(), &text, cx))
+            .into_any_element()
+    }
+
+    fn render_integration(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let guide = self
+            .executable
+            .as_ref()
+            .ok_or_else(|| {
+                "Bundled executable is unavailable. Verify the resource bundle first.".to_owned()
+            })
+            .and_then(|path| integration::guidance(path));
+        let settings = guide.as_ref().ok().map(|guide| guide.settings_json.clone());
+        let (text, path) = match guide {
+            Ok(guide) => (
+                format!(
+                    "{}\n\nUser settings JSON:\n{}\n\n{}",
+                    guide.editor_steps, guide.settings_json, guide.ci_instructions
+                ),
+                Some(guide.executable_path),
+            ),
+            Err(error) => (error, None),
+        };
+        div()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .gap_3()
+            .child(
+                div()
+                    .text_lg()
+                    .child("Use the same dprint in your editor and CI"),
+            )
+            .child(
+                Button::new("copy-dprint-path")
+                    .label("Copy bundled dprint path")
+                    .disabled(path.is_none())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(path) = &path {
+                            cx.write_to_clipboard(ClipboardItem::new_string(path.clone()));
+                            this.status =
+                                "Bundled dprint path copied. Paste it into VS Code user settings."
+                                    .into();
+                            cx.notify();
+                        }
+                    })),
+            )
+            .child(Button::new("copy-editor-settings").label("Copy user settings JSON").disabled(settings.is_none()).on_click(cx.listener(move |this, _, _, cx| {
+                if let Some(settings) = &settings { cx.write_to_clipboard(ClipboardItem::new_string(settings.clone())); this.status = "Settings JSON copied. Merge it into VS Code user settings, preserving existing entries.".into(); cx.notify(); }
+            })))
+            .child(Button::new("open-dprint-extension").label("Open official VS Code extension").on_click(|_, _, cx| cx.open_url(integration::EXTENSION_URL)))
+            .child(code_pane(
+                "integration-guide",
+                "Editor & CI setup · no settings changed automatically".into(),
+                &text,
+                cx,
+            ))
+            .into_any_element()
+    }
+}
+
 #[derive(Default)]
 struct FieldDraft {
     baseline: String,
@@ -1180,7 +1480,8 @@ impl Render for PreviewWindow {
         self.ensure_editor(window, cx);
         self.ensure_inputs(window, cx);
         let no_document = self.document.is_none();
-        let disabled = no_document || self.raw_dirty || self.field_draft.is_dirty();
+        let disabled =
+            no_document || self.raw_dirty || self.field_draft.is_dirty() || self.project_busy();
         let path = self
             .document
             .as_ref()
@@ -1312,10 +1613,23 @@ impl Render for PreviewWindow {
         } else {
             code_pane("preview-pane", preview_title, &self.output, cx).into_any_element()
         };
+        let body = match self.page {
+            Page::Styles => div()
+                .flex()
+                .gap_3()
+                .flex_1()
+                .min_h_0()
+                .child(settings)
+                .child(source)
+                .child(result)
+                .into_any_element(),
+            Page::Project => self.render_project(cx),
+            Page::Integration => self.render_integration(cx),
+        };
         div().size_full().flex().flex_col().gap_2().p_4().bg(cx.theme().background).text_color(cx.theme().foreground)
             .child(div().flex().items_center().gap_2().flex_wrap()
                 .child(div().text_2xl().mr_3().child("CodeStyles"))
-                .child(Button::new("open-config").label("Open config…").disabled(self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.open_config(window, cx))))
+                .child(Button::new("open-config").label("Open config…").disabled(self.dialog_pending || self.project_busy()).on_click(cx.listener(|this, _, window, cx| this.open_config(window, cx))))
                 .child(Button::new("save-config").label("Save").disabled(disabled || self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.save(window, cx))))
                 .child(Button::new("save-config-as").label("Save As…").disabled(disabled || self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.save_as(window, cx))))
                 .child(Button::new("check-disk").label("Check disk").disabled(self.document.as_ref().is_none_or(|doc| doc.path().is_none())).on_click(cx.listener(|this, _, _, cx| this.check_disk(cx))))
@@ -1329,15 +1643,17 @@ impl Render for PreviewWindow {
             .when_some(self.disk_warning.clone(), |panel, warning| panel.child(div().text_sm().text_color(cx.theme().danger).child(warning)))
             .when(!self.trusted && !no_document, |panel| panel.child(div().flex().items_center().gap_3().p_2().border_1().border_color(cx.theme().warning).rounded_lg()
                 .child(div().flex_1().text_sm().child("Preview paused. Review this config before allowing network resources or process plugins."))
-                .child(Button::new("trust-config").label("Review & trust…").disabled(self.dialog_pending || self.raw_dirty).on_click(cx.listener(|this, _, window, cx| this.trust_config(window, cx))))))
-            .child(div().flex().items_center().gap_1().flex_wrap()
+                .child(Button::new("trust-config").label("Review & trust…").disabled(self.dialog_pending || self.project_busy() || self.raw_dirty).on_click(cx.listener(|this, _, window, cx| this.trust_config(window, cx))))))
+            .child(div().flex().gap_2()
+                .children([(Page::Styles, "Style editor"), (Page::Project, "Project"), (Page::Integration, "Editor & CI")].into_iter().enumerate().map(|(index, (page, label))| Button::new(("page", index)).label(label).selected(self.page == page).disabled(self.project_busy() || self.dialog_pending).on_click(cx.listener(move |this, _, _, cx| { this.page = page; if page == Page::Styles { this.request_preview(cx); } cx.notify(); })))))
+            .when(self.page == Page::Styles, |panel| panel.child(div().flex().items_center().gap_1().flex_wrap()
                 .children(SourceLanguage::ALL.into_iter().enumerate().map(|(index, language)| Button::new(("language", index)).label(language.label()).selected(self.source.language() == language)
                     .on_click(cx.listener(move |this, _, window, cx| { if !this.allow_field_transition(cx) { return; } this.source.select_language(language); this.selected_field = None; this.group = "All".into(); this.sync_source(window, cx); }))))
                 .child(Button::new("custom-source").label("Custom source").selected(self.source.is_custom()).on_click(cx.listener(|this, _, window, cx| { this.source.use_custom(); this.sync_source(window, cx); })))
                 .children(BuiltinSample::ALL.into_iter().enumerate().map(|(index, sample)| Button::new(("builtin", index)).label(sample.label()).selected(!self.source.is_custom() && self.source.sample() == sample)
                     .on_click(cx.listener(move |this, _, window, cx| { this.source.select_sample(sample); this.sync_source(window, cx); }))))
-                .child(Button::new("diff").label(if self.diff_mode { "Show preview" } else { "Show diff" }).selected(self.diff_mode).on_click(cx.listener(|this, _, _, cx| { this.diff_mode = !this.diff_mode; cx.notify(); }))))
-            .child(div().flex().gap_3().flex_1().min_h_0().child(settings).child(source).child(result))
+                .child(Button::new("diff").label(if self.diff_mode { "Show preview" } else { "Show diff" }).selected(self.diff_mode).on_click(cx.listener(|this, _, _, cx| { this.diff_mode = !this.diff_mode; cx.notify(); })))))
+            .child(body)
             .child(div().max_h(px(55.0)).id("status").overflow_y_scroll().text_sm().text_color(if self.error { cx.theme().danger } else { cx.theme().muted_foreground }).child(self.status.clone()))
     }
 }
@@ -1346,12 +1662,22 @@ impl Render for PreviewWindow {
 mod tests {
     use super::{
         FieldDraft, comparison_is_current, dialog_is_current, field_input_text,
-        has_unsaved_changes, visible_diff,
+        has_unsaved_changes, project_can_start, visible_diff,
     };
     use codestyles::{
         config::ConfigDocument,
         schema::{PinnedPlugin, SchemaCatalog},
     };
+
+    #[test]
+    fn project_actions_require_saved_clean_idle_state() {
+        assert!(project_can_start(false, false, false, true, true));
+        assert!(!project_can_start(true, false, false, true, true));
+        assert!(!project_can_start(false, true, false, true, true));
+        assert!(!project_can_start(false, false, true, true, true));
+        assert!(!project_can_start(false, false, false, false, true));
+        assert!(!project_can_start(false, false, false, true, false));
+    }
 
     #[test]
     fn pending_values_survive_blocked_actions_until_explicit_apply_or_discard() {

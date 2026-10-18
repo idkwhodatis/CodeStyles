@@ -3,7 +3,9 @@
   "dprint_version": "0.63.0",
   "plugins": {
     "typescript": "0.96.1",
-    "json": "0.25.2"
+    "json": "0.25.2",
+    "markdown": "0.26.0",
+    "toml": "0.9.0"
   },
   "artifacts": [
     {
@@ -141,6 +143,66 @@
       "sha256": "d7369eb499ae2931bac6af6b36d8ae933358fd51cd4c49c970ff658acaddb722",
       "bytes": 5389,
       "release_url": "https://github.com/dprint/dprint-plugin-json/releases/tag/0.25.2"
+    },
+    {
+      "path": "plugins/markdown-0.26.0.wasm",
+      "kind": "wasm",
+      "repository": "dprint/dprint-plugin-markdown",
+      "version": "0.26.0",
+      "url": "https://github.com/dprint/dprint-plugin-markdown/releases/download/0.26.0/plugin.wasm",
+      "sha256": "5cebd0459bf1aa13fb027331720158d03e2a897b1d9f7b3bf93cac661ca4ddbd",
+      "bytes": 796007,
+      "release_url": "https://github.com/dprint/dprint-plugin-markdown/releases/tag/0.26.0"
+    },
+    {
+      "path": "schemas/markdown-0.26.0.json",
+      "kind": "schema",
+      "repository": "dprint/dprint-plugin-markdown",
+      "version": "0.26.0",
+      "url": "https://github.com/dprint/dprint-plugin-markdown/releases/download/0.26.0/schema.json",
+      "sha256": "cb42932b9f7571e356189682887a7d0416e31550f30c6104873a7b57d42883a4",
+      "bytes": 17441,
+      "release_url": "https://github.com/dprint/dprint-plugin-markdown/releases/tag/0.26.0"
+    },
+    {
+      "path": "licenses/dprint-plugin-markdown.txt",
+      "kind": "license",
+      "repository": "dprint/dprint-plugin-markdown",
+      "version": "0.26.0",
+      "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-markdown/0.26.0/LICENSE",
+      "sha256": "193c768fb8fe4ec0c69902f6e67f10550bf5abaed1925c87bf1e4740d875cfcc",
+      "bytes": 1085,
+      "release_url": "https://github.com/dprint/dprint-plugin-markdown/releases/tag/0.26.0"
+    },
+    {
+      "path": "plugins/toml-0.9.0.wasm",
+      "kind": "wasm",
+      "repository": "dprint/dprint-plugin-toml",
+      "version": "0.9.0",
+      "url": "https://github.com/dprint/dprint-plugin-toml/releases/download/0.9.0/plugin.wasm",
+      "sha256": "776e088ed4255a51a80e3640e5fd20b15661147e86df3e99611aaa37e9c59852",
+      "bytes": 526974,
+      "release_url": "https://github.com/dprint/dprint-plugin-toml/releases/tag/0.9.0"
+    },
+    {
+      "path": "schemas/toml-0.9.0.json",
+      "kind": "schema",
+      "repository": "dprint/dprint-plugin-toml",
+      "version": "0.9.0",
+      "url": "https://github.com/dprint/dprint-plugin-toml/releases/download/0.9.0/schema.json",
+      "sha256": "a2f625e7b002cb9d0dc8d4f0fd808a702c4188331d3d3c7c64baecd048b73bb0",
+      "bytes": 11126,
+      "release_url": "https://github.com/dprint/dprint-plugin-toml/releases/tag/0.9.0"
+    },
+    {
+      "path": "licenses/dprint-plugin-toml.txt",
+      "kind": "license",
+      "repository": "dprint/dprint-plugin-toml",
+      "version": "0.9.0",
+      "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-toml/0.9.0/LICENSE",
+      "sha256": "cca6ac7ebae91401de7520120a57225886f308456123f29d0728e50ff2f3b494",
+      "bytes": 1085,
+      "release_url": "https://github.com/dprint/dprint-plugin-toml/releases/tag/0.9.0"
     }
   ],
   "files": [
@@ -219,6 +281,48 @@
       "kind": "executable",
       "target": "aarch64-unknown-linux-gnu",
       "version": "0.63.0"
+    },
+    {
+      "path": "plugins/markdown-0.26.0.wasm",
+      "sha256": "5cebd0459bf1aa13fb027331720158d03e2a897b1d9f7b3bf93cac661ca4ddbd",
+      "bytes": 796007,
+      "kind": "wasm",
+      "version": "0.26.0"
+    },
+    {
+      "path": "schemas/markdown-0.26.0.json",
+      "sha256": "cb42932b9f7571e356189682887a7d0416e31550f30c6104873a7b57d42883a4",
+      "bytes": 17441,
+      "kind": "schema",
+      "version": "0.26.0"
+    },
+    {
+      "path": "licenses/dprint-plugin-markdown.txt",
+      "sha256": "193c768fb8fe4ec0c69902f6e67f10550bf5abaed1925c87bf1e4740d875cfcc",
+      "bytes": 1085,
+      "kind": "license",
+      "version": "0.26.0"
+    },
+    {
+      "path": "plugins/toml-0.9.0.wasm",
+      "sha256": "776e088ed4255a51a80e3640e5fd20b15661147e86df3e99611aaa37e9c59852",
+      "bytes": 526974,
+      "kind": "wasm",
+      "version": "0.9.0"
+    },
+    {
+      "path": "schemas/toml-0.9.0.json",
+      "sha256": "a2f625e7b002cb9d0dc8d4f0fd808a702c4188331d3d3c7c64baecd048b73bb0",
+      "bytes": 11126,
+      "kind": "schema",
+      "version": "0.9.0"
+    },
+    {
+      "path": "licenses/dprint-plugin-toml.txt",
+      "sha256": "cca6ac7ebae91401de7520120a57225886f308456123f29d0728e50ff2f3b494",
+      "bytes": 1085,
+      "kind": "license",
+      "version": "0.9.0"
     }
   ]
 }

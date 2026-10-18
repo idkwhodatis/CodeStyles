@@ -18,7 +18,7 @@ use tempfile::{NamedTempFile, TempDir};
 
 /// Exported references are portable. Only these exact URLs may be mapped to
 /// verified bundle paths for offline preview, never another version or host.
-const PINNED_PLUGINS: [(&str, &str); 2] = [
+const PINNED_PLUGINS: [(&str, &str); 4] = [
     (
         "typescript-0.96.1.wasm",
         "https://plugins.dprint.dev/typescript-0.96.1.wasm",
@@ -26,6 +26,14 @@ const PINNED_PLUGINS: [(&str, &str); 2] = [
     (
         "json-0.25.2.wasm",
         "https://plugins.dprint.dev/json-0.25.2.wasm",
+    ),
+    (
+        "markdown-0.26.0.wasm",
+        "https://plugins.dprint.dev/markdown-0.26.0.wasm",
+    ),
+    (
+        "toml-0.9.0.wasm",
+        "https://plugins.dprint.dev/toml-0.9.0.wasm",
     ),
 ];
 
@@ -357,7 +365,7 @@ impl ConfigDocument {
         let root = parse_object(&self.draft_text)?;
         let object = root.object_value().expect("validated root object");
         if let Some(indent) = unique_property(&object, "indentWidth")? {
-            // Both bundled schemas declare a number; the pinned CLI also
+            // Bundled schemas declare numeric indentation; the pinned CLI also
             // accepts strings parsed as u8. Preserve that runtime compatibility
             // (including 0 and 255), rather than the UI's narrower choices.
             let valid = indent.value().is_some_and(|node| {
@@ -1001,6 +1009,15 @@ mod tests {
                 path
             })
             .collect()
+    }
+
+    #[test]
+    fn portable_references_match_the_complete_schema_catalog() {
+        let plugins = crate::schema::PinnedPlugin::ALL;
+        assert_eq!(PINNED_PLUGINS.len(), plugins.len());
+        for plugin in plugins {
+            assert!(PINNED_PLUGINS.contains(&(plugin.filename(), plugin.url())));
+        }
     }
 
     #[test]
