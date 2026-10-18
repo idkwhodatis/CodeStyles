@@ -7,6 +7,22 @@ use gpui_kit::*;
 gpui_kit::actions!(codestyles_app, [Quit, SaveConfig, SearchSettings]);
 
 fn main() {
+    // This branch deliberately precedes GPUI/platform initialization. Package
+    // diagnostics run on headless CI without a display, GPU, or window server.
+    match codestyles::self_test::requested_report(std::env::args_os().skip(1)) {
+        Ok(Some(path)) => {
+            if let Err(error) = codestyles::self_test::run(&path) {
+                eprintln!("CodeStyles self-test failed: {error}");
+                std::process::exit(1);
+            }
+            return;
+        }
+        Ok(None) => {}
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+    }
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
         gpui_kit::component::Theme::change(gpui_kit::component::ThemeMode::Dark, None, cx);
@@ -40,7 +56,7 @@ fn main() {
                 cx,
             ))),
             titlebar: Some(TitlebarOptions {
-                title: Some("CodeStyles · P2".into()),
+                title: Some("CodeStyles".into()),
                 ..Default::default()
             }),
             ..Default::default()

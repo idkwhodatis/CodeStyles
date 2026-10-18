@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=CodeStyles
+Comment=Preview and configure code formatting offline
+Exec=codestyles
+Icon=codestyles
+Terminal=false
+Categories=Development;
+StartupNotify=true

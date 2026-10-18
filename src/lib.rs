@@ -8,3 +8,4 @@ pub mod project;
 pub mod project_worker;
 pub mod resources;
 pub mod schema;
+pub mod self_test;
