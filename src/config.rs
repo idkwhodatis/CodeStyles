@@ -1011,7 +1011,10 @@ mod tests {
         let snapshot = reopened.snapshot();
         let preview = DraftConfig::for_preview(&snapshot, &plugins).unwrap();
         let preview_value = parse(&fs::read_to_string(preview.path()).unwrap());
-        assert_eq!(preview.path().parent(), saved.parent());
+        assert_eq!(
+            preview.path().parent(),
+            saved.canonicalize().unwrap().parent()
+        );
         for (index, path) in plugins.iter().enumerate() {
             assert_eq!(
                 preview_value["plugins"][index],
