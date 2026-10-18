@@ -1,5 +1,5 @@
 //! CLI-only formatting backend. No formatter core is linked into the application.
-use crate::config::DraftConfig;
+use crate::config::{ConfigDocument, ConfigSnapshot, DraftConfig};
 use std::{
     io::{Read, Write},
     path::PathBuf,
@@ -16,11 +16,8 @@ use std::{
 pub struct FormatRequest {
     pub source: String,
     pub source_path: PathBuf,
-    /// The file is read when this request starts formatting, after debounce.
-    /// Source/settings are immutable snapshots; external config edits are not snapshotted.
-    pub config_path: Option<PathBuf>,
-    pub indent_width: u8,
-    pub semi_colons: String,
+    /// Exact draft bytes captured before queuing, with original path semantics.
+    pub config: ConfigSnapshot,
 }
 
 #[derive(Clone, Debug)]
@@ -43,6 +40,12 @@ impl Backend {
         self
     }
 
+    /// A portable new document referencing the exact bundled plugin versions.
+    /// Only preview-time exact pinned references map to verified local assets.
+    pub fn standalone_config(&self) -> Result<ConfigDocument, String> {
+        ConfigDocument::standalone(&self.plugins)
+    }
+
     pub fn format(
         &self,
         request: &FormatRequest,
@@ -51,12 +54,7 @@ impl Backend {
         if cancelled.load(Ordering::Acquire) {
             return Err("Formatting cancelled.".into());
         }
-        let draft = DraftConfig::new(
-            request.config_path.as_deref(),
-            &self.plugins,
-            request.indent_width,
-            &request.semi_colons,
-        )?;
+        let draft = DraftConfig::for_preview(&request.config, &self.plugins)?;
         let cache = cache_directory(std::env::consts::OS, |key| std::env::var_os(key))?;
         std::fs::create_dir_all(&cache)
             .map_err(|e| format!("Cannot create dprint cache {}: {e}", cache.display()))?;

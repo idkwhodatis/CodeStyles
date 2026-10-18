@@ -1,4 +1,7 @@
-use codestyles::backend::{Backend, FormatRequest};
+use codestyles::{
+    backend::{Backend, FormatRequest},
+    config::ConfigDocument,
+};
 use serde_json::json;
 use std::{
     fs,
@@ -81,12 +84,18 @@ fn request(
     indent: u8,
     semi: &str,
 ) -> FormatRequest {
+    let mut document = match config {
+        Some(path) => ConfigDocument::load(&path).unwrap(),
+        None => ConfigDocument::standalone(&assets().1).unwrap(),
+    };
+    document.set(&["indentWidth"], json!(indent)).unwrap();
+    document
+        .set(&["typescript", "semiColons"], json!(semi))
+        .unwrap();
     FormatRequest {
         source: source.into(),
         source_path: path,
-        config_path: config,
-        indent_width: indent,
-        semi_colons: semi.into(),
+        config: document.snapshot(),
     }
 }
 
@@ -183,15 +192,11 @@ fn relative_extends_config_dir_and_overrides_match_saved_project_config() {
 
 #[test]
 fn invalid_jsonc_is_reported_without_modifying_original() {
-    let (exe, plugins) = assets();
     let dir = tempfile::tempdir().unwrap();
     let config = dir.path().join("dprint.jsonc");
     fs::write(&config, "{ broken").unwrap();
-    let result = Backend::new(exe, plugins).format(
-        &request("let a=1", "a.ts".into(), Some(config.clone()), 2, "always"),
-        Arc::new(AtomicBool::new(false)),
-    );
-    assert!(result.unwrap_err().contains("Invalid JSONC"));
+    let result = ConfigDocument::load(&config);
+    assert!(result.err().unwrap().contains("Invalid JSONC"));
     assert_eq!(fs::read_to_string(config).unwrap(), "{ broken");
 }
 
@@ -201,7 +206,7 @@ fn slow_backend(dir: &Path) -> Backend {
     let executable = dir.join("fake-dprint");
     fs::write(&executable,"#!/usr/bin/env python3\nimport os,time,sys\nopen(os.path.join(os.path.dirname(__file__),'pid'),'w').write(str(os.getpid()))\nsys.stderr.write('x'*200000)\nsys.stderr.flush()\ntime.sleep(60)\n").unwrap();
     fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
-    Backend::new(executable, vec![])
+    Backend::new(executable, assets().1)
 }
 
 #[test]
@@ -271,12 +276,19 @@ fn changing_settings_never_mutates_source_buffer_or_file() {
     let first = backend
         .format(&input, Arc::new(AtomicBool::new(false)))
         .unwrap();
-    input.indent_width = 4;
-    input.semi_colons = "asi".into();
+    input = request(source, path.clone(), None, 4, "asi");
     let second = backend
         .format(&input, Arc::new(AtomicBool::new(false)))
         .unwrap();
     assert_ne!(first, second, "controls must change output");
+    input = request(source, path.clone(), None, 2, "always");
+    let restored = backend
+        .format(&input, Arc::new(AtomicBool::new(false)))
+        .unwrap();
+    assert_eq!(
+        first, restored,
+        "A-B-A must start from the identical original source"
+    );
     assert_eq!(input.source, source, "immutable source buffer");
     assert_eq!(
         fs::read_to_string(path).unwrap(),
@@ -364,7 +376,7 @@ fn child_receives_literal_argv_stdin_and_dedicated_cache_environment() {
     fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
     let path = PathBuf::from("literal file;$(do-not-run).ts");
     let source = "const text = 'literal $input';";
-    let result = Backend::new(executable, vec![])
+    let result = Backend::new(executable, assets().1)
         .format(
             &request(source, path.clone(), None, 2, "always"),
             Arc::new(AtomicBool::new(false)),
@@ -421,4 +433,95 @@ fn relative_source_paths_starting_with_dash_are_literal() {
             .unwrap();
         assert_eq!(output, "const x = 1;\n", "source path: {name}");
     }
+}
+
+#[test]
+fn queued_snapshot_ignores_later_config_edits_and_keeps_original_location() {
+    let (exe, plugins) = assets();
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().join("dprint.jsonc");
+    let text = serde_json::to_string(
+        &json!({"plugins": plugins, "typescript":{"quoteStyle":"preferSingle"}}),
+    )
+    .unwrap();
+    fs::write(&config, &text).unwrap();
+    let original_source = "function hello(){return \"unchanged\";}";
+    let queued = request(
+        original_source,
+        dir.path().join("input.ts"),
+        Some(config.clone()),
+        4,
+        "asi",
+    );
+    fs::write(&config, "{ broken external edit").unwrap();
+    let output = Backend::new(exe, plugins)
+        .format(&queued, Arc::new(AtomicBool::new(false)))
+        .unwrap();
+    assert!(output.contains("'unchanged'"));
+    assert!(output.contains("\n    return"));
+    assert_eq!(queued.source, original_source);
+    assert_eq!(
+        fs::read_to_string(config).unwrap(),
+        "{ broken external edit"
+    );
+    assert!(!fs::read_dir(dir.path()).unwrap().any(|entry| {
+        entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".codestyles-draft-")
+    }));
+}
+
+#[test]
+fn formatter_failure_retains_document_source_and_saved_state() {
+    let (exe, plugins) = assets();
+    let mut document = ConfigDocument::standalone(&plugins).unwrap();
+    document
+        .set(&["typescript", "semiColons"], json!("invalid-mode"))
+        .unwrap();
+    let draft = document.draft_text().to_owned();
+    let saved = document.saved_text().to_owned();
+    let request = FormatRequest {
+        source: "const x=1".into(),
+        source_path: "input.ts".into(),
+        config: document.snapshot(),
+    };
+    assert!(
+        Backend::new(exe, plugins)
+            .format(&request, Arc::new(AtomicBool::new(false)))
+            .is_err()
+    );
+    assert_eq!(request.source, "const x=1");
+    assert_eq!(document.draft_text(), draft);
+    assert_eq!(document.saved_text(), saved);
+    assert!(document.is_dirty());
+}
+
+#[test]
+fn standalone_export_is_portable_and_reopens_with_offline_bundled_preview() {
+    let (exe, plugins) = assets();
+    let backend = Backend::new(exe, plugins);
+    let mut document = backend.standalone_config().unwrap();
+    document.set(&["indentWidth"], json!(4)).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("dprint.jsonc");
+    document.save_as(&path).unwrap();
+    let exported = fs::read_to_string(&path).unwrap();
+    assert!(exported.contains("https://plugins.dprint.dev/typescript-0.96.1.wasm"));
+    assert!(exported.contains("https://plugins.dprint.dev/json-0.25.2.wasm"));
+    assert!(!exported.contains(env!("CARGO_MANIFEST_DIR")));
+    let reopened = ConfigDocument::load(&path).unwrap();
+    let snapshot = reopened.snapshot();
+    let request = FormatRequest {
+        source: "function hello(){return 1;}".into(),
+        source_path: dir.path().join("input.ts"),
+        config: snapshot,
+    };
+    let output = backend
+        .format(&request, Arc::new(AtomicBool::new(false)))
+        .unwrap();
+    assert!(output.contains("\n    return"));
+    assert_eq!(reopened.draft_text(), exported);
+    assert_eq!(fs::read_to_string(path).unwrap(), exported);
 }

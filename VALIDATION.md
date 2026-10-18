@@ -1,3 +1,44 @@
+# P1 validation — 2026-10-18
+
+## Executed on Linux x86-64
+
+- `cargo fmt --check` and `git diff --check`: passed.
+- `cargo test --locked --no-default-features`: 24 unit tests and 15 real-CLI
+  integration tests passed.
+- `cargo test --locked --bin codestyles`: 4 pure UI-state tests passed (schema
+  identity, stale-dialog guard, raw/invalid dirty state, revision-based freshness).
+- `cargo check --locked`, `cargo clippy --locked --all-targets -- -D warnings`,
+  and native debug `cargo build --locked`: passed.
+- Python integrity/packaging tests: 6 passed. Linux runtime bundle: 5 resources
+  verified without network access.
+- Fresh-cache parity run with unusable HTTP/HTTPS/ALL proxy settings passed,
+  including portable standalone export/reopen using bundled plugins offline.
+- CST coverage includes comments, untouched/unknown fields, Unicode boundaries,
+  explicit defaults versus deletion, duplicate-key and invalid-edit rollback.
+- Save coverage includes external modification/deletion, final-check conflicts,
+  temporary cleanup, canonical/symlink paths, permissions and no-clobber Save As.
+  Save-time validation covers runtime-compatible core indentation and confirmed
+  TypeScript semicolon values without assuming unknown plugin schemas.
+- Preview coverage retains six-language CLI parity, relative extends/configDir,
+  ancestor inherit, overrides, immutable queued config, A-B-A source stability,
+  revision cancellation, failure retention, timeout and close cleanup.
+
+## Scope and remaining boundaries
+
+P1 covers JSONC CST editing, saved/draft state, immutable queued configuration,
+project import/trust, raw editing and conflict-aware same-directory saves. It does
+not introduce a full schema-driven form or recursively snapshot inherited config
+and plugin files. Compare-before-replace cannot lock out unrelated external
+writers during the final filesystem race window. Window-close and the app-owned
+Quit action route through the dirty-draft guard. GPUI native OS/Dock/session
+termination can bypass that guard; unsaved drafts are not crash-persisted.
+
+No native display server is available in this environment. Interactive file
+pickers, trust/discard prompts, raw-editor focus and layout, and visual quality
+must be smoke-tested on a desktop. Compilation and headless tests do not establish
+that interactive acceptance. The six native CI lanes remain required for the P1
+commit; earlier P0 success is not evidence for new P1 platform builds.
+
 # P0 validation — 2026-10-18
 
 ## Executed on Linux x86-64
