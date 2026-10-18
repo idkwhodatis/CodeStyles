@@ -374,8 +374,11 @@ fn child_receives_literal_argv_stdin_and_dedicated_cache_environment() {
     assert_eq!(result["argv"][0], "fmt");
     assert_eq!(result["argv"][1], "--config-discovery=false");
     assert_eq!(result["argv"][2], "--config");
-    assert_eq!(result["argv"][4], "--stdin");
-    assert_eq!(result["argv"][5], path.to_string_lossy().as_ref());
+    assert_eq!(
+        result["argv"][4],
+        format!("--stdin={}", path.to_string_lossy())
+    );
+    assert_eq!(result["argv"].as_array().unwrap().len(), 5);
     assert_eq!(result["stdin"], source);
     let cache = PathBuf::from(result["cache"].as_str().unwrap());
     assert!(cache.is_dir());
@@ -403,4 +406,19 @@ fn verified_resource_bundle_formats_through_real_backend() {
         )
         .unwrap();
     assert_eq!(output, "function hello() {\n    return 1;\n}\n");
+}
+
+#[test]
+fn relative_source_paths_starting_with_dash_are_literal() {
+    let (exe, plugins) = assets();
+    let backend = Backend::new(exe, plugins);
+    for name in ["-sample.ts", "--help.ts", "--version.ts"] {
+        let output = backend
+            .format(
+                &request("const x=1", name.into(), None, 2, "always"),
+                Arc::new(AtomicBool::new(false)),
+            )
+            .unwrap();
+        assert_eq!(output, "const x = 1;\n", "source path: {name}");
+    }
 }

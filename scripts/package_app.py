@@ -24,5 +24,8 @@ with zipfile.ZipFile(args.output, 'a', compression=zipfile.ZIP_DEFLATED) as arch
     info.external_attr = 0o100755 << 16
     info.compress_type = zipfile.ZIP_DEFLATED
     archive.writestr(info, binary.read_bytes())
-    archive.write(ROOT / 'LICENSE', 'LICENSE')
+    info = zipfile.ZipInfo('LICENSE', date_time=(2020, 1, 1, 0, 0, 0))
+    info.external_attr = 0o100644 << 16
+    info.compress_type = zipfile.ZIP_DEFLATED
+    archive.writestr(info, (ROOT / 'LICENSE').read_bytes())
 print(f'Packaged {args.output}; no formatter downloads are needed at runtime.')

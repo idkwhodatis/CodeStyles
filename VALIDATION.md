@@ -28,11 +28,12 @@ pkg-config files/linker aliases. Validation used the dependency's supported
 
 - No display server is available: interactive window rendering, clicks, resize,
   closing, GPU behavior and visual quality have not been tested.
-- macOS/Windows native builds and GUI smoke tests have not run here. Their dprint
-  assets are checksum-verified only. The CI matrix is added but not run remotely.
+- macOS/Windows native builds did not run in this local environment; subsequent
+  six-target CI builds are recorded below. Interactive GUI smoke tests remain unrun.
 - The original local pass did not execute Linux ARM64. The expanded six-target
   native CI matrix and Linux ARM64 resource support were added afterward.
-- Release optimization, signed installers and notarization are not covered.
+- Local validation used a debug build; CI subsequently built release packages.
+  Signed installers and notarization are not covered.
 - Project loading is a backend capability, not a P0 UI feature. A project's config
   is read when its queued job starts, not snapshotted at submission; external edits
   during debounce are not isolated. Standalone UI request values/source are copied.
@@ -47,3 +48,15 @@ Linux x64, macOS ARM64 and Windows x64 at commit 48705c5.
 The expanded matrix additionally targets Linux ARM64, macOS x64 and Windows ARM64;
 check the current commit’s run before treating those lanes as validated.
 All lanes execute natively with an explicitly asserted Rust host triple.
+
+## Six-target CI and review follow-up
+
+Run [39095107565](https://github.com/idkwhodatis/CodeStyles/actions/runs/39095107565)
+passed all six native OS/architecture lanes at commit
+`2cce371b67552e29bfe343d47b67d553bb59f3b4`, including release packaging.
+This is build/backend evidence, not interactive GUI acceptance.
+
+The next review pass fixed literal leading-dash source paths in formatter argv,
+cleanup of interrupted resource downloads, and deterministic license metadata in
+portable packages. Archive member names use forward slashes on every build host.
+Regression tests exercise these cases without downloading untrusted executables.

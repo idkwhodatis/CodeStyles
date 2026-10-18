@@ -67,13 +67,16 @@ impl Backend {
             command.creation_flags(0x08000000); // CREATE_NO_WINDOW
         }
         command.env("DPRINT_CACHE_DIR", &cache);
+        // Keep the path within one option value so names starting with a dash
+        // cannot be interpreted as CLI flags. OsString preserves native paths.
+        let mut stdin_path = std::ffi::OsString::from("--stdin=");
+        stdin_path.push(&request.source_path);
         command
             .arg("fmt")
             .arg("--config-discovery=false")
             .arg("--config")
             .arg(draft.path())
-            .arg("--stdin")
-            .arg(&request.source_path)
+            .arg(stdin_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());

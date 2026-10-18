@@ -39,15 +39,17 @@ def fetch(artifacts):
         if not path.exists():
             print(f'Downloading {entry["url"]}', flush=True)
             request = urllib.request.Request(entry['url'], headers={'User-Agent': 'CodeStyles-resource-bundler'})
-            with urllib.request.urlopen(request, timeout=180) as response:
-                with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temp:
-                    temporary = Path(temp.name)
-                    shutil.copyfileobj(response, temp)
+            temporary = None
             try:
+                with urllib.request.urlopen(request, timeout=180) as response:
+                    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temp:
+                        temporary = Path(temp.name)
+                        shutil.copyfileobj(response, temp)
                 verify(temporary, entry)
                 temporary.replace(path)
             finally:
-                temporary.unlink(missing_ok=True)
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
         verify(path, entry)
         if entry['kind'] == 'executable-archive':
             executable = entry['executable']
@@ -90,7 +92,7 @@ def main():
             # Fixed timestamps and permissions make byte-identical packages.
             with zipfile.ZipFile(args.output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
                 names = [f['path'] for f in files] + ['manifest.json', 'README.md', 'THIRD_PARTY_NOTICES.md']
-                names += [str(p.relative_to(RESOURCES)) for p in (RESOURCES / 'licenses').glob('*')]
+                names += [p.relative_to(RESOURCES).as_posix() for p in (RESOURCES / 'licenses').glob('*')]
                 for name in sorted(names):
                     info = zipfile.ZipInfo('resources/' + name, date_time=(2020, 1, 1, 0, 0, 0))
                     mode = 0o755 if name.startswith('bin/') else 0o644
