@@ -1,10 +1,33 @@
 # CodeStyles
 
 Native, offline-first code-style preview using Rust, GPUI Kit **0.7.3** and the
-bundled **dprint 0.63.0** executable. This is the deliberately small P0 vertical
-slice, not a full configuration editor.
+bundled **dprint 0.63.0** executable. P1 adds a comment-preserving configuration editor to the small P0 vertical
+slice; full schema-driven forms remain later work.
 
-## P0
+## P1 configuration workflow
+
+- Open a local JSONC config, inspect its raw draft, explicitly trust it, then preview.
+- Saved text, editable draft and immutable sample source stay separate. Setting edits
+  use the JSONC concrete syntax tree, preserving comments and unknown fields.
+- Indentation and semicolon controls support removing a property (inherit/default)
+  separately from writing an explicit value. Existing plugin references stay intact.
+- Every queued preview owns its exact config text. External edits during debounce
+  cannot change that job. Referenced extends/plugin files are still resolved by
+  dprint at execution time, not recursively snapshotted.
+- Save validates JSONC, the editable core option and confirmed-version semicolon
+  values. Unknown plugin schemas remain raw-editable; this is not full schema validation.
+- Save checks disk contents against the loaded baseline and refuses observed
+  external changes. It writes a synced same-directory temporary file and atomically
+  replaces the selected file. This is a compare-before-replace guard, not an editor
+  lock: an external writer can still race the final check and replacement.
+- Standalone drafts/export use pinned standard plugin URLs, never installation-
+  specific paths. Preview alone maps those exact versions to verified bundled WASM;
+  imported and saved text keeps its original references.
+- Save As creates a new destination only. It never overwrites an unrelated existing
+  file. Relative references retain their text, so moving folders can change their
+  resolution; preview uses the new location after saving.
+
+## Preview foundation
 
 - Native window with indentation (2/4 spaces) and TypeScript semicolon controls.
 - Immutable TS/JS/TSX/JSX/JSON/JSONC samples beside formatted output.
@@ -17,15 +40,13 @@ slice, not a full configuration editor.
   The released application never downloads a formatter at startup.
 - Draft project configuration is a unique, non-discoverable file beside the
   original config. Relative `extends`, ancestor `inherit: true`, `${configDir}` and plugin overrides are
-  interpreted by dprint itself; original config/source files are never written.
+  interpreted by dprint itself. Editing and preview never write original config or
+  source files; explicit Save writes the configuration only.
 
-Project configuration loading is backend-only in P0. The UI uses standalone
-samples; file pickers, saving/export, schema-driven forms and project management
-are later work. Preview supports local configuration files, not remote config URLs. Actual project source paths should be absolute; relative paths retain
-dprint CLI working-directory semantics. The backend reads a project configuration
-when its queued job starts, not when it is submitted. P0 does not yet snapshot
-external configuration edits during debounce; the standalone UI has no external
-config file and its setting values are copied into each request.
+Project preview supports local configuration files, not remote config URLs. The
+selected config may itself contain remote references. Sample source paths for an
+imported project are placed beside that config to exercise its path semantics.
+Original project source files are never written.
 
 ## Build and run
 
@@ -65,7 +86,7 @@ python3 scripts/package_app.py --target x86_64-unknown-linux-gnu --output dist/c
 ```
 
 Extract the whole ZIP, preserving executable permissions, and run `codestyles`.
-The portable P0 ZIP is unsigned; native installers/signing are outside this slice.
+The portable ZIP is unsigned; native installers/signing are outside this slice.
 
 ## Verification
 
@@ -74,6 +95,7 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 python3 scripts/bundle_resources.py verify --target x86_64-unknown-linux-gnu
 cargo fmt --check
 cargo test --locked --no-default-features
+cargo test --locked --bin codestyles
 cargo check --locked
 ```
 
@@ -87,11 +109,19 @@ not evidence those builds or interactive GUI smoke tests have passed.
 
 ## Boundaries
 
-Opening an existing project configuration can make dprint resolve that config's
-plugins/extends, including remote references. The standalone P0 UI uses only the
-bundled plugins. Only load project configs you trust. P0 does not sandbox arbitrary
-third-party process plugins. A read-only project directory produces a clear error
-rather than relocating the draft and silently changing path semantics.
+Opening a project config only reads it. Previewing requires an explicit trust
+action: dprint may resolve remote extends/plugins and execute process plugins.
+Trust is not sandboxing. Raw configuration changes require renewed trust. Only
+standalone/reopened configs using the exact bundled pinned plugins without external
+references are guaranteed offline. Unknown plugin versions
+are retained; the minimal plugin-specific controls are disabled for unsupported
+references and inherited configurations. Raw JSONC editing remains available.
+A read-only project directory produces a clear error rather than relocating the
+draft and silently changing relative path semantics.
+
+Window-close and the app-owned Quit menu/shortcut ask before discarding unsaved
+drafts, including invalid raw text. OS/Dock/session termination can bypass the
+framework close guard; drafts are not crash-persisted. Save important edits first.
 
 See [resources/README.md](resources/README.md) for resource provenance and
 [third-party notices](resources/THIRD_PARTY_NOTICES.md).

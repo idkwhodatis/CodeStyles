@@ -84,11 +84,20 @@ impl PreviewController {
         }
     }
 
-    pub fn submit(&mut self, request: FormatRequest) -> u64 {
+    /// Invalidate queued and running work when switching documents or revoking trust.
+    pub fn cancel(&mut self) -> u64 {
         if let Some(cancelled) = self.cancellation.take() {
             cancelled.store(true, Ordering::Release);
         }
         self.revision += 1;
+        let (lock, wake) = &*self.state;
+        lock.lock().unwrap().pending = None;
+        wake.notify_one();
+        self.revision
+    }
+
+    pub fn submit(&mut self, request: FormatRequest) -> u64 {
+        self.cancel();
         let cancelled = Arc::new(AtomicBool::new(false));
         self.cancellation = Some(cancelled.clone());
         let (lock, wake) = &*self.state;
@@ -134,9 +143,9 @@ mod tests {
         FormatRequest {
             source: source.into(),
             source_path: "sample.ts".into(),
-            config_path: None,
-            indent_width: 2,
-            semi_colons: "always".into(),
+            config: crate::config::ConfigDocument::standalone(&[])
+                .unwrap()
+                .snapshot(),
         }
     }
     #[test]
@@ -185,5 +194,73 @@ mod tests {
             assert!(Instant::now() < deadline);
             thread::sleep(Duration::from_millis(10));
         }
+    }
+    #[test]
+    fn rapid_revisions_only_publish_latest_snapshot() {
+        let mut preview =
+            PreviewController::with_formatter(|req, _| Ok(req.config.source_text().to_owned()));
+        let mut document = crate::config::ConfigDocument::standalone(&[]).unwrap();
+        for width in 1..=16 {
+            document
+                .set(&["indentWidth"], serde_json::json!(width))
+                .unwrap();
+            let mut input = request("same original source");
+            input.config = document.snapshot();
+            preview.submit(input);
+        }
+        let expected = document.draft_text().to_owned();
+        document
+            .set(&["indentWidth"], serde_json::json!(2))
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            if let Some(result) = preview.poll() {
+                assert_eq!(result.revision, 16);
+                assert_eq!(result.result.unwrap(), expected);
+                break;
+            }
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    #[test]
+    fn closing_cancels_and_joins_running_work() {
+        let (started_tx, started_rx) = mpsc::channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let worker_stopped = stopped.clone();
+        let mut preview = PreviewController::with_formatter(move |_, cancelled| {
+            started_tx.send(()).unwrap();
+            while !cancelled.load(Ordering::Acquire) {
+                thread::sleep(Duration::from_millis(1));
+            }
+            worker_stopped.store(true, Ordering::Release);
+            Err("cancelled".into())
+        });
+        preview.submit(request("original"));
+        started_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        drop(preview);
+        assert!(stopped.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn cancel_invalidates_already_completed_results_and_queued_jobs() {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let captured = calls.clone();
+        let (finished_tx, finished_rx) = mpsc::channel();
+        let mut preview = PreviewController::with_formatter(move |_, _| {
+            captured.fetch_add(1, Ordering::Relaxed);
+            finished_tx.send(()).unwrap();
+            Ok("old output".into())
+        });
+        preview.submit(request("old"));
+        finished_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        preview.cancel();
+        assert!(preview.poll().is_none());
+        preview.submit(request("queued"));
+        preview.cancel();
+        thread::sleep(Duration::from_millis(200));
+        assert!(preview.poll().is_none());
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
     }
 }
