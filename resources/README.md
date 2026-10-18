@@ -17,13 +17,13 @@ python3 scripts/bundle_resources.py verify --target x86_64-unknown-linux-gnu
 python3 scripts/bundle_resources.py package --target x86_64-unknown-linux-gnu --output dist/offline-resources-linux-x64.zip
 ```
 
-Omit `--target` on fetch or verify for all five platforms. `verify` and `package`
+Omit `--target` on fetch or verify for all six platforms. `verify` and `package`
 never access the network; missing or modified resources cause a hard failure.
 `fetch` never updates the pinned manifest. Updates require explicitly reviewing
 a new official release and regenerating reviewed hashes. ZIPs have fixed
 metadata for reproducible packaging. This script packages formatter resources,
 not the application UI or executable; application packaging must include them.
 
-Supported resource targets: Linux x64 GNU, macOS arm64/x64, Windows arm64/x64.
+Supported resource targets: Linux x64/ARM64 GNU, macOS arm64/x64, Windows arm64/x64.
 Only Linux x64 is executed during this build; other binaries are checksum-
 verified official release artifacts, not claimed as runtime-tested.

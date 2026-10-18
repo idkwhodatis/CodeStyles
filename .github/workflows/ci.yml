@@ -16,17 +16,28 @@ jobs:
         include:
           - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
-          - os: macos-14
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
             target: aarch64-apple-darwin
-          - os: windows-latest
+          - os: windows-2025
             target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.1-${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.99.1
+          toolchain: 1.99.1-${{ matrix.target }}
           components: rustfmt, clippy
+      - name: Verify native Rust host
+        run: |
+          python -c "import subprocess; host=subprocess.check_output(['rustc', '-vV'], text=True); print(host); assert 'host: ${{ matrix.target }}' in host"
       - name: Linux native build dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential clang cmake libasound2-dev libfontconfig1-dev libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libvulkan-dev libssl-dev libzstd-dev

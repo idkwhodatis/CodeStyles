@@ -19,6 +19,8 @@ fn assets() -> (PathBuf, Vec<PathBuf>) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
     let target = if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
         "x86_64-unknown-linux-gnu"
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        "aarch64-unknown-linux-gnu"
     } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         "aarch64-apple-darwin"
     } else if cfg!(target_os = "macos") {

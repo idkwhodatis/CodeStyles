@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for resource integrity and zip reproducibility."""
 import hashlib
+import json
 import importlib.util
 from pathlib import Path
 import subprocess
@@ -14,6 +15,20 @@ SPEC.loader.exec_module(bundle)
 
 
 class IntegrityTests(unittest.TestCase):
+    def test_manifest_has_all_six_native_targets(self):
+        manifest = json.loads((bundle.RESOURCES / "manifest.json").read_text())
+        expected = {f"{arch}-{platform}" for arch in ("x86_64", "aarch64")
+                    for platform in ("apple-darwin", "pc-windows-msvc", "unknown-linux-gnu")}
+        actual = {a["target"] for a in manifest["artifacts"] if "target" in a}
+        self.assertEqual(actual, expected)
+        for target in expected:
+            selected = bundle.selected(manifest, target)
+            executables = [a for a in selected if a["kind"] == "executable-archive"]
+            self.assertEqual(len(executables), 1)
+            record = executables[0]["executable"]
+            self.assertTrue(any(f["path"] == record["path"] and f["sha256"] == record["sha256"]
+                                for f in manifest["files"]))
+
     def test_valid_and_corrupt_resources(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'resource'

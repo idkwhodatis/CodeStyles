@@ -30,10 +30,20 @@ pkg-config files/linker aliases. Validation used the dependency's supported
   closing, GPU behavior and visual quality have not been tested.
 - macOS/Windows native builds and GUI smoke tests have not run here. Their dprint
   assets are checksum-verified only. The CI matrix is added but not run remotely.
-- Linux ARM64 is not bundled in this P0.
+- The original local pass did not execute Linux ARM64. The expanded six-target
+  native CI matrix and Linux ARM64 resource support were added afterward.
 - Release optimization, signed installers and notarization are not covered.
 - Project loading is a backend capability, not a P0 UI feature. A project's config
   is read when its queued job starts, not snapshotted at submission; external edits
   during debounce are not isolated. Standalone UI request values/source are copied.
 - Existing project configs may resolve their own remote extends/plugins. Only the
   standalone first-preview path is guaranteed to use bundled local resources.
+
+## CI follow-up
+
+Run [39093760140](https://github.com/idkwhodatis/CodeStyles/actions/runs/39093760140)
+passed backend tests, desktop checks, clippy, release builds and package upload on
+Linux x64, macOS ARM64 and Windows x64 at commit 48705c5.
+The expanded matrix additionally targets Linux ARM64, macOS x64 and Windows ARM64;
+check the current commit’s run before treating those lanes as validated.
+All lanes execute natively with an explicitly asserted Rust host triple.

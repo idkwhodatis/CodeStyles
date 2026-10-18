@@ -39,6 +39,22 @@
       }
     },
     {
+      "path": "archives/dprint-aarch64-unknown-linux-gnu.zip",
+      "kind": "executable-archive",
+      "repository": "dprint/dprint",
+      "version": "0.63.0",
+      "url": "https://github.com/dprint/dprint/releases/download/0.63.0/dprint-aarch64-unknown-linux-gnu.zip",
+      "sha256": "8dfbf17fc4be97020e51bd47e1370acdb019301295ed539840016671cab33e89",
+      "bytes": 8868356,
+      "release_url": "https://github.com/dprint/dprint/releases/tag/0.63.0",
+      "target": "aarch64-unknown-linux-gnu",
+      "executable": {
+        "path": "bin/aarch64-unknown-linux-gnu/dprint",
+        "sha256": "436b11b1a0b5a73c53869514627396055d4dc8e7c2d4f1fc5e8811d6c700d2fa",
+        "bytes": 22065984
+      }
+    },
+    {
       "path": "archives/dprint-x86_64-apple-darwin.zip",
       "kind": "executable-archive",
       "repository": "dprint/dprint",
@@ -195,6 +211,14 @@
       "bytes": 5389,
       "kind": "schema",
       "version": "0.25.2"
+    },
+    {
+      "path": "bin/aarch64-unknown-linux-gnu/dprint",
+      "sha256": "436b11b1a0b5a73c53869514627396055d4dc8e7c2d4f1fc5e8811d6c700d2fa",
+      "bytes": 22065984,
+      "kind": "executable",
+      "target": "aarch64-unknown-linux-gnu",
+      "version": "0.63.0"
     }
   ]
 }

@@ -41,9 +41,10 @@ python3 scripts/bundle_resources.py verify --target x86_64-unknown-linux-gnu
 cargo run --locked
 ```
 
-Other bundled targets: `aarch64-apple-darwin`, `x86_64-apple-darwin`,
+Other bundled targets: `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-apple-darwin`,
 `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc`. Build on the corresponding
-native OS/architecture. Linux ARM is not included in P0.
+native OS/architecture. Linux ARM64 is included. All six CI lanes use native hosted runners; each
+asserts its Rust host triple before executing tests and building its package.
 
 `fetch` is a build-time operation from pinned official sources. Binaries and ZIP
 archives are ignored by Git; WASM, schemas, manifest and licenses are committed.
@@ -81,7 +82,7 @@ bytes with explicitly saved CLI configurations, including relative `extends`, an
 configDir and per-file overrides. It also tests source/config preservation,
 cleanup, invalid configuration, timeout, full pipes and cancellation. GUI tests
 require a working native display/GPU and are distinct from headless backend tests.
-The CI matrix builds Linux, macOS and Windows packages; a workflow definition is
+The CI matrix builds both x64 and ARM64 Linux, macOS and Windows packages; a workflow definition is
 not evidence those builds or interactive GUI smoke tests have passed.
 
 ## Boundaries
@@ -94,3 +95,12 @@ rather than relocating the draft and silently changing path semantics.
 
 See [resources/README.md](resources/README.md) for resource provenance and
 [third-party notices](resources/THIRD_PARTY_NOTICES.md).
+
+## CI runner selection
+
+The six native runners are `ubuntu-24.04`, `ubuntu-24.04-arm`,
+`macos-15-intel`, `macos-15`, `windows-2025` and `windows-11-arm`.
+These are standard [GitHub-hosted runner labels](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), not self-hosted hardware or paid larger
+runners. macOS 15 follows GPUI Kit’s documented minimum. Every lane runs the
+actual target dprint in the parity suite; none is a cross-compile-only claim.
+Workflow success still does not prove interactive GUI behavior.
