@@ -1,41 +1,42 @@
-//! Native P1 configuration editing. Formatting and debounce live off the UI thread.
+//! Native P2 schema-driven style editing. Formatting and debounce live off the UI thread.
 use std::{path::PathBuf, time::Duration};
 
 use codestyles::{
-    backend::FormatRequest, config::ConfigDocument, preview::PreviewController, resources,
+    backend::FormatRequest,
+    comparison::{BuiltinSample, DiffKind, SourceLanguage, SourceState, line_diff},
+    config::ConfigDocument,
+    preview::PreviewController,
+    resources,
+    schema::{FieldKind, PinnedPlugin, SchemaCatalog, SchemaField},
 };
 use gpui_kit::{
     component::{
-        Disableable, Selectable,
+        ActiveTheme, Disableable, Selectable, Theme, ThemeMode,
         button::Button,
-        input::{InputEvent, Textarea, TextareaState},
+        input::{Input, InputEvent, InputState, Textarea, TextareaState},
     },
     prelude::*,
     *,
 };
 use serde_json::Value;
 
-// These inputs never get replaced by formatted output: changing a setting always
-// reformats the same original source, so comparisons do not accumulate changes.
-const SCRIPT: &str = "const preferences={theme:\"dark\",tabs:[\"source\",\"preview\"]};\nfunction greet(name){\nif(name){\nreturn {message:`Hello, ${name}!`,settings:preferences};\n}\nreturn null;\n}\nconsole.log(greet(\"CodeStyles\"));\n";
-const TYPESCRIPT: &str = "type User={name:string;active:boolean};\nconst users:User[]=[{name:\"Ada\",active:true},{name:\"Lin\",active:false}];\nfunction activeNames(items:User[]){\nreturn items.filter(user=>user.active).map(user=>{\nreturn user.name;\n});\n}\nconsole.log(activeNames(users));\n";
-const JSX: &str = "const items=[\"Source\",\"Preview\"];\nexport function App(){\nreturn <main><h1>CodeStyles</h1><ul>{items.map(item=><li key={item}>{item}</li>)}</ul></main>;\n}\n";
-const JSON: &str = "{\"name\":\"CodeStyles\",\"preview\":{\"enabled\":true,\"languages\":[\"TypeScript\",\"JSON\"]}}\n";
-const JSONC: &str = "{\n// Formatting preferences\n\"name\":\"CodeStyles\",\"preview\":{\"enabled\":true,\"languages\":[\"TypeScript\",\"JSON\"],},\n}\n";
-const SAMPLES: &[(&str, &str, &str)] = &[
-    ("TS", "sample.ts", TYPESCRIPT),
-    ("JS", "sample.js", SCRIPT),
-    ("TSX", "sample.tsx", JSX),
-    ("JSX", "sample.jsx", JSX),
-    ("JSON", "sample.json", JSON),
-    ("JSONC", "sample.jsonc", JSONC),
-];
-
 pub struct PreviewWindow {
     controller: Option<PreviewController>,
     document: Option<ConfigDocument>,
     // Only the checksummed bundle's exact plugin references have a known schema.
-    known_plugins: Vec<String>,
+    schema: Result<SchemaCatalog, String>,
+    source: SourceState,
+    source_editor: Option<Entity<TextareaState>>,
+    search_editor: Option<Entity<InputState>>,
+    field_editor: Option<Entity<InputState>>,
+    field_draft: FieldDraft,
+    subscriptions: Vec<Subscription>,
+    selected_field: Option<String>,
+    group: String,
+    search: String,
+    diff_mode: bool,
+    baseline: Option<String>,
+    baseline_error: Option<String>,
     trusted: bool,
     document_version: u64,
     dialog_pending: bool,
@@ -44,10 +45,11 @@ pub struct PreviewWindow {
     editor_subscription: Option<Subscription>,
     raw_dirty: bool,
     show_config: bool,
-    sample: usize,
+    show_saved: bool,
+
     revision: u64,
     output: String,
-    last_success: Option<(usize, u64)>,
+    last_success: Option<u64>,
     status: String,
     error: bool,
     pending: bool,
@@ -67,18 +69,22 @@ impl PreviewWindow {
             },
             Err(error) => (None, None, format!("Backend unavailable: {error}"), true),
         };
-        let known_plugins = document
-            .as_ref()
-            .and_then(|doc| doc.value(&["plugins"]).ok().flatten())
-            .and_then(|value| value.as_array().cloned())
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|value| value.as_str().map(str::to_owned))
-            .collect();
         let mut view = Self {
             controller,
             document,
-            known_plugins,
+            schema: SchemaCatalog::bundled(),
+            source: SourceState::default(),
+            source_editor: None,
+            search_editor: None,
+            field_editor: None,
+            field_draft: FieldDraft::default(),
+            subscriptions: Vec::new(),
+            selected_field: None,
+            group: "All".into(),
+            search: String::new(),
+            diff_mode: false,
+            baseline: None,
+            baseline_error: None,
             trusted: true,
             document_version: 0,
             dialog_pending: false,
@@ -87,7 +93,7 @@ impl PreviewWindow {
             editor_subscription: None,
             raw_dirty: false,
             show_config: false,
-            sample: 0,
+            show_saved: false,
             revision: 0,
             output: String::new(),
             last_success: None,
@@ -115,10 +121,18 @@ impl PreviewWindow {
                     match result.result {
                         Ok(output) => {
                             view.output = output;
-                            view.last_success = Some((view.sample, result.revision));
+                            view.last_success = Some(result.revision);
+                            view.baseline = None;
+                            view.baseline_error = None;
+                            match result.baseline_result {
+                                Some(Ok(text)) => view.baseline = Some(text),
+                                Some(Err(error)) => view.baseline_error = Some(error),
+                                None => {}
+                            }
                             view.status = format!(
                                 "Formatted {} · draft revision {}",
-                                SAMPLES[view.sample].1, result.revision
+                                view.source.source_path(),
+                                result.revision
                             );
                             view.error = false;
                         }
@@ -133,7 +147,7 @@ impl PreviewWindow {
     }
 
     pub fn should_close(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        if !self.dirty() {
+        if !self.dirty() && self.source.custom_source().is_none() {
             return true;
         }
         if self.dialog_pending {
@@ -143,8 +157,8 @@ impl PreviewWindow {
         let version = self.document_version;
         let confirmation = window.prompt(
             PromptLevel::Warning,
-            "Close without saving your configuration changes?",
-            Some("Unsaved draft changes and unapplied raw text, including invalid JSONC, will be lost. Cancel to return to your draft."),
+            "Close and discard unsaved work?",
+            Some("Unsaved configuration changes, unapplied setting values, raw text, and custom source text will be lost. Cancel to return to your draft."),
             &["Cancel", "Discard changes and close"], cx,
         );
         cx.spawn_in(window, async move |this, cx| {
@@ -172,7 +186,7 @@ impl PreviewWindow {
     fn dirty(&self) -> bool {
         has_unsaved_changes(
             self.document.as_ref().is_some_and(ConfigDocument::is_dirty),
-            self.raw_dirty,
+            self.raw_dirty || self.field_draft.is_dirty(),
         )
     }
 
@@ -201,16 +215,20 @@ impl PreviewWindow {
         else {
             return;
         };
-        let (_, path, source) = SAMPLES[self.sample];
-        self.revision = controller.submit(FormatRequest {
-            source: source.to_owned(),
-            source_path: document
-                .path()
-                .and_then(|path| path.parent())
-                .map(|parent| parent.join(path))
-                .unwrap_or_else(|| PathBuf::from(path)),
-            config: document.snapshot(),
-        });
+        let path = self.source.source_path();
+        let source = self.source.source();
+        self.revision = controller.submit_comparison(
+            FormatRequest {
+                source: source.to_owned(),
+                source_path: document
+                    .path()
+                    .and_then(|path| path.parent())
+                    .map(|parent| parent.join(path))
+                    .unwrap_or_else(|| PathBuf::from(path)),
+                config: document.snapshot(),
+            },
+            document.saved_snapshot(),
+        );
         self.pending = true;
         self.error = false;
         self.status = "Updating preview from the current draft…".into();
@@ -265,28 +283,6 @@ impl PreviewWindow {
         self.raw_dirty = false;
     }
 
-    fn setting(&self, path: &[&str]) -> Option<Value> {
-        self.document.as_ref()?.value(path).ok().flatten()
-    }
-
-    fn known_typescript_schema(&self) -> bool {
-        let Some(document) = self.document.as_ref() else {
-            return false;
-        };
-        let (Ok(plugins), Ok(extends), Ok(inherit)) = (
-            document.value(&["plugins"]),
-            document.value(&["extends"]),
-            document.value(&["inherit"]),
-        ) else {
-            return false;
-        };
-        has_known_typescript_schema(
-            plugins,
-            extends.is_some() || inherit.is_some_and(|value| value != Value::Bool(false)),
-            &self.known_plugins,
-        )
-    }
-
     fn change_setting(
         &mut self,
         path: &[&str],
@@ -321,8 +317,8 @@ impl PreviewWindow {
         cx.notify();
     }
 
-    fn apply_raw(&mut self, cx: &mut Context<Self>) {
-        if !self.raw_dirty {
+    fn apply_raw(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.raw_dirty || !self.allow_field_transition(cx) {
             return;
         }
         let (Some(editor), Some(document)) = (&self.editor, &mut self.document) else {
@@ -332,6 +328,7 @@ impl PreviewWindow {
         match document.replace_draft_text(&text) {
             Ok(()) => {
                 self.raw_dirty = false;
+                self.sync_field(window, cx);
                 self.document_version += 1;
                 // Raw edits can introduce or replace process plugins and extends.
                 self.trusted = false;
@@ -355,7 +352,7 @@ impl PreviewWindow {
             let confirmation = window.prompt(
                 PromptLevel::Warning,
                 "Open another configuration?",
-                Some("Your unsaved changes will be discarded only after another configuration opens successfully."),
+                Some("Your unsaved configuration and pending setting/raw input will be discarded only after another configuration opens successfully. Custom source is kept."),
                 &["Cancel", "Choose file and discard changes"], cx,
             );
             cx.spawn_in(window, async move |this, cx| {
@@ -417,6 +414,10 @@ impl PreviewWindow {
                                 this.output.clear();
                                 this.last_success = None;
                                 this.show_config = true;
+                                this.selected_field = None;
+                                this.sync_field(window, cx);
+                                this.baseline = None;
+                                this.baseline_error = None;
                                 this.sync_editor(window, cx);
                                 this.status = "Configuration imported for review. Preview is paused until you explicitly trust it.".into();
                                 this.error = false;
@@ -438,8 +439,8 @@ impl PreviewWindow {
         let version = self.document_version;
         let confirmation = window.prompt(
             PromptLevel::Warning,
-            "Trust this configuration and run its plugins?",
-            Some("dprint may resolve extends and plugins over the network. Process plugins can execute programs with your account's permissions. Only trust configuration and plugin sources you have reviewed. Trust applies to this open draft; raw edits and Save As require another review."),
+            "Trust the draft and saved baseline configurations?",
+            Some("dprint may resolve extends and plugins over the network. Process plugins can execute programs with your account's permissions. Preview and Diff run both the current draft and the original saved baseline. Only trust both configurations and plugin sources you have reviewed. Trust applies to this pair; raw edits and Save As require another review."),
             &["Keep preview paused", "Trust and preview"], cx,
         );
         cx.spawn_in(window, async move |this, cx| {
@@ -483,8 +484,20 @@ impl PreviewWindow {
         cx.notify();
     }
 
-    fn save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.raw_dirty || self.dialog_pending {
+    fn validate_for_save(&self) -> Result<(), String> {
+        if let (Ok(schema), Some(document)) = (&self.schema, &self.document) {
+            schema.validate_document(document)?;
+        }
+        Ok(())
+    }
+
+    pub fn save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.raw_dirty || self.field_draft.is_dirty() || self.dialog_pending {
+            return;
+        }
+        if let Err(error) = self.validate_for_save() {
+            self.fail(format!("Save validation failed: {error}"));
+            cx.notify();
             return;
         }
         let Some(document) = self.document.as_mut() else {
@@ -500,6 +513,7 @@ impl PreviewWindow {
                 self.disk_warning = None;
                 self.status = "Configuration saved atomically. Draft and saved file match.".into();
                 self.error = false;
+                self.request_preview(cx);
             }
             Err(error) => self.fail(format!("Save failed; your draft is kept: {error}")),
         }
@@ -507,7 +521,16 @@ impl PreviewWindow {
     }
 
     fn save_as(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.raw_dirty || self.dialog_pending || self.document.is_none() {
+        if self.raw_dirty
+            || self.field_draft.is_dirty()
+            || self.dialog_pending
+            || self.document.is_none()
+        {
+            return;
+        }
+        if let Err(error) = self.validate_for_save() {
+            self.fail(format!("Save validation failed: {error}"));
+            cx.notify();
             return;
         }
         let document = self.document.as_ref().unwrap();
@@ -551,6 +574,7 @@ impl PreviewWindow {
                                         "Configuration saved. Draft and saved file match.".into()
                                     };
                                     this.error = false;
+                                    if !moved { this.request_preview(cx); }
                                 }
                                 Err(error) => this.fail(format!("Save As failed; your draft is kept: {error}")),
                             }
@@ -576,48 +600,536 @@ fn dialog_is_current(opened_version: u64, current_version: u64) -> bool {
     opened_version == current_version
 }
 
-// Preview freshness is independent of the last file-operation message. A
-// successful Save or Check disk cannot make an earlier failed preview current.
-fn preview_is_current(
-    result_sample: usize,
-    result_revision: u64,
-    sample: usize,
-    revision: u64,
-) -> bool {
-    result_sample == sample && result_revision == revision
-}
-
-fn has_known_typescript_schema(
-    plugins: Option<Value>,
-    inherits: bool,
-    known_plugins: &[String],
-) -> bool {
-    if inherits {
-        return false;
+impl PreviewWindow {
+    fn plugin(&self) -> PinnedPlugin {
+        if self.source.language().is_json() {
+            PinnedPlugin::Json
+        } else {
+            PinnedPlugin::TypeScript
+        }
     }
-    let Some(Value::Array(plugins)) = plugins else {
-        return false;
-    };
-    let mut typescript = false;
-    for plugin in plugins {
-        let Some(plugin) = plugin.as_str() else {
-            return false;
+
+    fn selected_schema_field(&self) -> Option<SchemaField> {
+        self.schema
+            .as_ref()
+            .ok()?
+            .fields(self.plugin())
+            .iter()
+            .find(|field| Some(&field.name) == self.selected_field.as_ref())
+            .cloned()
+    }
+
+    fn ensure_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.source_editor.is_some() {
+            return;
+        }
+        let source = self.source.source().to_owned();
+        let editor = cx.new(|cx| {
+            let mut state = TextareaState::new(window, cx);
+            state.set_value(source, window, cx);
+            state
+        });
+        self.subscriptions
+            .push(cx.subscribe(&editor, |this, editor, event, cx| {
+                if matches!(event, InputEvent::Change) && this.source.is_custom() {
+                    let text = editor.read(cx).value().to_string();
+                    if text != this.source.source() {
+                        this.source.set_custom_source(text);
+                        this.document_version += 1;
+                        this.request_preview(cx);
+                    }
+                }
+            }));
+        self.source_editor = Some(editor);
+        let search = cx.new(|cx| {
+            InputState::new(window, cx).placeholder("Search settings (Ctrl/Cmd+Shift+F)…")
+        });
+        self.subscriptions
+            .push(cx.subscribe(&search, |this, editor, event, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.search = editor.read(cx).value().to_string();
+                    cx.notify();
+                }
+            }));
+        self.search_editor = Some(search);
+        let field = cx.new(|cx| InputState::new(window, cx).placeholder("Explicit value"));
+        self.subscriptions.push(
+            cx.subscribe_in(&field, window, |this, editor, event, window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    let text = editor.read(cx).value().to_string();
+                    if text != this.field_draft.text {
+                        this.field_draft.text = text; this.document_version += 1;
+                        this.status = if this.field_draft.is_dirty() { "Value input is not applied. Apply or discard it before saving or changing settings.".into() } else { "Value input matches the draft.".into() };
+                        cx.notify();
+                    }
+                }
+                if matches!(event, InputEvent::PressEnter { .. }) {
+                    this.apply_field(window, cx);
+                }
+            }),
+        );
+        self.field_editor = Some(field);
+    }
+
+    fn sync_source(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(editor) = &self.source_editor {
+            let text = self.source.source().to_owned();
+            if editor.read(cx).value().as_ref() != text {
+                editor.update(cx, |editor, cx| editor.set_value(text, window, cx));
+            }
+        }
+        self.request_preview(cx);
+    }
+
+    fn sync_field(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let text = self
+            .selected_schema_field()
+            .and_then(|field| {
+                self.document
+                    .as_ref()
+                    .map(|doc| field_input_text(&field, doc, self.plugin()))
+            })
+            .unwrap_or_default();
+        self.field_draft.reset(text.clone());
+        if let Some(editor) = &self.field_editor {
+            editor.update(cx, |editor, cx| editor.set_value(text, window, cx));
+        }
+    }
+
+    fn allow_field_transition(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.field_draft.is_dirty() {
+            self.fail("Apply or discard the pending value before changing settings, category, language or applying raw JSONC.".into());
+            cx.notify();
+            false
+        } else {
+            true
+        }
+    }
+
+    fn set_field(&mut self, value: Option<Value>, window: &mut Window, cx: &mut Context<Self>) {
+        if self.raw_dirty {
+            self.fail("Apply or discard raw changes first. The pending value is kept.".into());
+            cx.notify();
+            return;
+        }
+        let Some(field) = self.selected_schema_field() else {
+            return;
         };
-        if !known_plugins.iter().any(|known| known == plugin) {
-            return false;
+        let plugin = self.plugin();
+        let Some(document) = &self.document else {
+            return;
+        };
+        let Some(catalog) = self.schema.as_ref().ok() else {
+            return;
+        };
+        if let Err(error) = catalog.available(document, plugin) {
+            self.fail(error);
+            cx.notify();
+            return;
         }
-        if PathBuf::from(plugin)
-            .file_name()
-            .and_then(|name| name.to_str())
-            == Some("typescript-0.96.1.wasm")
+        if let Some(value) = &value
+            && let Err(error) = field.validate(value)
         {
-            typescript = true;
+            self.fail(error);
+            cx.notify();
+            return;
+        }
+        self.change_setting(&[plugin.section(), &field.name], value, window, cx);
+        self.sync_field(window, cx);
+    }
+
+    fn apply_field(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(field) = self.selected_schema_field() else {
+            return;
+        };
+        let Some(editor) = &self.field_editor else {
+            return;
+        };
+        match field.parse_input(editor.read(cx).value().as_ref()) {
+            Ok(value) => self.set_field(Some(value), window, cx),
+            Err(error) => {
+                self.fail(error);
+                cx.notify();
+            }
         }
     }
-    typescript
+
+    pub fn focus_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.ensure_inputs(window, cx);
+        if let Some(editor) = &self.search_editor {
+            editor.update(cx, |editor, cx| editor.focus(window, cx));
+        }
+    }
+
+    fn render_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let plugin = self.plugin();
+        let availability = self
+            .schema
+            .as_ref()
+            .map_err(Clone::clone)
+            .and_then(|schema| {
+                self.document
+                    .as_ref()
+                    .ok_or_else(|| "No configuration loaded".into())
+                    .and_then(|doc| schema.available(doc, plugin))
+            });
+        let disabled = self.raw_dirty || availability.is_err();
+        let fields: Vec<SchemaField> = self
+            .schema
+            .as_ref()
+            .map(|schema| schema.fields(plugin).to_vec())
+            .unwrap_or_default();
+        let mut groups: Vec<String> = fields.iter().map(|field| field.group.clone()).collect();
+        groups.sort();
+        groups.dedup();
+        let visible: Vec<_> = fields
+            .iter()
+            .filter(|field| {
+                (self.group == "All" || field.group == self.group) && field.matches(&self.search)
+            })
+            .cloned()
+            .collect();
+        let field = self.selected_schema_field();
+        let mut panel = div()
+            .id("settings-pane")
+            .overflow_y_scroll()
+            .flex()
+            .flex_col()
+            .w(px(340.0))
+            .min_w(px(260.0))
+            .h_full()
+            .gap_2()
+            .child(
+                div()
+                    .text_lg()
+                    .child(format!("{} · {}", plugin.section(), plugin.version())),
+            )
+            .child(
+                Input::new(self.search_editor.as_ref().unwrap())
+                    .aria_label("Search setting names and descriptions"),
+            )
+            .child(
+                div()
+                    .id("setting-groups")
+                    .max_h(px(90.0))
+                    .overflow_y_scroll()
+                    .flex()
+                    .flex_wrap()
+                    .gap_1()
+                    .children(
+                        std::iter::once("All".to_owned())
+                            .chain(groups)
+                            .enumerate()
+                            .map(|(index, group)| {
+                                Button::new(("group", index))
+                                    .label(group.clone())
+                                    .selected(self.group == group)
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        if !this.allow_field_transition(cx) {
+                                            return;
+                                        }
+                                        this.group = group.clone();
+                                        this.selected_field = None;
+                                        this.source.select_category(&group);
+                                        this.sync_source(window, cx);
+                                        cx.notify();
+                                    }))
+                            }),
+                    ),
+            )
+            .when_some(availability.err(), |panel, error| {
+                panel.child(
+                    div()
+                        .text_sm()
+                        .text_color(cx.theme().danger)
+                        .child(format!("{error} Use Edit JSONC.")),
+                )
+            })
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(format!(
+                        "{} matching settings · Tab to navigate, Enter/Space to activate",
+                        visible.len()
+                    )),
+            )
+            .child(
+                div()
+                    .id("settings-list")
+                    .flex_1()
+                    .min_h(px(80.0))
+                    .overflow_y_scroll()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .children(visible.iter().enumerate().map(|(index, field)| {
+                        let name = field.name.clone();
+                        let indicator =
+                            match self.document.as_ref().map(|doc| field.state(doc, plugin)) {
+                                Some(Ok(state)) if state.explicit.is_some() => "● ",
+                                Some(Ok(_)) => "○ ",
+                                _ => "! ",
+                            };
+                        Button::new(("field", index))
+                            .label(format!("{}{}", indicator, name))
+                            .selected(self.selected_field.as_ref() == Some(&name))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                if !this.allow_field_transition(cx) {
+                                    return;
+                                }
+                                this.selected_field = Some(name.clone());
+                                this.sync_field(window, cx);
+                                cx.notify();
+                            }))
+                    })),
+            );
+        if let Some(field) = field {
+            let state = self
+                .document
+                .as_ref()
+                .ok_or_else(|| "No document".to_owned())
+                .and_then(|doc| field.state(doc, plugin));
+            let disabled = disabled || state.is_err();
+            let state_error = state.as_ref().err().cloned();
+            let validation_error = state
+                .as_ref()
+                .ok()
+                .and_then(|state| state.validation_error.clone());
+            let explicit = state.ok().and_then(|state| state.explicit);
+            let label = if let Some(error) = state_error {
+                format!("Cannot read value: {error}. Use JSONC.")
+            } else {
+                explicit
+                    .as_ref()
+                    .map(|v| format!("Explicit: {v}"))
+                    .unwrap_or_else(|| "Unset · inherited/plugin default".into())
+            };
+            let mut form = div()
+                .id("setting-form")
+                .max_h(px(300.0))
+                .overflow_y_scroll()
+                .flex()
+                .flex_col()
+                .gap_2()
+                .border_t_1()
+                .border_color(cx.theme().border)
+                .pt_3()
+                .child(div().text_sm().child(field.name.clone()))
+                .child(
+                    div()
+                        .id("setting-description")
+                        .max_h(px(80.0))
+                        .overflow_y_scroll()
+                        .text_xs()
+                        .child(field.description.clone()),
+                )
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(label),
+                )
+                .child(div().text_xs().child(format!(
+                        "Schema default: {}",
+                        field
+                            .default
+                            .as_ref()
+                            .map(Value::to_string)
+                            .unwrap_or_else(|| "not declared".into())
+                    )));
+            if let Some(error) = validation_error {
+                form = form.child(
+                    div()
+                        .text_sm()
+                        .text_color(cx.theme().danger)
+                        .child(format!("Invalid explicit value: {error}")),
+                );
+            }
+            match &field.kind {
+                FieldKind::Boolean => {
+                    form = form.child(div().flex().gap_2().children(
+                        [false, true].into_iter().enumerate().map(|(index, value)| {
+                            Button::new(("bool-value", index))
+                                .label(value.to_string())
+                                .selected(explicit == Some(Value::Bool(value)))
+                                .disabled(disabled)
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.set_field(Some(Value::Bool(value)), window, cx)
+                                }))
+                        }),
+                    ));
+                }
+                FieldKind::Enum(choices) => {
+                    form = form.child(
+                        div()
+                            .id("enum-choices")
+                            .max_h(px(140.0))
+                            .overflow_y_scroll()
+                            .flex()
+                            .flex_wrap()
+                            .gap_1()
+                            .children(choices.iter().enumerate().map(|(index, choice)| {
+                                let value = choice.value.clone();
+                                Button::new(("enum-value", index))
+                                    .label(
+                                        value
+                                            .as_str()
+                                            .map(str::to_owned)
+                                            .unwrap_or_else(|| value.to_string()),
+                                    )
+                                    .selected(explicit.as_ref() == Some(&value))
+                                    .disabled(disabled)
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        this.set_field(Some(value.clone()), window, cx)
+                                    }))
+                            })),
+                    );
+                }
+                FieldKind::Const(value) => {
+                    let value = value.clone();
+                    form = form.child(
+                        Button::new("const-value")
+                            .label(format!("Set {value}"))
+                            .disabled(disabled)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.set_field(Some(value.clone()), window, cx)
+                            })),
+                    );
+                }
+                FieldKind::Raw { reason } => {
+                    form = form.child(div().text_sm().child(format!("Raw JSONC only: {reason}")));
+                }
+                _ => {
+                    form = form
+                        .child(
+                            Input::new(self.field_editor.as_ref().unwrap())
+                                .disabled(disabled)
+                                .aria_label(format!("Value for {}", field.name)),
+                        )
+                        .child(
+                            Button::new("apply-field")
+                                .label("Apply value")
+                                .disabled(disabled)
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| this.apply_field(window, cx)),
+                                ),
+                        );
+                }
+            }
+            form = form.child(
+                Button::new("discard-field-input")
+                    .label("Discard pending input")
+                    .disabled(!self.field_draft.is_dirty())
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.sync_field(window, cx);
+                        this.document_version += 1;
+                        this.status = "Pending value discarded; configuration unchanged.".into();
+                        this.error = false;
+                        cx.notify();
+                    })),
+            );
+            let raw = matches!(field.kind, FieldKind::Raw { .. });
+            let default = field.default.clone();
+            form = form.child(
+                div()
+                    .flex()
+                    .gap_2()
+                    .child(
+                        Button::new("reset-field")
+                            .label("Reset to default")
+                            .disabled(disabled || raw || default.is_none())
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.set_field(default.clone(), window, cx)
+                            })),
+                    )
+                    .child(
+                        Button::new("unset-field")
+                            .label("Unset")
+                            .disabled(disabled || explicit.is_none())
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.set_field(None, window, cx)),
+                            ),
+                    ),
+            );
+            panel = panel.child(form);
+        } else {
+            panel = panel.child(div().text_sm().child("Choose a setting. ● explicit value; ○ unset. Reset writes a default; Unset removes the property."));
+        }
+        let _ = window;
+        panel.into_any_element()
+    }
 }
 
-fn code_pane(id: &'static str, title: String, source: &str) -> impl IntoElement {
+#[derive(Default)]
+struct FieldDraft {
+    baseline: String,
+    text: String,
+}
+impl FieldDraft {
+    fn reset(&mut self, text: String) {
+        self.baseline = text.clone();
+        self.text = text;
+    }
+    fn is_dirty(&self) -> bool {
+        self.text != self.baseline
+    }
+}
+
+fn visible_diff(baseline: &str, draft: &str) -> String {
+    line_diff(baseline, draft)
+        .iter()
+        .map(|line| {
+            let sign = match line.kind {
+                DiffKind::Unchanged => " ",
+                DiffKind::Removed => "−",
+                DiffKind::Added => "+",
+            };
+            let ending = if line.kind == DiffKind::Unchanged {
+                ""
+            } else if line.text.ends_with("\r\n") {
+                " ⟦CRLF⟧"
+            } else if line.text.ends_with('\n') {
+                " ⟦LF⟧"
+            } else {
+                " ⟦no newline⟧"
+            };
+            format!(
+                "{sign} {}{ending}",
+                line.text.trim_end_matches(['\r', '\n'])
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn field_input_text(
+    field: &SchemaField,
+    document: &ConfigDocument,
+    plugin: PinnedPlugin,
+) -> String {
+    field
+        .state(document, plugin)
+        .ok()
+        .and_then(|state| state.explicit.or(state.schema_default))
+        .map(|value| match value {
+            Value::String(text) => text,
+            value => value.to_string(),
+        })
+        .unwrap_or_default()
+}
+
+fn comparison_is_current(
+    last_success: Option<u64>,
+    revision: u64,
+    pending: bool,
+    trusted: bool,
+    raw_dirty: bool,
+) -> bool {
+    last_success == Some(revision) && !pending && trusted && !raw_dirty
+}
+
+fn code_pane(id: &'static str, title: String, source: &str, cx: &App) -> impl IntoElement {
     div()
         .flex()
         .flex_col()
@@ -625,17 +1137,24 @@ fn code_pane(id: &'static str, title: String, source: &str) -> impl IntoElement 
         .min_w_0()
         .h_full()
         .border_1()
-        .border_color(rgb(0x334155))
+        .border_color(cx.theme().border)
         .rounded_lg()
         .overflow_hidden()
-        .child(div().px_4().py_3().bg(rgb(0x1e293b)).text_sm().child(title))
+        .child(
+            div()
+                .px_3()
+                .py_2()
+                .bg(cx.theme().muted)
+                .text_sm()
+                .child(title),
+        )
         .child(
             div()
                 .id(id)
                 .flex_1()
                 .min_h_0()
                 .overflow_scroll()
-                .p_4()
+                .p_3()
                 .font_family("monospace")
                 .text_size(px(13.0))
                 .line_height(px(22.0))
@@ -646,9 +1165,9 @@ fn code_pane(id: &'static str, title: String, source: &str) -> impl IntoElement 
                         .min_h(px(22.0))
                         .child(
                             div()
-                                .w(px(36.0))
+                                .w(px(40.0))
                                 .flex_shrink_0()
-                                .text_color(rgb(0x64748b))
+                                .text_color(cx.theme().muted_foreground)
                                 .child((index + 1).to_string()),
                         )
                         .child(line.to_owned())
@@ -659,190 +1178,263 @@ fn code_pane(id: &'static str, title: String, source: &str) -> impl IntoElement 
 impl Render for PreviewWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.ensure_editor(window, cx);
+        self.ensure_inputs(window, cx);
         let no_document = self.document.is_none();
-        let disabled = no_document || self.raw_dirty;
-        let json = self.sample >= 4;
-        let known_schema = self.known_typescript_schema();
-        let indent = self.setting(&["indentWidth"]);
-        let semicolons = self.setting(&["typescript", "semiColons"]);
+        let disabled = no_document || self.raw_dirty || self.field_draft.is_dirty();
         let path = self
             .document
             .as_ref()
             .and_then(|doc| doc.path())
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "Untitled · bundled plugins".into());
-        let state_label = if self.raw_dirty {
+        let state_label = if self.field_draft.is_dirty() {
+            "Value input not applied"
+        } else if self.raw_dirty {
             "Raw edits not applied"
         } else if self.dirty() {
             "Unsaved draft"
-        } else if self
-            .document
-            .as_ref()
-            .is_some_and(|doc| doc.path().is_some())
-        {
-            "Saved · draft matches disk baseline"
         } else {
-            "New draft · not saved to disk"
+            "Draft matches saved baseline"
         };
-        let preview_title = match self.last_success {
-            Some((sample, revision)) => {
-                let freshness = if self.raw_dirty || !self.trusted {
-                    " · previous result, preview paused"
-                } else if self.pending {
-                    " · previous result, updating…"
-                } else if !preview_is_current(sample, revision, self.sample, self.revision) {
-                    " · previous result, not current draft"
-                } else {
-                    ""
-                };
-                format!(
-                    "Preview · {} · r{}{}",
-                    SAMPLES[sample].1, revision, freshness
+        let freshness = if self.raw_dirty || !self.trusted {
+            " · paused; previous result"
+        } else if self.pending {
+            " · updating; previous result"
+        } else if self.last_success != Some(self.revision) {
+            " · stale result"
+        } else {
+            ""
+        };
+        let preview_title = format!("Preview · {}{freshness}", self.source.source_path());
+        let settings = self.render_settings(window, cx);
+        let source = if self.show_saved {
+            code_pane(
+                "saved-config-pane",
+                "Saved configuration baseline · read only".into(),
+                self.document
+                    .as_ref()
+                    .map(ConfigDocument::saved_text)
+                    .unwrap_or(""),
+                cx,
+            )
+            .into_any_element()
+        } else if self.show_config {
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .gap_2()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            div()
+                                .text_sm()
+                                .flex_1()
+                                .child("Configuration draft · JSONC"),
+                        )
+                        .child(
+                            Button::new("apply-raw")
+                                .label("Apply raw draft")
+                                .disabled(!self.raw_dirty || self.field_draft.is_dirty())
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.apply_raw(window, cx);
+                                })),
+                        ),
                 )
-            }
-            None if self.pending => "Preview · waiting for first result…".into(),
-            None => "Preview · no successful output yet".into(),
-        };
-        let caution = if !known_schema {
-            "Unknown plugin schema or inherited configuration: semicolon controls are disabled. Raw editing preserves all plugin references."
-        } else if json {
-            "JSON uses indentation; semicolons do not apply. Unset removes a property and allows inherited/plugin defaults."
+                .child(
+                    Textarea::new(self.editor.as_ref().unwrap())
+                        .h_full()
+                        .font_family("monospace")
+                        .text_size(px(13.0))
+                        .disabled(no_document)
+                        .aria_label("Configuration JSONC draft"),
+                )
+                .into_any_element()
         } else {
-            "Unset removes the property. Existing plugin versions, comments, and unrelated fields are preserved."
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .gap_2()
+                .child(div().text_sm().child(format!(
+                    "Source · {} · {}",
+                    self.source.source_path(),
+                    if self.source.is_custom() {
+                        "custom, editable"
+                    } else {
+                        "built-in, read only"
+                    }
+                )))
+                .child(
+                    Textarea::new(self.source_editor.as_ref().unwrap())
+                        .h_full()
+                        .font_family("monospace")
+                        .text_size(px(13.0))
+                        .readonly(!self.source.is_custom())
+                        .aria_label("Source code"),
+                )
+                .into_any_element()
         };
-        div().size_full().flex().flex_col().gap_3().p_5().bg(rgb(0x0f172a)).text_color(rgb(0xe2e8f0))
-            .child(div().flex().items_center().gap_2().flex_wrap()
-                .child(div().text_2xl().mr_4().child("CodeStyles"))
-                .child(Button::new("open-config").label("Open config…").disabled(self.dialog_pending)
-                    .on_click(cx.listener(|this, _, window, cx| this.open_config(window, cx))))
-                .child(Button::new("save-config").label("Save").disabled(disabled || self.dialog_pending)
-                    .on_click(cx.listener(|this, _, window, cx| this.save(window, cx))))
-                .child(Button::new("save-config-as").label("Save As…").disabled(disabled || self.dialog_pending)
-                    .on_click(cx.listener(|this, _, window, cx| this.save_as(window, cx))))
-                .child(Button::new("check-disk").label("Check disk").disabled(self.document.as_ref().is_none_or(|doc| doc.path().is_none()))
-                    .on_click(cx.listener(|this, _, _, cx| this.check_disk(cx))))
-                .child(Button::new("show-config").label(if self.show_config { "Show source" } else { "Edit JSONC" })
-                    .selected(self.show_config).disabled(no_document)
-                    .on_click(cx.listener(|this, _, _, cx| { this.show_config = !this.show_config; cx.notify(); }))))
-            .child(div().text_sm().child(format!("{path} · {state_label}")))
-            .child(div().text_xs().text_color(rgb(0x94a3b8))
-                .child("Save As creates a new file; relative references stay unchanged and resolve from its new location."))
-            .when_some(self.disk_warning.clone(), |panel, warning| panel.child(
-                div().text_sm().text_color(rgb(0xfca5a5)).child(warning)))
-            .when(!self.trusted && !no_document, |panel| panel.child(
-                div().flex().items_center().gap_3().p_3().bg(rgb(0x422006)).rounded_lg()
-                    .child(div().flex_1().text_sm().child("Preview paused. This config may resolve network resources or run process plugins with your account's permissions."))
-                    .child(Button::new("trust-config").label("Review & trust…").disabled(self.dialog_pending || self.raw_dirty)
-                        .on_click(cx.listener(|this, _, window, cx| this.trust_config(window, cx))))))
-            .child(div().flex().items_center().gap_2().flex_wrap()
-                .child(div().w(px(96.0)).text_sm().child("Sample"))
-                .children(SAMPLES.iter().enumerate().map(|(index, sample)| {
-                    Button::new(("sample", index)).label(sample.0).selected(self.sample == index)
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            if this.sample != index { this.sample = index; this.request_preview(cx); cx.notify(); }
-                        }))
-                })))
-            .child(div().flex().items_center().gap_2().flex_wrap()
-                .child(div().w(px(96.0)).text_sm().child("Indent width"))
-                .children([2u8, 4].into_iter().map(|width| {
-                    Button::new(("indent", width as usize)).label(format!("{width} spaces"))
-                        .selected(indent == Some(Value::from(width))).disabled(disabled)
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            this.change_setting(&["indentWidth"], Some(Value::from(width)), window, cx);
-                        }))
-                }))
-                .child(Button::new("unset-indent").label("Unset").selected(indent.is_none()).disabled(disabled)
-                    .on_click(cx.listener(|this, _, window, cx| this.change_setting(&["indentWidth"], None, window, cx))))
-                .child(div().ml_3().text_sm().child("Semicolons"))
-                .children(["always", "asi"].into_iter().enumerate().map(|(index, mode)| {
-                    Button::new(("semi", index)).label(mode).selected(semicolons.as_ref().and_then(Value::as_str) == Some(mode))
-                        .disabled(disabled || json || !known_schema).on_click(cx.listener(move |this, _, window, cx| {
-                            this.change_setting(&["typescript", "semiColons"], Some(Value::from(mode)), window, cx);
-                        }))
-                }))
-                .child(Button::new("unset-semi").label("Unset").selected(semicolons.is_none())
-                    .disabled(disabled || json || !known_schema)
-                    .on_click(cx.listener(|this, _, window, cx| this.change_setting(&["typescript", "semiColons"], None, window, cx)))))
-            .child(div().text_xs().text_color(if known_schema { rgb(0x94a3b8) } else { rgb(0xfcd34d) }).child(caution))
-            .child(div().flex().gap_4().flex_1().min_h_0()
-                .child(if self.show_config {
-                    div().flex().flex_col().flex_1().min_w_0().h_full().gap_2()
-                        .child(div().flex().items_center().gap_2()
-                            .child(div().text_sm().flex_1().child("Configuration draft · JSONC"))
-                            .child(Button::new("apply-raw").label("Apply raw draft").disabled(!self.raw_dirty)
-                                .on_click(cx.listener(|this, _, _, cx| this.apply_raw(cx)))))
-                        .child(Textarea::new(self.editor.as_ref().unwrap()).h_full().font_family("monospace").text_size(px(13.0)).disabled(no_document)
-                            .aria_label("Configuration JSONC draft"))
-                        .into_any_element()
+        let result = if self.diff_mode {
+            let text = if !comparison_is_current(
+                self.last_success,
+                self.revision,
+                self.pending,
+                self.trusted,
+                self.raw_dirty,
+            ) {
+                "Comparison unavailable until both saved and draft previews succeed for the current source.".into()
+            } else if let Some(error) = &self.baseline_error {
+                format!("Saved baseline formatting failed: {error}")
+            } else if let Some(baseline) = &self.baseline {
+                if baseline == &self.output {
+                    "No formatting differences between saved configuration and draft.".into()
                 } else {
-                    code_pane("source-pane", format!("Original · {}", SAMPLES[self.sample].1), SAMPLES[self.sample].2).into_any_element()
-                })
-                .child(code_pane("preview-pane", preview_title, &self.output)))
-            .child(div().max_h(px(70.0)).id("status").overflow_y_scroll().text_sm()
-                .text_color(if self.error { rgb(0xfca5a5) } else { rgb(0x94a3b8) }).child(self.status.clone()))
+                    visible_diff(baseline, &self.output)
+                }
+            } else {
+                "No saved baseline result yet.".into()
+            };
+            code_pane(
+                "diff-pane",
+                "Diff · − saved config / + draft · same source".into(),
+                &text,
+                cx,
+            )
+            .into_any_element()
+        } else {
+            code_pane("preview-pane", preview_title, &self.output, cx).into_any_element()
+        };
+        div().size_full().flex().flex_col().gap_2().p_4().bg(cx.theme().background).text_color(cx.theme().foreground)
+            .child(div().flex().items_center().gap_2().flex_wrap()
+                .child(div().text_2xl().mr_3().child("CodeStyles"))
+                .child(Button::new("open-config").label("Open config…").disabled(self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.open_config(window, cx))))
+                .child(Button::new("save-config").label("Save").disabled(disabled || self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.save(window, cx))))
+                .child(Button::new("save-config-as").label("Save As…").disabled(disabled || self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.save_as(window, cx))))
+                .child(Button::new("check-disk").label("Check disk").disabled(self.document.as_ref().is_none_or(|doc| doc.path().is_none())).on_click(cx.listener(|this, _, _, cx| this.check_disk(cx))))
+                .child(Button::new("show-config").label(if self.show_config { "Show source" } else { "Edit JSONC" }).selected(self.show_config).disabled(no_document)
+                    .on_click(cx.listener(|this, _, _, cx| { this.show_config = !this.show_config; this.show_saved = false; cx.notify(); })))
+                .child(Button::new("saved-baseline").label(if self.show_saved { "Return to draft/source" } else { "Review saved baseline" }).selected(self.show_saved).disabled(no_document).on_click(cx.listener(|this, _, _, cx| { this.show_saved = !this.show_saved; cx.notify(); })))
+                .child(Button::new("theme").label(if cx.theme().is_dark() { "Light theme" } else { "Dark theme" }).on_click(cx.listener(|_, _, window, cx| {
+                    let mode = if cx.theme().is_dark() { ThemeMode::Light } else { ThemeMode::Dark }; Theme::change(mode, Some(window), cx); cx.notify();
+                }))))
+            .child(div().text_sm().child(format!("{path} · {state_label}")))
+            .when_some(self.disk_warning.clone(), |panel, warning| panel.child(div().text_sm().text_color(cx.theme().danger).child(warning)))
+            .when(!self.trusted && !no_document, |panel| panel.child(div().flex().items_center().gap_3().p_2().border_1().border_color(cx.theme().warning).rounded_lg()
+                .child(div().flex_1().text_sm().child("Preview paused. Review this config before allowing network resources or process plugins."))
+                .child(Button::new("trust-config").label("Review & trust…").disabled(self.dialog_pending || self.raw_dirty).on_click(cx.listener(|this, _, window, cx| this.trust_config(window, cx))))))
+            .child(div().flex().items_center().gap_1().flex_wrap()
+                .children(SourceLanguage::ALL.into_iter().enumerate().map(|(index, language)| Button::new(("language", index)).label(language.label()).selected(self.source.language() == language)
+                    .on_click(cx.listener(move |this, _, window, cx| { if !this.allow_field_transition(cx) { return; } this.source.select_language(language); this.selected_field = None; this.group = "All".into(); this.sync_source(window, cx); }))))
+                .child(Button::new("custom-source").label("Custom source").selected(self.source.is_custom()).on_click(cx.listener(|this, _, window, cx| { this.source.use_custom(); this.sync_source(window, cx); })))
+                .children(BuiltinSample::ALL.into_iter().enumerate().map(|(index, sample)| Button::new(("builtin", index)).label(sample.label()).selected(!self.source.is_custom() && self.source.sample() == sample)
+                    .on_click(cx.listener(move |this, _, window, cx| { this.source.select_sample(sample); this.sync_source(window, cx); }))))
+                .child(Button::new("diff").label(if self.diff_mode { "Show preview" } else { "Show diff" }).selected(self.diff_mode).on_click(cx.listener(|this, _, _, cx| { this.diff_mode = !this.diff_mode; cx.notify(); }))))
+            .child(div().flex().gap_3().flex_1().min_h_0().child(settings).child(source).child(result))
+            .child(div().max_h(px(55.0)).id("status").overflow_y_scroll().text_sm().text_color(if self.error { cx.theme().danger } else { cx.theme().muted_foreground }).child(self.status.clone()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        dialog_is_current, has_known_typescript_schema, has_unsaved_changes, preview_is_current,
+        FieldDraft, comparison_is_current, dialog_is_current, field_input_text,
+        has_unsaved_changes, visible_diff,
     };
-    use serde_json::json;
+    use codestyles::{
+        config::ConfigDocument,
+        schema::{PinnedPlugin, SchemaCatalog},
+    };
 
     #[test]
-    fn semicolons_require_exact_known_plugin_identity_without_inheritance() {
-        let known = vec![
-            "https://plugins.dprint.dev/typescript-0.96.1.wasm".to_owned(),
-            "https://plugins.dprint.dev/json-0.25.2.wasm".to_owned(),
-        ];
-        let plugins = Some(json!(known));
-        assert!(has_known_typescript_schema(plugins.clone(), false, &known));
-        assert!(!has_known_typescript_schema(plugins, true, &known));
-        for plugins in [
-            json!(["/untrusted/typescript-0.96.1.wasm"]),
-            json!(["/bundle/typescript-0.97.0.wasm"]),
-            json!(["https://example.org/typescript-0.96.1.wasm"]),
-            json!([
-                "https://plugins.dprint.dev/typescript-0.96.1.wasm",
-                "./unknown-plugin.json"
-            ]),
-            json!(["/bundle/json-0.25.2.wasm"]),
-            json!([]),
-            json!([null]),
-            json!("not an array"),
+    fn pending_values_survive_blocked_actions_until_explicit_apply_or_discard() {
+        let mut field = FieldDraft::default();
+        field.reset("120".into());
+        field.text = "100".into();
+        // Save and destructive selection/category/language/raw transitions share this guard;
+        // close/open route the same dirty state through their confirmation.
+        for _action in [
+            "save",
+            "save-as",
+            "close",
+            "open",
+            "category",
+            "selection",
+            "language",
+            "raw-apply",
         ] {
-            assert!(!has_known_typescript_schema(Some(plugins), false, &known));
+            assert!(field.is_dirty());
+            assert!(has_unsaved_changes(false, field.is_dirty()));
+            assert_eq!(field.text, "100");
         }
-        assert!(!has_known_typescript_schema(None, false, &known));
+        field.reset("100".into());
+        assert!(!field.is_dirty()); // successful Apply
+        field.text = "invalid".into();
+        assert!(field.is_dirty());
+        field.reset("100".into());
+        assert!(!field.is_dirty()); // explicit Discard
     }
-
     #[test]
-    fn invalid_or_unapplied_raw_text_requires_discard_confirmation() {
+    fn diff_exposes_line_ending_and_final_newline_changes() {
+        let diff = visible_diff("a\n", "a\r\n");
+        assert!(diff.contains("− a ⟦LF⟧"));
+        assert!(diff.contains("+ a ⟦CRLF⟧"));
+        let diff = visible_diff("a\n", "a");
+        assert!(diff.contains("− a ⟦LF⟧"));
+        assert!(diff.contains("+ a ⟦no newline⟧"));
+    }
+    #[test]
+    fn field_input_tracks_applied_raw_values_and_never_masks_invalid_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("dprint.jsonc");
+        let plugin = PinnedPlugin::TypeScript;
+        let source = |settings: &str| {
+            format!(
+                r#"{{"plugins":["{}"],"typescript":{settings}}}"#,
+                plugin.url()
+            )
+        };
+        std::fs::write(&path, source("{}")).unwrap();
+        let mut doc = ConfigDocument::load(&path).unwrap();
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let field = catalog.schema(plugin).field("lineWidth").unwrap();
+        assert_eq!(field_input_text(field, &doc, plugin), "120");
+        doc.replace_draft_text(&source(r#"{"lineWidth":80}"#))
+            .unwrap();
+        assert_eq!(field_input_text(field, &doc, plugin), "80");
+        doc.replace_draft_text(&source(r#"{"lineWidth":80,"lineWidth":90}"#))
+            .unwrap();
+        assert_eq!(field_input_text(field, &doc, plugin), "");
+        doc.replace_draft_text(&source("false")).unwrap();
+        assert_eq!(field_input_text(field, &doc, plugin), "");
+    }
+    #[test]
+    fn raw_edits_and_draft_changes_need_discard_confirmation() {
         assert!(!has_unsaved_changes(false, false));
-        assert!(has_unsaved_changes(true, false));
-        // Parsing failure leaves the document clean but must protect raw text.
-        assert!(has_unsaved_changes(false, true));
-        assert!(has_unsaved_changes(true, true));
+        for (draft, raw) in [(true, false), (false, true), (true, true)] {
+            assert!(has_unsaved_changes(draft, raw));
+        }
     }
-
     #[test]
-    fn stale_preview_stays_stale_after_successful_file_operations() {
-        assert!(preview_is_current(0, 8, 0, 8));
-        // A failed newer revision does not replace the last successful result.
-        assert!(!preview_is_current(0, 8, 0, 9));
-        // File operations may change status/error presentation, never these IDs.
-        assert!(!preview_is_current(0, 8, 0, 9));
-        assert!(!preview_is_current(0, 8, 1, 8));
-        assert!(preview_is_current(1, 10, 1, 10));
+    fn comparisons_require_current_success_and_active_trust() {
+        assert!(comparison_is_current(Some(4), 4, false, true, false));
+        assert!(!comparison_is_current(Some(4), 5, false, true, false));
+        assert!(!comparison_is_current(Some(4), 4, true, true, false));
+        assert!(!comparison_is_current(Some(4), 4, false, false, false));
+        assert!(!comparison_is_current(Some(4), 4, false, true, true));
+        assert!(!comparison_is_current(None, 4, false, true, false));
     }
-
     #[test]
-    fn late_dialogs_cannot_apply_after_any_draft_revision() {
-        let dialog_version = 41;
-        assert!(dialog_is_current(dialog_version, 41));
-        assert!(!dialog_is_current(dialog_version, 42));
-        // Undoing the text is another revision; it does not revive old approval.
-        assert!(!dialog_is_current(dialog_version, 43));
+    fn late_dialogs_do_not_apply_after_any_revision() {
+        assert!(dialog_is_current(41, 41));
+        assert!(!dialog_is_current(41, 42));
+        assert!(!dialog_is_current(41, 43));
     }
 }

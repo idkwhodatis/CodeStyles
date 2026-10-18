@@ -4,7 +4,7 @@ mod ui;
 
 use gpui_kit::*;
 
-gpui_kit::actions!(codestyles_app, [Quit]);
+gpui_kit::actions!(codestyles_app, [Quit, SaveConfig, SearchSettings]);
 
 fn main() {
     gpui_kit::application().run(|cx| {
@@ -16,6 +16,15 @@ fn main() {
             "ctrl-q"
         };
         cx.bind_keys([KeyBinding::new(quit_shortcut, Quit, None)]);
+        let modifier = if cfg!(target_os = "macos") {
+            "cmd"
+        } else {
+            "ctrl"
+        };
+        cx.bind_keys([
+            KeyBinding::new(&format!("{modifier}-s"), SaveConfig, None),
+            KeyBinding::new(&format!("{modifier}-shift-f"), SearchSettings, None),
+        ]);
         cx.set_menus([Menu::new("CodeStyles").items([MenuItem::action("Quit CodeStyles", Quit)])]);
         cx.on_window_closed(|cx, _| {
             if cx.windows().is_empty() {
@@ -24,14 +33,14 @@ fn main() {
         })
         .detach();
         let options = WindowOptions {
-            window_min_size: Some(size(px(820.0), px(520.0))),
+            window_min_size: Some(size(px(1100.0), px(700.0))),
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                 None,
-                size(px(1120.0), px(760.0)),
+                size(px(1440.0), px(900.0)),
                 cx,
             ))),
             titlebar: Some(TitlebarOptions {
-                title: Some("CodeStyles · P1".into()),
+                title: Some("CodeStyles · P2".into()),
                 ..Default::default()
             }),
             ..Default::default()
@@ -46,6 +55,18 @@ fn main() {
             view
         }) {
             Ok((handle, view)) => {
+                let save_view = view.downgrade();
+                cx.on_action(move |_: &SaveConfig, cx| {
+                    let _ = handle.update(cx, |_, window, cx| {
+                        let _ = save_view.update(cx, |view, cx| view.save(window, cx));
+                    });
+                });
+                let search_view = view.downgrade();
+                cx.on_action(move |_: &SearchSettings, cx| {
+                    let _ = handle.update(cx, |_, window, cx| {
+                        let _ = search_view.update(cx, |view, cx| view.focus_search(window, cx));
+                    });
+                });
                 let weak = view.downgrade();
                 // App-owned Quit uses the same cancellable path as window close.
                 // GPUI's native OS/Dock termination callback cannot be vetoed;

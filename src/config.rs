@@ -149,6 +149,15 @@ impl ConfigDocument {
         }
     }
 
+    /// Capture the last loaded/saved configuration for an A/B preview. This is
+    /// deliberately the in-memory baseline, not another read of the disk file.
+    pub fn saved_snapshot(&self) -> ConfigSnapshot {
+        ConfigSnapshot {
+            source_text: self.saved_text.clone(),
+            original_path: self.path.clone(),
+        }
+    }
+
     /// Reject invalid text without destroying the last valid draft. An editor
     /// may retain its own invalid input while showing this validation error.
     pub fn replace_draft_text(&mut self, text: &str) -> Result<(), String> {
