@@ -1,0 +1,22 @@
+[package]
+name = "codestyles"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Native, offline-first dprint style preview"
+
+[features]
+default = ["desktop"]
+desktop = ["dep:gpui-kit"]
+
+[dependencies]
+gpui-kit = { version = "=0.7.3", optional = true }
+serde_json = "1"
+tempfile = "3"
+jsonc-parser = { version = "0.29", features = ["serde"] }
+sha2 = "0.10"
+
+[[bin]]
+name = "codestyles"
+path = "src/main.rs"
+required-features = ["desktop"]

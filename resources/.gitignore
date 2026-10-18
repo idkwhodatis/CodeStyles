@@ -1,0 +1,3 @@
+# Official build assets are staged locally, verified against manifest.json.
+/archives/
+/bin/
