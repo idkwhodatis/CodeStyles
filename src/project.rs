@@ -834,7 +834,7 @@ fn protect_config(
                 "Cannot safely resolve inherited configuration placeholder in {reference:?}. Use an ordinary filesystem path before project operations."
             ));
         }
-        let resolved = directory.join(reference);
+        let resolved = local_dependency_path(directory, &reference);
         if resolved.is_file() {
             protect_config(&resolved, configs, writes)?;
         }
@@ -870,7 +870,7 @@ fn protect_config(
             }
             continue;
         }
-        let file = directory.join(reference);
+        let file = local_dependency_path(directory, &reference);
         if file.is_file() {
             let file = fs::canonicalize(file)
                 .map_err(|error| format!("Cannot protect local plugin: {error}"))?;
@@ -881,6 +881,15 @@ fn protect_config(
     }
     Ok(())
 }
+fn local_dependency_path(directory: &Path, reference: &str) -> PathBuf {
+    // Windows canonical paths use the verbatim \\?\ prefix. Unlike ordinary
+    // Win32 paths, those do not normalize forward slashes. Config references
+    // commonly use '/', including after a ${configDir} substitution.
+    #[cfg(windows)]
+    let reference = reference.replace('/', "\\");
+    directory.join(reference)
+}
+
 fn verify_configs(configs: &BTreeMap<PathBuf, Vec<u8>>) -> Result<(), String> {
     for (path, expected) in configs {
         if fs::read(path).ok().as_ref() != Some(expected)

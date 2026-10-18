@@ -24,6 +24,12 @@
   writing; read-only Check can still use dprint's ordinary resolution. Local
   plugin files and descriptors are also excluded from formatting.
 
+Initial six-target CI found a Windows-only dependency protection issue: expanded
+`${configDir}` paths used the canonical verbatim prefix with forward slashes.
+The fix normalizes dependency separators for Windows filesystem lookup; the
+existing local-plugin protection regression covers this exact case. Every native
+lane must rerun on the corrected head before acceptance.
+
 ## Boundaries and acceptance
 
 Formatting is not transactional. Cancellation/error can leave already-formatted
