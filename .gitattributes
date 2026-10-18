@@ -1,0 +1,4 @@
+# Keep source and scripts portable; checksummed resources must keep exact bytes.
+* text=auto eol=lf
+*.wasm binary
+resources/schemas/*.json -text
