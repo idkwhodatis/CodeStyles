@@ -5,10 +5,12 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, atomic::AtomicBool},
+};
+
+#[cfg(unix)]
+use std::{
+    sync::atomic::Ordering,
     thread,
     time::{Duration, Instant},
 };

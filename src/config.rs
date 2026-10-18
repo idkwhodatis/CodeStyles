@@ -107,7 +107,7 @@ mod tests {
         {
             let draft = DraftConfig::new(Some(&original), &[], 4, "asi").unwrap();
             path = draft.path().to_path_buf();
-            assert_eq!(path.parent(), original.parent());
+            assert_eq!(path.parent(), original.canonicalize().unwrap().parent());
             let v: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
             assert_eq!(v["extends"], "./base.json");
             assert_eq!(v["typescript"]["quoteStyle"], "preferSingle");
