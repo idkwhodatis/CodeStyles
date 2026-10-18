@@ -1,3 +1,53 @@
+# P2 validation — 2026-10-18
+
+## Executed on Linux x86-64
+
+- `cargo fmt --check`, `git diff --check`, `cargo check --locked`: passed.
+- `cargo test --locked --no-default-features`: 51 unit tests and 15 real-CLI
+  integration tests passed.
+- `cargo test --locked --bin codestyles`: 6 pure UI-state tests passed, including
+  stale comparisons, raw-draft value synchronization, malformed/duplicate path
+  presentation, pending scalar input protection, visible newline differences,
+  dirty protection and asynchronous dialog revisions.
+- `cargo clippy --locked --all-targets -- -D warnings` and native debug
+  `cargo build --locked`: passed.
+- Python resource/packaging tests: 6 passed; Linux bundle: 5 runtime files verified.
+- All 18 built-in source combinations (three samples × six languages) formatted
+  successfully with the actual bundled dprint and WASM plugins.
+- Schema coverage includes all 201 pinned properties, all 200 supported-property
+  set/unset round trips, chained/escaped/cyclic/unknown `$ref`, typed enum/const,
+  numeric constraints, unsupported raw fallback, multiword search, strict identity,
+  comments/unknown fields, malformed paths, and explicit reset versus removal.
+- Comparison coverage includes identical source/path inputs with separate immutable
+  saved/draft snapshots, cancellation during either side, newest-revision gating,
+  independent failures, successful/failed Save baseline advancement, custom-source
+  preservation and bounded-memory diff fallback for large repetitive input.
+- Native dependencies were extracted from checksum-verified official Debian
+  packages into the build workspace; no app dependency versions were changed.
+
+## Interactive acceptance still requires a desktop
+
+No native display/GPU session was available. Compilation and pure state tests do
+not establish visual quality, actual keyboard focus traversal, IME behavior,
+scroll-position retention, dialogs or interactive file-picker behavior. These
+must be smoke-tested on a desktop. The six native CI lanes must pass for the
+exact P2 head; prior P1 successes do not establish P2 platform acceptance.
+
+Manual checks: switch light/dark at narrow and wide sizes; search and Tab through
+settings; apply/reset/unset values; apply raw edits to a selected setting; inspect
+malformed paths; retain custom Unicode source while changing groups, languages
+and options; switch built-in/custom repeatedly; compare saved/draft output and
+save to advance baseline; interrupt previews; exercise trust/open/save/close
+Cancel and late-dialog paths; verify IME composition and source/preview reading
+positions. Source text is session-only, and close warns before losing it.
+
+P1 trust, lossless CST, path semantics, immutable snapshots and atomic-save
+limitations remain. Diff is line-oriented; enormous repetitive unanchored regions
+may appear as a whole replacement instead of a minimal diff. Schema defaults are
+not resolved effective values; unsupported constraints are raw-only, and dprint
+remains authoritative. Initial untitled documents compare against their initial
+configuration until the first successful save.
+
 # P1 validation — 2026-10-18
 
 ## Executed on Linux x86-64
@@ -5,7 +55,7 @@
 - `cargo fmt --check` and `git diff --check`: passed.
 - `cargo test --locked --no-default-features`: 24 unit tests and 15 real-CLI
   integration tests passed.
-- `cargo test --locked --bin codestyles`: 4 pure UI-state tests passed (schema
+- `cargo test --locked --bin codestyles`: 6 pure UI-state tests passed (schema
   identity, stale-dialog guard, raw/invalid dirty state, revision-based freshness).
 - `cargo check --locked`, `cargo clippy --locked --all-targets -- -D warnings`,
   and native debug `cargo build --locked`: passed.
