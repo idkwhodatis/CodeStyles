@@ -2,7 +2,7 @@
 use crate::config::{ConfigDocument, ConfigSnapshot, DraftConfig};
 use std::{
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
         Arc,
@@ -38,6 +38,15 @@ impl Backend {
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
+    }
+
+    /// The verified, explicitly selected bundled CLI, never a PATH lookup.
+    pub fn executable(&self) -> &Path {
+        &self.executable
+    }
+
+    pub(crate) fn timeout(&self) -> Duration {
+        self.timeout
     }
 
     /// A portable new document referencing the exact bundled plugin versions.
@@ -153,7 +162,7 @@ impl Backend {
     }
 }
 
-fn cache_directory(
+pub(crate) fn cache_directory(
     os: &str,
     env: impl Fn(&str) -> Option<std::ffi::OsString>,
 ) -> Result<PathBuf, String> {

@@ -1,9 +1,11 @@
 # Pinned offline formatter resources
 
-Engine: **dprint 0.63.0**. Plugins: **TypeScript 0.96.1**, **JSON 0.25.2**.
+Engine: **dprint 0.63.0**. Plugins: **TypeScript 0.96.1**, **JSON 0.25.2**,
+**Markdown 0.26.0**, **TOML 0.9.0**.
 
 `manifest.json` pins official GitHub release URLs, published SHA-256 digests,
-archive sizes, and verified extracted executable digests. WASM and schemas are
+archive sizes, and verified extracted executable digests. New plugin licenses
+are pinned to their exact release tags with locally computed hashes. WASM and schemas are
 vendored; platform binaries and source ZIPs are ignored build staging. The
 packaged application must include the target `bin/` folder and both `plugins/`
 and `schemas/` folders. A fresh application cache needs no network access to

@@ -1,6 +1,7 @@
 //! Original source selection and a bounded-memory, line-oriented A/B diff.
 //!
 //! Neither model accepts formatted output as a replacement for original input.
+use crate::schema::PinnedPlugin;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -12,16 +13,20 @@ pub enum SourceLanguage {
     Jsx,
     Json,
     Jsonc,
+    Markdown,
+    Toml,
 }
 
 impl SourceLanguage {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 8] = [
         Self::TypeScript,
         Self::JavaScript,
         Self::Tsx,
         Self::Jsx,
         Self::Json,
         Self::Jsonc,
+        Self::Markdown,
+        Self::Toml,
     ];
 
     pub fn label(self) -> &'static str {
@@ -32,6 +37,8 @@ impl SourceLanguage {
             Self::Jsx => "JSX",
             Self::Json => "JSON",
             Self::Jsonc => "JSONC",
+            Self::Markdown => "Markdown",
+            Self::Toml => "TOML",
         }
     }
 
@@ -43,6 +50,17 @@ impl SourceLanguage {
             Self::Jsx => "jsx",
             Self::Json => "json",
             Self::Jsonc => "jsonc",
+            Self::Markdown => "md",
+            Self::Toml => "toml",
+        }
+    }
+
+    pub fn plugin(self) -> PinnedPlugin {
+        match self {
+            Self::TypeScript | Self::JavaScript | Self::Tsx | Self::Jsx => PinnedPlugin::TypeScript,
+            Self::Json | Self::Jsonc => PinnedPlugin::Json,
+            Self::Markdown => PinnedPlugin::Markdown,
+            Self::Toml => PinnedPlugin::Toml,
         }
     }
 
@@ -58,12 +76,16 @@ impl SourceLanguage {
             (Self::Jsx, false) => "sample.jsx",
             (Self::Json, false) => "sample.json",
             (Self::Jsonc, false) => "sample.jsonc",
+            (Self::Markdown, false) => "sample.md",
+            (Self::Toml, false) => "sample.toml",
             (Self::TypeScript, true) => "custom.ts",
             (Self::JavaScript, true) => "custom.js",
             (Self::Tsx, true) => "custom.tsx",
             (Self::Jsx, true) => "custom.jsx",
             (Self::Json, true) => "custom.json",
             (Self::Jsonc, true) => "custom.jsonc",
+            (Self::Markdown, true) => "custom.md",
+            (Self::Toml, true) => "custom.toml",
         }
     }
 }
@@ -91,9 +113,18 @@ impl BuiltinSample {
         let category = category.to_ascii_lowercase();
         if category.contains("comment") {
             Self::Comments
-        } else if ["array", "object", "collection", "tuple", "type", "literal"]
-            .iter()
-            .any(|word| category.contains(word))
+        } else if [
+            "array",
+            "object",
+            "collection",
+            "tuple",
+            "type",
+            "literal",
+            "list",
+            "table",
+        ]
+        .iter()
+        .any(|word| category.contains(word))
         {
             Self::Collections
         } else {
@@ -103,6 +134,12 @@ impl BuiltinSample {
 
     pub fn source(self, language: SourceLanguage) -> &'static str {
         match (language, self) {
+            (SourceLanguage::Markdown, Self::Overview) => MARKDOWN_OVERVIEW,
+            (SourceLanguage::Markdown, Self::Collections) => MARKDOWN_COLLECTIONS,
+            (SourceLanguage::Markdown, Self::Comments) => MARKDOWN_COMMENTS,
+            (SourceLanguage::Toml, Self::Overview) => TOML_OVERVIEW,
+            (SourceLanguage::Toml, Self::Collections) => TOML_COLLECTIONS,
+            (SourceLanguage::Toml, Self::Comments) => TOML_COMMENTS,
             (SourceLanguage::Json, Self::Overview) => JSON_OVERVIEW,
             (SourceLanguage::Json, Self::Collections) => JSON_COLLECTIONS,
             (SourceLanguage::Json, Self::Comments) => JSON_DESCRIPTIONS,
@@ -215,6 +252,13 @@ const JSON_DESCRIPTIONS: &str = "{\"description\":\"JSON uses fields for descrip
 const JSONC_OVERVIEW: &str = "{\n// Formatting preferences\n\"name\":\"CodeStyles\",\"preview\":{\"enabled\":true,\"languages\":[\"TypeScript\",\"JSON\"],},\n}\n";
 const JSONC_COLLECTIONS: &str = "{\n// Nested arrays and objects\n\"items\":[{\"name\":\"alpha\",\"enabled\":true},{\"name\":\"beta\",\"enabled\":false},],\n\"options\":{\"spacing\":{\"width\":4,\"tabs\":false},\"labels\":[\"short\",\"a longer label\",\"preview\"],},\n}\n";
 const JSONC_COMMENTS: &str = "{\n//keep this line comment\n\"name\":\"CodeStyles\", //inline description\n/* A block comment describing the preview. */\n\"preview\":{\"enabled\":true,\"labels\":[\"saved\",\"draft\"],},\n}\n";
+
+const MARKDOWN_OVERVIEW: &str = "# CodeStyles\n\nPreview **formatting** with the same original text, including a deliberately long paragraph that makes line wrapping changes easy to compare across saved and draft settings.\n\n*   Keep the source unchanged\n*   Compare the preview\n\n```ts\nconst settings={name:'CodeStyles',enabled:true};\n```\n";
+const MARKDOWN_COLLECTIONS: &str = "# Collections\n\n*   Source\n    *   Built-in examples\n    *   Custom input\n*   Preview\n\n|Name|Enabled|\n|:--|--:|\n|Saved|true|\n|Draft|false|\n\n```json\n{\"items\":[1,2,3],\"enabled\":true}\n```\n";
+const MARKDOWN_COMMENTS: &str = "# Comments\n\n<!-- Keep this explanation with the following paragraph. -->\n\nA paragraph with *emphasis*, a [link](https://dprint.dev/), and `inline code`.\n\n>   Compare the saved settings and draft settings while preserving the original source.\n\n```toml\n# A comment in a fenced TOML example\nname=\"CodeStyles\"\nenabled=true\n```\n";
+const TOML_OVERVIEW: &str = "title=\"CodeStyles\"\n\n[preview]\nenabled=true\nlanguages=[\"TypeScript\",\"JSON\",\"Markdown\",\"TOML\"]\nlayout={source=true,preview=true}\n";
+const TOML_COLLECTIONS: &str = "[options]\nlabels=[\"source\",\"saved\",\"draft\"]\nspacing={width=4,tabs=false}\n\n[[items]]\nname=\"alpha\"\nenabled=true\n\n[[items]]\nname=\"beta\"\nenabled=false\n";
+const TOML_COMMENTS: &str = "# Formatting preferences\ntitle=\"CodeStyles\" # Application name\n\n[preview]\n# Keep saved and draft output visible\nenabled=true\nlabels=[\"saved\",\"draft\"] # Comparison panes\n";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiffKind {
@@ -416,6 +460,33 @@ mod tests {
     }
 
     #[test]
+    fn each_language_selects_its_own_pinned_plugin_and_virtual_paths() {
+        for language in SourceLanguage::ALL {
+            let expected = match language {
+                SourceLanguage::TypeScript
+                | SourceLanguage::JavaScript
+                | SourceLanguage::Tsx
+                | SourceLanguage::Jsx => PinnedPlugin::TypeScript,
+                SourceLanguage::Json | SourceLanguage::Jsonc => PinnedPlugin::Json,
+                SourceLanguage::Markdown => PinnedPlugin::Markdown,
+                SourceLanguage::Toml => PinnedPlugin::Toml,
+            };
+            assert_eq!(language.plugin(), expected);
+            let mut source = SourceState::default();
+            source.select_language(language);
+            assert_eq!(
+                source.source_path(),
+                format!("sample.{}", language.extension())
+            );
+            source.use_custom();
+            assert_eq!(
+                source.source_path(),
+                format!("custom.{}", language.extension())
+            );
+        }
+    }
+
+    #[test]
     fn custom_mode_seeds_once_and_preserves_intentionally_empty_buffer() {
         let mut source = SourceState::default();
         let builtin = source.source().to_owned();
@@ -438,6 +509,12 @@ mod tests {
         assert_ne!(source.source(), first);
         source.select_category("General");
         assert_eq!(source.source(), first);
+        for category in ["list", "table", "inlineTable", "array"] {
+            assert_eq!(
+                BuiltinSample::for_category(category),
+                BuiltinSample::Collections
+            );
+        }
         for sample in BuiltinSample::ALL {
             for language in SourceLanguage::ALL {
                 assert!(!sample.source(language).is_empty());

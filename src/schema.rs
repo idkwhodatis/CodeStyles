@@ -11,33 +11,53 @@ use std::collections::{BTreeSet, HashSet};
 pub enum PinnedPlugin {
     TypeScript,
     Json,
+    Markdown,
+    Toml,
 }
 
 impl PinnedPlugin {
-    pub const ALL: [Self; 2] = [Self::TypeScript, Self::Json];
+    pub const ALL: [Self; 4] = [Self::TypeScript, Self::Json, Self::Markdown, Self::Toml];
 
     pub fn section(self) -> &'static str {
         match self {
             Self::TypeScript => "typescript",
             Self::Json => "json",
+            Self::Markdown => "markdown",
+            Self::Toml => "toml",
         }
     }
     pub fn title(self) -> &'static str {
         match self {
             Self::TypeScript => "TypeScript",
             Self::Json => "JSON",
+            Self::Markdown => "Markdown",
+            Self::Toml => "TOML",
         }
     }
     pub fn version(self) -> &'static str {
         match self {
             Self::TypeScript => "0.96.1",
             Self::Json => "0.25.2",
+            Self::Markdown => "0.26.0",
+            Self::Toml => "0.9.0",
         }
     }
     pub fn url(self) -> &'static str {
         match self {
             Self::TypeScript => "https://plugins.dprint.dev/typescript-0.96.1.wasm",
             Self::Json => "https://plugins.dprint.dev/json-0.25.2.wasm",
+            Self::Markdown => "https://plugins.dprint.dev/markdown-0.26.0.wasm",
+            Self::Toml => "https://plugins.dprint.dev/toml-0.9.0.wasm",
+        }
+    }
+
+    /// Resource filename shared by runtime verification and portable exports.
+    pub fn filename(self) -> &'static str {
+        match self {
+            Self::TypeScript => "typescript-0.96.1.wasm",
+            Self::Json => "json-0.25.2.wasm",
+            Self::Markdown => "markdown-0.26.0.wasm",
+            Self::Toml => "toml-0.9.0.wasm",
         }
     }
 
@@ -383,7 +403,7 @@ impl PluginSchema {
 
 #[derive(Clone, Debug)]
 pub struct SchemaCatalog {
-    schemas: [PluginSchema; 2],
+    schemas: [PluginSchema; 4],
 }
 
 impl SchemaCatalog {
@@ -395,10 +415,17 @@ impl SchemaCatalog {
                 .map_err(|error| format!("Invalid bundled TypeScript schema: {error}"))?;
         let json = serde_json::from_str(include_str!("../resources/schemas/json-0.25.2.json"))
             .map_err(|error| format!("Invalid bundled JSON schema: {error}"))?;
+        let markdown =
+            serde_json::from_str(include_str!("../resources/schemas/markdown-0.26.0.json"))
+                .map_err(|error| format!("Invalid bundled Markdown schema: {error}"))?;
+        let toml = serde_json::from_str(include_str!("../resources/schemas/toml-0.9.0.json"))
+            .map_err(|error| format!("Invalid bundled TOML schema: {error}"))?;
         Ok(Self {
             schemas: [
                 PluginSchema::from_json(PinnedPlugin::TypeScript, &typescript)?,
                 PluginSchema::from_json(PinnedPlugin::Json, &json)?,
+                PluginSchema::from_json(PinnedPlugin::Markdown, &markdown)?,
+                PluginSchema::from_json(PinnedPlugin::Toml, &toml)?,
             ],
         })
     }
@@ -407,6 +434,8 @@ impl SchemaCatalog {
         &self.schemas[match plugin {
             PinnedPlugin::TypeScript => 0,
             PinnedPlugin::Json => 1,
+            PinnedPlugin::Markdown => 2,
+            PinnedPlugin::Toml => 3,
         }]
     }
 
@@ -753,6 +782,8 @@ mod tests {
         let catalog = SchemaCatalog::bundled().unwrap();
         assert_eq!(catalog.fields(PinnedPlugin::TypeScript).len(), 185);
         assert_eq!(catalog.fields(PinnedPlugin::Json).len(), 16);
+        assert_eq!(catalog.fields(PinnedPlugin::Markdown).len(), 37);
+        assert_eq!(catalog.fields(PinnedPlugin::Toml).len(), 20);
         assert!(
             catalog
                 .fields(PinnedPlugin::TypeScript)
@@ -774,9 +805,15 @@ mod tests {
         for plugin in PinnedPlugin::ALL {
             let schema = catalog.schema(plugin);
             assert_eq!(schema.field("locked").unwrap().default, None);
-            assert_eq!(schema.field("indentWidth").unwrap().default, Some(json!(2)));
-            assert_eq!(schema.field("lineWidth").unwrap().default, Some(json!(120)));
-            assert_eq!(schema.field("useTabs").unwrap().kind, FieldKind::Boolean);
+            if plugin == PinnedPlugin::Markdown {
+                assert_eq!(schema.field("lineWidth").unwrap().default, Some(json!(80)));
+                assert!(schema.field("indentWidth").is_none());
+                assert!(schema.field("useTabs").is_none());
+            } else {
+                assert_eq!(schema.field("indentWidth").unwrap().default, Some(json!(2)));
+                assert_eq!(schema.field("lineWidth").unwrap().default, Some(json!(120)));
+                assert_eq!(schema.field("useTabs").unwrap().kind, FieldKind::Boolean);
+            }
             for field in &schema.fields {
                 assert!(!field.description.is_empty(), "{}", field.name);
                 if field.kind.is_supported()
@@ -795,6 +832,71 @@ mod tests {
             typescript.field("semiColons").unwrap().kind,
             FieldKind::Enum(_)
         ));
+    }
+
+    #[test]
+    fn markdown_and_toml_fields_keep_typed_choices_raw_fallbacks_and_inheritance() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let markdown = catalog.schema(PinnedPlugin::Markdown);
+        assert_eq!(
+            markdown
+                .fields
+                .iter()
+                .filter(|field| field.kind.is_supported())
+                .count(),
+            33
+        );
+        for name in ["tags", "headingKind", "unorderedListKind", "listIndentKind"] {
+            assert!(matches!(
+                markdown.field(name).unwrap().kind,
+                FieldKind::Raw { .. }
+            ));
+        }
+        assert_eq!(markdown.field("heading.kind").unwrap().group, "heading");
+        assert_eq!(markdown.field("codeBlock.useTabs").unwrap().default, None);
+        assert_eq!(
+            markdown.field("codeBlock.indentWidth").unwrap().default,
+            None
+        );
+        assert_eq!(
+            markdown.field("textWrap").unwrap().default,
+            Some(json!("maintain"))
+        );
+        assert!(
+            markdown
+                .field("table.minColumnWidth")
+                .unwrap()
+                .validate(&json!(0))
+                .is_err()
+        );
+        assert!(
+            markdown
+                .field("table.minColumnWidth")
+                .unwrap()
+                .validate(&json!(256))
+                .is_err()
+        );
+        let toml = catalog.schema(PinnedPlugin::Toml);
+        assert!(toml.fields.iter().all(|field| field.kind.is_supported()));
+        assert_eq!(toml.field("array.preferSingleLine").unwrap().default, None);
+        assert_eq!(
+            toml.field("sortArrays").unwrap().default,
+            Some(json!(false))
+        );
+        assert!(
+            toml.field("sortArrays")
+                .unwrap()
+                .description
+                .contains("meaning")
+        );
+        for plugin in [PinnedPlugin::Markdown, PinnedPlugin::Toml] {
+            let explicit = document(json!({"plugins": [plugin.url()]}));
+            assert!(catalog.available(&explicit, plugin).is_ok());
+            let unknown = document(json!({"plugins": [plugin.url(), "./custom.wasm"]}));
+            assert!(catalog.available(&unknown, plugin).is_err());
+            let inherited = document(json!({"plugins": [plugin.url()], "extends": "./base.json"}));
+            assert!(catalog.available(&inherited, plugin).is_err());
+        }
     }
 
     #[test]
@@ -1096,7 +1198,9 @@ mod tests {
         let mut document = document(json!({
             "plugins":PinnedPlugin::ALL.map(PinnedPlugin::url),
             "typescript":{"futureOption":{"preserve":[1,true]}},
-            "json":{"jsonTrailingCommaFiles":["*.jsonc"]}
+            "json":{"jsonTrailingCommaFiles":["*.jsonc"]},
+            "markdown":{"tags":{"custom":"ts"},"futureOption":{"preserve":["text"]}},
+            "toml":{"futureOption":{"preserve":[1,true]}}
         }));
         let original = format!("// preserve this comment\n{}", document.draft_text());
         document.replace_draft_text(&original).unwrap();
@@ -1117,7 +1221,9 @@ mod tests {
                     FieldKind::Boolean => json!(false),
                     FieldKind::Enum(choices) => choices[0].value.clone(),
                     FieldKind::Const(value) => value.clone(),
-                    FieldKind::Number(_) => json!(0),
+                    FieldKind::Number(constraints) => {
+                        json!(constraints.minimum.unwrap_or(0.0))
+                    }
                     FieldKind::String => json!("test"),
                     FieldKind::Raw { .. } => unreachable!(),
                 });
@@ -1131,7 +1237,7 @@ mod tests {
                 supported_count += 1;
             }
         }
-        assert_eq!(supported_count, 200);
+        assert_eq!(supported_count, 253);
         assert!(document.draft_text().contains("// preserve this comment"));
         assert_eq!(
             document.value(&["typescript", "futureOption"]).unwrap(),
@@ -1140,6 +1246,18 @@ mod tests {
         assert_eq!(
             document.value(&["json", "jsonTrailingCommaFiles"]).unwrap(),
             Some(json!(["*.jsonc"]))
+        );
+        assert_eq!(
+            document.value(&["markdown", "tags"]).unwrap(),
+            Some(json!({"custom":"ts"}))
+        );
+        assert_eq!(
+            document.value(&["markdown", "futureOption"]).unwrap(),
+            Some(json!({"preserve":["text"]}))
+        );
+        assert_eq!(
+            document.value(&["toml", "futureOption"]).unwrap(),
+            Some(json!({"preserve":[1,true]}))
         );
     }
 
