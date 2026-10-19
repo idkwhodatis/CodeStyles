@@ -166,6 +166,7 @@
       "iphlpapi.dll",
       "kernel32.dll",
       "kernelbase.dll",
+      "mpr.dll",
       "msimg32.dll",
       "msvcrt.dll",
       "ncrypt.dll",
@@ -183,6 +184,7 @@
       "rpcrt4.dll",
       "secur32.dll",
       "setupapi.dll",
+      "shcore.dll",
       "shell32.dll",
       "shlwapi.dll",
       "sspicli.dll",
@@ -193,6 +195,7 @@
       "usp10.dll",
       "uxtheme.dll",
       "version.dll",
+      "windowscodecs.dll",
       "winhttp.dll",
       "wininet.dll",
       "winmm.dll",
@@ -247,9 +250,25 @@
         "source": "https://learn.microsoft.com/en-us/windows/win32/api/gdiplusinit/nf-gdiplusinit-gdiplusstartup",
         "verified_on": "2026-10-19",
         "availability": "Microsoft lists Gdiplus.dll for GdiplusStartup and Windows XP/Windows 2000 Professional desktop clients, preceding the desired Windows 10 22H2 baseline."
+      },
+      "mpr.dll": {
+        "source": "https://learn.microsoft.com/en-us/windows/win32/api/winnetwk/nf-winnetwk-wnetaddconnection2w",
+        "verified_on": "2026-10-19",
+        "availability": "Microsoft lists Mpr.dll for WNetAddConnection2W and a minimum supported Windows 2000 Professional desktop client, preceding the desired Windows 10 22H2 baseline."
+      },
+      "windowscodecs.dll": {
+        "source": "https://learn.microsoft.com/en-us/windows/win32/api/wincodec/nf-wincodec-wicconvertbitmapsource",
+        "verified_on": "2026-10-19",
+        "availability": "Microsoft lists Windowscodecs.dll for WICConvertBitmapSource and Windows XP SP2/Windows Vista clients. Its Windows Imaging Component overview confirms WIC is available in Windows Vista and later, preceding the desired Windows 10 22H2 baseline.",
+        "additional_source": "https://learn.microsoft.com/en-us/windows/win32/wic/-wic-about-windows-imaging-codec"
+      },
+      "shcore.dll": {
+        "source": "https://learn.microsoft.com/en-us/windows/win32/api/shellscalingapi/nf-shellscalingapi-getdpiformonitor",
+        "verified_on": "2026-10-19",
+        "availability": "Microsoft lists Shcore.dll for GetDpiForMonitor and a minimum supported Windows 8.1 desktop client, preceding the desired Windows 10 22H2 baseline."
       }
     },
-    "external_library_evidence_scope": "These exact OS-DLL entries were encountered in native Windows CI imports (dprint: pdh.dll; CodeStyles: icuuc.dll, uiautomationcore.dll, gdiplus.dll). Microsoft DLL availability evidence does not establish availability of every imported symbol, native ARM64 behavior, or application runtime acceptance on Windows 10 22H2. No Visual C++ Redistributable DLL is added to the OS catalog."
+    "external_library_evidence_scope": "These exact OS-DLL entries were encountered in native Windows CI imports (dprint: pdh.dll; CodeStyles: icuuc.dll, uiautomationcore.dll, gdiplus.dll; installed Inno unins000.exe: mpr.dll, windowscodecs.dll, shcore.dll). Microsoft DLL availability evidence does not establish availability of every imported symbol, native ARM64 behavior, or application runtime acceptance on Windows 10 22H2. No Visual C++ Redistributable DLL is added to the OS catalog."
   },
   "audit_limitations": [
     "Static audit success is not minimum-OS certification. validated_minimum_os stays null until separately recorded native testing on the claimed minimum OS.",

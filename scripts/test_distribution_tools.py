@@ -1,12 +1,15 @@
 """Host-independent checks of native-container extraction and signing sequencing."""
+from contextlib import redirect_stderr
 import hashlib
 import io
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import struct
 import tarfile
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -67,6 +70,187 @@ class DistributionToolsTests(unittest.TestCase):
             with self.assertRaises(tarfile.FilterError):
                 check_distribution.extract_deb(deb, root / 'out')
             self.assertFalse((root / 'escape').exists())
+
+    def test_uninstaller_waits_for_delayed_self_cleanup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install = root / '安装 CodeStyles'
+            install.mkdir()
+            (install / 'unins000.exe').write_bytes(b'uninstaller fixture')
+            report = root / 'uninstall.json'
+            clock = [10.0]
+            sleeps = []
+
+            def sleep(seconds):
+                clock[0] += seconds
+                sleeps.append(seconds)
+                if len(sleeps) == 2:
+                    shutil.rmtree(install)
+
+            with mock.patch.object(check_distribution.subprocess, 'run',
+                                   return_value=subprocess.CompletedProcess([], 0)) as run, \
+                    mock.patch.object(check_distribution.time, 'monotonic', side_effect=lambda: clock[0]), \
+                    mock.patch.object(check_distribution.time, 'sleep', side_effect=sleep):
+                check_distribution.uninstall_windows(install, report, timeout=2, poll_interval=0.2)
+            self.assertEqual(len(sleeps), 2)
+            command = run.call_args.args[0]
+            self.assertIn('/NORESTART', command)
+            self.assertIn(f'/LOG={report.with_suffix(".log").resolve()}', command)
+            self.assertEqual(run.call_args.kwargs['timeout'], 2)
+            evidence = json.loads(report.read_text())
+            self.assertEqual(evidence['status'], 'passed')
+            self.assertTrue(evidence['launcher_exited'])
+            self.assertTrue(evidence['installation_removed'])
+            self.assertEqual(evidence['elapsed_seconds'], 0.4)
+
+    def test_uninstaller_timeout_records_remaining_payload_without_deleting_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install = root / 'installed'
+            install.mkdir()
+            (install / 'unins000.exe').write_bytes(b'uninstaller fixture')
+            report = root / 'uninstall.json'
+            clock = [0.0]
+            sleeps = []
+
+            def sleep(seconds):
+                clock[0] += seconds
+                sleeps.append(seconds)
+
+            with mock.patch.object(check_distribution.subprocess, 'run',
+                                   return_value=subprocess.CompletedProcess([], 0)), \
+                    mock.patch.object(check_distribution.time, 'monotonic', side_effect=lambda: clock[0]), \
+                    mock.patch.object(check_distribution.time, 'sleep', side_effect=sleep):
+                with self.assertRaisesRegex(TimeoutError, 'within 1 seconds'):
+                    check_distribution.uninstall_windows(install, report, timeout=1, poll_interval=0.4)
+            self.assertAlmostEqual(sum(sleeps), 1)
+            self.assertTrue((install / 'unins000.exe').exists())
+            evidence = json.loads(report.read_text())
+            self.assertEqual(evidence['status'], 'failed')
+            self.assertFalse(evidence['installation_removed'])
+            self.assertEqual(evidence['remaining_entries'], ['unins000.exe'])
+            self.assertTrue(evidence['launcher_exited'])
+
+    def test_uninstaller_native_failures_are_recorded_and_propagated(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install = root / 'installed'
+            install.mkdir()
+            (install / 'unins000.exe').write_bytes(b'uninstaller fixture')
+            report = root / 'uninstall.json'
+            failures = (subprocess.CalledProcessError(7, ['uninstall']),
+                        subprocess.TimeoutExpired(['uninstall'], 120))
+            for failure in failures:
+                with self.subTest(failure=type(failure).__name__), \
+                        mock.patch.object(check_distribution.subprocess, 'run', side_effect=failure), \
+                        mock.patch.object(check_distribution.time, 'sleep') as sleep:
+                    with self.assertRaises(type(failure)) as caught:
+                        check_distribution.uninstall_windows(install, report)
+                self.assertIs(caught.exception, failure)
+                sleep.assert_not_called()
+                evidence = json.loads(report.read_text())
+                self.assertEqual(evidence['status'], 'failed')
+                self.assertIn(type(failure).__name__, evidence['error'])
+                self.assertEqual(evidence['remaining_entries'], ['unins000.exe'])
+                if isinstance(failure, subprocess.CalledProcessError):
+                    self.assertEqual(evidence['exit_code'], 7)
+
+    def test_missing_uninstaller_does_not_pass_cleanup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = root / 'uninstall.json'
+            with mock.patch.object(check_distribution.subprocess, 'run') as run:
+                with self.assertRaisesRegex(FileNotFoundError, 'Missing installed uninstaller'):
+                    check_distribution.uninstall_windows(root / 'absent', report)
+            run.assert_not_called()
+            self.assertEqual(json.loads(report.read_text())['status'], 'failed')
+
+    def test_secondary_cleanup_failure_preserves_original_audit_error(self):
+        original = subprocess.CalledProcessError(1, ['audit_compatibility.py'])
+        cleanup = mock.Mock(side_effect=PermissionError('WinError 5: unins000.exe'))
+        stderr = io.StringIO()
+        with redirect_stderr(stderr), self.assertRaises(subprocess.CalledProcessError) as caught:
+            try:
+                raise original
+            finally:
+                check_distribution.preserve_primary_error(cleanup, original)
+        self.assertIs(caught.exception, original)
+        self.assertIn('WinError 5: unins000.exe', stderr.getvalue())
+        with self.assertRaisesRegex(PermissionError, 'WinError 5'):
+            check_distribution.preserve_primary_error(cleanup, None)
+
+    def test_workspace_cleanup_records_failure_without_masking_original(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = root / 'cleanup.json'
+            workspace = SimpleNamespace(name=str(root / 'workspace'),
+                                        cleanup=mock.Mock(side_effect=PermissionError('WinError 5')))
+            original = ValueError('original installed audit failure')
+            with mock.patch.object(check_distribution.tempfile, 'TemporaryDirectory', return_value=workspace), \
+                    redirect_stderr(io.StringIO()), self.assertRaises(ValueError) as caught:
+                with check_distribution.distribution_workspace(report):
+                    raise original
+            self.assertIs(caught.exception, original)
+            evidence = json.loads(report.read_text())
+            self.assertEqual(evidence['status'], 'failed')
+            self.assertIn('WinError 5', evidence['error'])
+            with mock.patch.object(check_distribution.tempfile, 'TemporaryDirectory', return_value=workspace):
+                with self.assertRaisesRegex(PermissionError, 'WinError 5'):
+                    with check_distribution.distribution_workspace(report):
+                        pass
+
+    def test_workspace_cleanup_success_is_reported(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / 'cleanup.json'
+            with check_distribution.distribution_workspace(report) as root:
+                (root / 'file').write_bytes(b'fixture')
+            self.assertFalse(root.exists())
+            self.assertEqual(json.loads(report.read_text())['status'], 'passed')
+
+    def test_failed_report_write_does_not_mask_original_cleanup_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            original = FileNotFoundError('missing uninstaller fixture')
+            with redirect_stderr(io.StringIO()), self.assertRaises(FileNotFoundError) as caught:
+                try:
+                    raise original
+                finally:
+                    check_distribution.write_cleanup_report(root / 'missing/report.json', {'status': 'failed'})
+            self.assertIs(caught.exception, original)
+
+    def test_windows_main_preserves_audit_error_and_uninstall_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'app.zip').write_bytes(b'archive fixture')
+            (root / 'app-setup.exe').write_bytes(b'installer fixture')
+            original = subprocess.CalledProcessError(1, ['installed-audit'])
+
+            def check_script(name, *args):
+                if name == 'audit_compatibility.py' and 'installer-compatibility.json' in str(args):
+                    raise original
+
+            def native_run(command, **kwargs):
+                if command[0].endswith('app-setup.exe'):
+                    install = Path(next(arg[5:] for arg in command if arg.startswith('/DIR=')))
+                    install.mkdir()
+                    (install / 'unins000.exe').write_bytes(b'uninstaller fixture')
+                    return subprocess.CompletedProcess(command, 0)
+                raise subprocess.CalledProcessError(8, command)
+
+            argv = ['check_distribution.py', '--target', 'aarch64-pc-windows-msvc',
+                    '--directory', str(root), '--audit-only']
+            with mock.patch.object(check_distribution.sys, 'argv', argv), \
+                    mock.patch.object(check_distribution, 'run_script', side_effect=check_script), \
+                    mock.patch.object(check_distribution, 'audit_bootstrap'), \
+                    mock.patch.object(check_distribution.subprocess, 'run', side_effect=native_run), \
+                    redirect_stderr(io.StringIO()), self.assertRaises(subprocess.CalledProcessError) as caught:
+                check_distribution.main()
+            self.assertIs(caught.exception, original)
+            evidence = json.loads((root / 'installer-uninstall.json').read_text())
+            self.assertEqual(evidence['status'], 'failed')
+            self.assertEqual(evidence['exit_code'], 8)
+            self.assertIn('unins000.exe', evidence['remaining_entries'])
+            self.assertEqual(json.loads((root / 'container-cleanup.json').read_text())['status'], 'passed')
 
     def test_notarization_requires_explicit_acceptance(self):
         with tempfile.TemporaryDirectory() as temporary:

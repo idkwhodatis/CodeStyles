@@ -241,7 +241,8 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(report['binaries'][1]['subsystem'], 3)
 
     def test_documented_windows_system_imports_are_exact_and_sourced(self):
-        names = ('pdh.dll', 'icuuc.dll', 'uiautomationcore.dll', 'gdiplus.dll')
+        names = ('pdh.dll', 'icuuc.dll', 'uiautomationcore.dll', 'gdiplus.dll',
+                 'mpr.dll', 'windowscodecs.dll', 'shcore.dll')
         for target, machine in [(WIN, 0x8664), ('aarch64-pc-windows-msvc', 0xaa64)]:
             with self.subTest(target=target):
                 report = self.run_audit({'codestyles.exe': pe(machine=machine, imports=names, delay=()),
@@ -257,7 +258,8 @@ class AuditTests(unittest.TestCase):
         self.assertIn('1703', POLICY['windows']['external_library_evidence']['icuuc.dll']['availability'])
         self.assertTrue(set(POLICY['windows']['redistributable_libraries']).isdisjoint(
             POLICY['windows']['external_libraries']))
-        for name in ('pdh-private.dll', 'icuuc_custom.dll', 'uiautomationcore_extra.dll', 'gdiplus-extension.dll'):
+        for name in ('pdh-private.dll', 'icuuc_custom.dll', 'uiautomationcore_extra.dll', 'gdiplus-extension.dll',
+                     'mpr-custom.dll', 'windowscodecs-extra.dll', 'shcore_custom.dll'):
             self.assertError(self.run_audit({'codestyles.exe': pe(imports=(name,), delay=())}, WIN), 'unresolved')
 
     def test_pe_main_console_wrong_arch_dll_or_unknown_import_fails(self):
@@ -327,6 +329,20 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(report['binaries'][1]['architecture'], 'x86')
         self.assertError(self.run_audit({'codestyles.exe': pe(), 'tools/unins000.exe': helper}, WIN), 'architecture')
         self.assertError(self.run_audit({'codestyles.exe': pe(), 'unins000.exe': pe(machine=0x14c, is64=False, subsystem=3)}, WIN), 'helper has unexpected subsystem')
+
+    def test_installed_uninstaller_system_imports_remain_audited(self):
+        helper = pe(machine=0x14c, is64=False,
+                    imports=('mpr.dll', 'windowscodecs.dll', 'Shcore.dll'), delay=())
+        for target, machine in [(WIN, 0x8664), ('aarch64-pc-windows-msvc', 0xaa64)]:
+            with self.subTest(target=target):
+                report = self.run_audit({'codestyles.exe': pe(machine=machine), 'unins000.exe': helper}, target)
+                self.assertPass(report)
+                record = next(item for item in report['binaries'] if item['path'] == 'unins000.exe')
+                self.assertTrue(record['installer_helper_exception']['emulation_required'])
+                self.assertEqual({dep['name'] for dep in record['dependencies']},
+                                 {'mpr.dll', 'windowscodecs.dll', 'Shcore.dll'})
+                self.assertTrue(all(dep['status'] == 'external-system' for dep in record['dependencies']))
+                self.assertTrue(all(dep['entrypoint'] == 'unins000.exe' for dep in record['dependencies']))
 
     def test_uninstaller_cannot_load_mismatched_architecture_dll(self):
         self.assertError(self.run_audit({'codestyles.exe': pe(),

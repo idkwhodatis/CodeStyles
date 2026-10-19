@@ -5,13 +5,16 @@ No release is published. Native installation tests run only in ephemeral CI or a
 explicit local invocation; Windows uses a private per-user install directory.
 """
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 
 import audit_compatibility
 
@@ -72,6 +75,99 @@ def audit_bootstrap(path, report):
         raise ValueError('; '.join(errors))
 
 
+def preserve_primary_error(cleanup, primary_error):
+    """A cleanup failure is additional evidence, never a replacement failure."""
+    try:
+        cleanup()
+    except Exception as error:
+        if primary_error is None:
+            raise
+        note = f'Additional distribution cleanup failure: {type(error).__name__}: {error}'
+        print(note, file=sys.stderr)
+        if hasattr(primary_error, 'add_note'):
+            primary_error.add_note(note)
+
+
+def write_cleanup_report(report, result):
+    # Even a report-write failure must not replace the exception being diagnosed.
+    preserve_primary_error(
+        lambda: report.write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8'),
+        sys.exc_info()[1])
+
+
+@contextmanager
+def distribution_workspace(report):
+    temporary = tempfile.TemporaryDirectory(prefix='codestyles-installer-')
+    root = Path(temporary.name)
+    try:
+        yield root
+    finally:
+        def cleanup():
+            result = {'status': 'failed', 'directory': str(root)}
+            try:
+                temporary.cleanup()
+                result['status'] = 'passed'
+            except BaseException as error:
+                result['error'] = f'{type(error).__name__}: {error}'
+                raise
+            finally:
+                write_cleanup_report(report, result)
+        preserve_primary_error(cleanup, sys.exc_info()[1])
+
+
+def uninstall_windows(install, report, timeout=120.0, poll_interval=0.2):
+    """Wait for Inno's complete private installation to disappear.
+
+    Inno uses a temporary uninstaller process, so the original launcher's exit
+    is not a filesystem-cleanup barrier. Its documented command line has no
+    wait switch. Keep /LOG outside the install and check the actual postcondition
+    before TemporaryDirectory can race removal of a still-running unins000.exe.
+    https://jrsoftware.org/isfaq.php (temporary _iu*.tmp uninstaller)
+    https://jrsoftware.org/ishelp/topic_uninstcmdline.htm
+    """
+    if timeout <= 0 or poll_interval <= 0:
+        raise ValueError('Uninstall timeout and polling interval must be positive')
+    started = time.monotonic()
+    deadline = started + timeout
+    uninstaller = install / 'unins000.exe'
+    log = report.with_suffix('.log').resolve()
+    result = {'status': 'failed', 'install_directory': str(install),
+              'log': str(log), 'timeout_seconds': timeout,
+              'launcher_exited': False, 'installation_removed': False}
+    try:
+        if not uninstaller.is_file():
+            raise FileNotFoundError(f'Missing installed uninstaller: {uninstaller}')
+        completed = subprocess.run(
+            [str(uninstaller), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', f'/LOG={log}'],
+            check=True, timeout=timeout)
+        result['launcher_exited'] = True
+        result['exit_code'] = completed.returncode
+        while os.path.lexists(install):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f'Uninstall did not remove {install} within {timeout:g} seconds')
+            time.sleep(min(poll_interval, remaining))
+        result['installation_removed'] = True
+        result['status'] = 'passed'
+    except BaseException as error:
+        result['error'] = f'{type(error).__name__}: {error}'
+        if isinstance(error, subprocess.CalledProcessError):
+            result['launcher_exited'] = True
+            result['exit_code'] = error.returncode
+        if os.path.lexists(install):
+            try:
+                # Evidence only: never delete remaining files to make uninstall
+                # appear successful, or traverse an untrusted directory tree.
+                from itertools import islice
+                result['remaining_entries'] = [path.name for path in islice(install.iterdir(), 50)]
+            except OSError as listing_error:
+                result['remaining_entries_error'] = str(listing_error)
+        raise
+    finally:
+        result['elapsed_seconds'] = round(time.monotonic() - started, 3)
+        write_cleanup_report(report, result)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target', required=True)
@@ -105,8 +201,7 @@ def main():
         run_script('smoke_package.py', *flags)
 
     check(archives[0], 'portable')
-    with tempfile.TemporaryDirectory(prefix='codestyles-installer-') as temporary:
-        root = Path(temporary)
+    with distribution_workspace(reports / 'container-cleanup.json') as root:
         if 'linux' in args.target:
             debs = [p for p in files if p.suffix == '.deb']
             if len(debs) != 1:
@@ -136,10 +231,9 @@ def main():
             try:
                 check(install, 'installer', directory=True)
             finally:
-                uninstaller = install / 'unins000.exe'
-                if uninstaller.exists():
-                    subprocess.run([str(uninstaller), '/VERYSILENT', '/SUPPRESSMSGBOXES',
-                                    '/NORESTART'], check=True)
+                preserve_primary_error(
+                    lambda: uninstall_windows(install, reports / 'installer-uninstall.json'),
+                    sys.exc_info()[1])
     print('Distribution containers and extracted runtime checks passed.')
 
 
