@@ -1,27 +1,63 @@
-name: P0 checks
+name: Native distribution checks
 on:
   push:
     branches: [master]
   pull_request:
 concurrency:
-  group: p0-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: native-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
 jobs:
-  native:
+  linux:
+    name: Linux old-ABI (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
+            image: quay.io/pypa/manylinux_2_28_x86_64@sha256:1e7b8460ad8fb3fb0fbe1cd818845159ac896b4fd17452d56e892c291f3b97a8
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
+            image: quay.io/pypa/manylinux_2_28_aarch64@sha256:b873ffc316ffe8a154e3dc4872871de2ebd170db4876c8bbd983d42ff320001e
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pinned native old-ABI environment
+        run: docker build --build-arg BASE_IMAGE='${{ matrix.image }}' -f packaging/linux/Dockerfile -t codestyles-build .
+      - name: Validate, build, package and audit inside glibc 2.28 environment
+        run: docker run --rm -e TARGET='${{ matrix.target }}' -v "$PWD:/src" codestyles-build bash scripts/ci_linux.sh
+      - name: Network-isolated cold-start package test (unprivileged, read-only root)
+        run: |
+          mkdir -p isolated-reports
+          chmod 777 isolated-reports
+          docker run --rm --network none --read-only --user 65534:65534 \
+            --tmpfs /tmp:rw,exec,mode=1777 -v "$PWD:/src:ro" \
+            -v "$PWD/isolated-reports:/reports:rw" codestyles-build \
+            /opt/python/cp312-cp312/bin/python scripts/check_distribution.py \
+            --target '${{ matrix.target }}' --directory dist \
+            --reports /reports --smoke-only --require-readonly --network-isolation external
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codestyles-${{ matrix.target }}
+          path: |
+            dist/*
+            isolated-reports/*
+          if-no-files-found: warn
+  desktop:
+    name: Native (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - os: macos-15-intel
             target: x86_64-apple-darwin
+            deployment: '10.15.7'
           - os: macos-15
             target: aarch64-apple-darwin
+            deployment: '11.0'
           - os: windows-2025
             target: x86_64-pc-windows-msvc
           - os: windows-11-arm
@@ -29,8 +65,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       RUSTUP_TOOLCHAIN: 1.99.1-${{ matrix.target }}
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment }}
+      CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.99.1-${{ matrix.target }}
@@ -38,9 +79,6 @@ jobs:
       - name: Verify native Rust host
         run: |
           python -c "import subprocess; host=subprocess.check_output(['rustc', '-vV'], text=True); print(host); assert 'host: ${{ matrix.target }}' in host"
-      - name: Linux native build dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential clang cmake libasound2-dev libfontconfig1-dev libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libvulkan-dev libssl-dev libzstd-dev
       - run: python scripts/bundle_resources.py fetch --target ${{ matrix.target }}
       - run: python scripts/bundle_resources.py verify --target ${{ matrix.target }}
       - run: python -m unittest discover -s scripts -p 'test_*.py'
@@ -50,8 +88,13 @@ jobs:
       - run: cargo test --locked --bin codestyles
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo build --locked --release
-      - run: python scripts/package_app.py --target ${{ matrix.target }} --output dist/codestyles-${{ matrix.target }}.zip
+      - name: Build native distribution formats
+        run: python scripts/package_app.py --target ${{ matrix.target }} --output-dir dist
+      - name: Audit complete bundles and exercise archived/installed resources
+        run: python scripts/check_distribution.py --target ${{ matrix.target }} --directory dist --require-readonly
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: codestyles-${{ matrix.target }}
-          path: dist/*.zip
+          path: dist/*
+          if-no-files-found: warn

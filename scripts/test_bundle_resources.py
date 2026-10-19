@@ -134,7 +134,7 @@ class IntegrityTests(unittest.TestCase):
                 os.utime(license_file, (timestamp, timestamp))
                 output = root / f'package-{index}.zip'
                 subprocess.run([sys.executable, str(scripts / 'package_app.py'),
-                                '--target', target, '--binary', str(binary),
+                                '--target', target, '--version', '0.1.0', '--binary', str(binary),
                                 '--output', str(output)], check=True, capture_output=True)
                 packages.append(output.read_bytes())
                 with zipfile.ZipFile(output) as archive:

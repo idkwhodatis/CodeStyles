@@ -1,0 +1,7 @@
+# Portable Windows distributions must not rely on a preinstalled Visual C++
+# Redistributable. Audit every final PE (including helpers) after linking.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

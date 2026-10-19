@@ -1,3 +1,56 @@
+# P4 validation — 2026-10-18
+
+## Executed locally on Linux x86-64
+
+- Native optimized release build, `cargo fmt --check`, all-target clippy with
+  warnings denied, and `git diff --check` pass.
+- 72 library tests, 18 real preview-parity tests, 11 project tests and 7 native
+  UI-state tests pass. New tests exercise resource lookup and the real eight-
+  language/four-plugin headless diagnostic path.
+- Actual release tar.gz and actual extracted Debian payload passed cold-cache
+  formatting/idempotence checks in Unicode/space installation and working paths.
+  Installation write probes were denied and content/metadata snapshots stayed
+  unchanged. Fresh formatter caches were created outside installation trees.
+- The release executable copied alone to an unrelated directory returned exit 1
+  and a missing-resource JSON report, proving it cannot use the developer checkout
+  fallback. Malformed diagnostic arguments and failure reporting are tested.
+- 73 Python tests pass for package structure/permissions, Debian control metadata (independently checked
+  by dpkg-deb), ELF/Mach-O/PE fixtures, native ELF/readelf comparison, signing
+  sequencing, and safe extraction.
+- Independent reviews corrected helper-specific DLL/dylib search paths, invalid
+  imported-library types/architectures, Windows extended path comparisons,
+  static Windows CRT linkage, privileged-container test semantics and temporary
+  notarization-keychain selection. These are regression-tested where possible.
+
+## Current boundaries
+
+The local optimized build used the current cloud Linux environment, **not** the
+old-ABI container; it is runtime-test evidence, not a glibc 2.28 artifact. The ABI
+auditor correctly rejects such newer-host builds. Both native Linux release lanes
+must build inside the pinned manylinux_2_28 images and pass the complete audit.
+[Run 39178574499](https://github.com/idkwhodatis/CodeStyles/actions/runs/39178574499)
+at `f55092458edd14f24d330277ec9cedc90bb3fc30` passed both native Linux old-ABI
+lanes, including whole-payload ELF checks and genuinely network-disabled,
+unprivileged release tar/DEB smoke tests. It also passed both native macOS app ZIP
+and DMG lanes, including Intel 10.15.7 and ARM11.0 deployment audits. Windows x64/ARM64 built native releases and installers, then the
+auditor exposed four missing system-DLL catalog entries. Exact Microsoft-
+documented names were added with regression tests; VC runtimes still fail when
+unbundled. Final six-target acceptance must use the corrected head, not this
+partial earlier run.
+
+Local runs use unreachable proxies, not genuine network isolation. The Linux CI
+workflow separately repeats extracted-package tests in an unprivileged,
+network-disabled, read-only container. Windows/macOS native installer and disk-
+image execution, final whole-bundle audits and all six native lanes must pass on
+the final head before acceptance. No credentialed signing/notarization run has
+been performed. No public release or tag is published.
+
+No GUI is initialized by `--self-test`. Oldest-OS launch, real system fonts,
+clipboard, IME, scaling, graphics drivers, file-dialog integration and Windows
+console-window behavior still require desktop acceptance. See
+[DISTRIBUTION.md](DISTRIBUTION.md) for the exact manual matrix and for the
+separation of compatibility goals, static audit evidence and runtime validation.
+
 # P3 validation — 2026-10-18
 
 ## Executed on Linux x86-64

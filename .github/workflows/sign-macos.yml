@@ -1,0 +1,88 @@
+name: Optional macOS signing and notarization
+# Opt-in only. Configure the protected environment and existing credentials first.
+# No release/tag publication and no pull-request trigger.
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Native distribution checks run for current master
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sign:
+    if: github.ref == 'refs/heads/master'
+    environment: macos-signing
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    env:
+      SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+      CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.MACOS_TEMP_KEYCHAIN_PASSWORD }}
+      APPLE_ID: ${{ secrets.MACOS_APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.MACOS_APP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify trusted successful source run and configured credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          run_id = os.environ['BUILD_RUN_ID']
+          assert run_id.isdecimal(), 'Run ID must be numeric'
+          url = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run_id}"
+          request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          run = json.load(urllib.request.urlopen(request))
+          assert run['head_sha'] == os.environ['GITHUB_SHA'], 'Build must match current master commit'
+          assert run['head_branch'] == 'master' and run['event'] == 'push'
+          assert run['conclusion'] == 'success' and run['path'] == '.github/workflows/ci.yml'
+          for name in ['SIGNING_IDENTITY', 'CERTIFICATE_BASE64', 'CERTIFICATE_PASSWORD', 'KEYCHAIN_PASSWORD', 'APPLE_ID', 'APPLE_TEAM_ID', 'APPLE_APP_PASSWORD']:
+              assert os.environ.get(name), f'Missing protected environment secret: {name}'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: codestyles-${{ matrix.target }}
+          path: unsigned
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+      - name: Import existing certificate into temporary runner keychain
+        run: |
+          python -c "import base64,os,pathlib; pathlib.Path(os.environ['RUNNER_TEMP']+'/signing.p12').write_bytes(base64.b64decode(os.environ['CERTIFICATE_BASE64']))"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/signing.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/signing.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/signing.keychain-db"
+          security import "$RUNNER_TEMP/signing.p12" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security -t cert -f pkcs12 -k "$RUNNER_TEMP/signing.keychain-db"
+          security list-keychains -d user -s "$RUNNER_TEMP/signing.keychain-db" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/signing.keychain-db"
+          xcrun notarytool store-credentials codestyles-notary --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --keychain "$RUNNER_TEMP/signing.keychain-db"
+          rm "$RUNNER_TEMP/signing.p12"
+      - name: Sign, test, notarize and staple
+        run: |
+          ditto -x -k unsigned/*.app.zip extracted
+          python scripts/sign_macos.py --app extracted/CodeStyles.app --target '${{ matrix.target }}' --identity "$SIGNING_IDENTITY" --notary-profile codestyles-notary --notary-keychain "$RUNNER_TEMP/signing.keychain-db" --output signed
+          python scripts/audit_compatibility.py --target '${{ matrix.target }}' --bundle extracted/CodeStyles.app --report signed/compatibility.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codestyles-signed-${{ matrix.target }}
+          path: signed/*
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/signing.p12"
+          if [ -f "$RUNNER_TEMP/signing.keychain-db" ]; then security delete-keychain "$RUNNER_TEMP/signing.keychain-db"; fi

@@ -209,3 +209,12 @@ These are standard [GitHub-hosted runner labels](https://docs.github.com/en/acti
 runners. macOS 15 follows GPUI Kit’s documented minimum. Every lane runs the
 actual target dprint in the parity suite; none is a cross-compile-only claim.
 Workflow success still does not prove interactive GUI behavior.
+
+## Native distribution (P4)
+
+See [DISTRIBUTION.md](DISTRIBUTION.md) for the six native targets, portable ZIP /
+`.app.zip` / DMG / tar.gz / `.deb` / Windows installer builds, whole-package ABI
+checks, real packaged offline self-tests, and the opt-in Apple signing workflow.
+Compatibility goals are independent of CI runner versions. Artifacts remain
+unsigned development builds until signing is explicitly configured; old-OS GUI,
+font, clipboard, IME and scaling acceptance is tracked separately from headless CI.
