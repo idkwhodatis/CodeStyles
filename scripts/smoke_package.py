@@ -107,12 +107,29 @@ def remove_windows_write_deny(root, sid):
                    check=True, capture_output=True, text=True)
 
 
+def reject_windows_reparse_points(root):
+    """Reject links/junctions before recursion or any target permission change."""
+    pending = [root]
+    while pending:
+        path = pending.pop()
+        info = path.lstat()
+        if (stat.S_ISLNK(info.st_mode)
+                or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            raise ValueError(f"Windows package payload contains a symlink/reparse point: {path}")
+        if stat.S_ISDIR(info.st_mode):
+            pending.extend(path.iterdir())
+
+
 def protect_install(root, evidence=None):
     """Return evidence plus cleanup data; unwind partially applied protection."""
     acl_sid = None
     if evidence is None:
         evidence = {}
     evidence.update(method="unix_mode_bits", write_denied=False)
+    # This is deliberately outside the cleanup handler: a rejected tree has
+    # never been changed and must not trigger chmod/icacls during restoration.
+    if os.name == "nt":
+        reject_windows_reparse_points(root)
     try:
         for path in sorted(root.rglob("*"), reverse=True) + [root]:
             if not path.is_symlink():
@@ -158,6 +175,8 @@ def protect_install(root, evidence=None):
 
 
 def restore_install(root, acl_sid):
+    if os.name == "nt":
+        reject_windows_reparse_points(root)
     if acl_sid:
         remove_windows_write_deny(root, acl_sid)
     for path in [root, *root.rglob("*")]:
@@ -256,6 +275,9 @@ def smoke(args, result):
             result["stage"] = "extract_payload"
             extract_archive(args.archive, install)
         else:
+            if os.name == "nt":
+                result["stage"] = "validate_directory"
+                reject_windows_reparse_points(args.directory)
             result["stage"] = "copy_payload"
             # Preserve relative symlinks from native package layouts; executable
             # discovery ignores aliases, and the source directory is untouched.

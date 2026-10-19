@@ -74,6 +74,55 @@ class ProtectionTests(unittest.TestCase):
         self.assertEqual(command, ["icacls", "installation", "/deny",
                                    "*S-1-5-21-123:(OI)(CI)(WD,AD,WEA,WA)", "/T", "/Q"])
 
+    def test_windows_reparse_rejection_precedes_traversal_chmod_and_icacls(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            junction = root / "external junction"
+            junction.mkdir()
+            original_lstat = Path.lstat
+            original_iterdir = Path.iterdir
+
+            def lstat(path):
+                if path == junction:
+                    return SimpleNamespace(st_mode=stat.S_IFDIR | 0o755,
+                                           st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT)
+                return original_lstat(path)
+
+            def iterdir(path):
+                self.assertNotEqual(path, junction, "Must reject a junction before descending into it")
+                return original_iterdir(path)
+
+            for operation in [lambda: smoke.protect_install(root),
+                              lambda: smoke.restore_install(root, "S-1-5-21-123")]:
+                with mock.patch.object(smoke, "os", SimpleNamespace(name="nt")), \
+                        mock.patch.object(Path, "lstat", lstat), \
+                        mock.patch.object(Path, "iterdir", iterdir), \
+                        mock.patch.object(Path, "chmod") as chmod, \
+                        mock.patch.object(smoke.subprocess, "run") as run:
+                    with self.assertRaisesRegex(ValueError, "symlink/reparse point"):
+                        operation()
+                    chmod.assert_not_called()
+                    run.assert_not_called()
+
+    @unittest.skipIf(os.name == "nt", "Real symlink fixture needs Unix; reparse fixture runs everywhere")
+    def test_windows_validation_rejects_actual_external_symlink_without_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            install = root / "install"
+            target = root / "external"
+            install.mkdir()
+            target.mkdir()
+            (install / "linked target").symlink_to(target, target_is_directory=True)
+            before = target.stat().st_mode
+            with mock.patch.object(smoke, "os", SimpleNamespace(name="nt")), \
+                    mock.patch.object(Path, "chmod") as chmod, \
+                    mock.patch.object(smoke.subprocess, "run") as run:
+                with self.assertRaisesRegex(ValueError, "symlink/reparse point"):
+                    smoke.protect_install(install)
+                chmod.assert_not_called()
+                run.assert_not_called()
+            self.assertEqual(target.stat().st_mode, before)
+
     def test_partial_windows_acl_failure_removes_denial_before_fallback(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -237,6 +286,21 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({'status': 'passed', 'mode': 'he
             self.assertTrue(result["install_tree_unchanged"])
             self.assertFalse(result["network"]["isolation_enforced_by_script"])
             self.assertEqual(smoke.snapshot(payload), before)
+
+    def test_windows_directory_input_is_rejected_before_copy_or_protection(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source"
+            source.mkdir()
+            report = root / "report.json"
+            with mock.patch.object(smoke, "os", SimpleNamespace(name="nt")), \
+                    mock.patch.object(smoke, "reject_windows_reparse_points", side_effect=ValueError("reparse fixture")), \
+                    mock.patch.object(smoke.shutil, "copytree") as copy, \
+                    mock.patch.object(smoke, "protect_install") as protect:
+                self.assertEqual(smoke.main(["--directory", str(source), "--report", str(report)]), 1)
+                copy.assert_not_called()
+                protect.assert_not_called()
+            self.assertEqual(json.loads(report.read_text())["error_stage"], "validate_directory")
 
     def test_report_retains_failed_stage_and_traceback_after_cleanup(self):
         with tempfile.TemporaryDirectory() as temp:
