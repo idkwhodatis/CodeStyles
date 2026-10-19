@@ -76,7 +76,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual({p.name for p in output.iterdir()}, set(release.names(target)))
 
     def test_linux_dist_packages(self):
-        target = release.TARGETS[0]
+        target = 'x86_64-unknown-linux-gnu'
         archive, output = self.archive(target, 'dist/', ('isolated-reports/result.json', '{}'))
         release.unpack_packages(archive, target, output)
         self.assertEqual(len(list(output.iterdir())), 2)
@@ -125,57 +125,171 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             release.verify_files(root)
 
-    def test_wrong_tag_never_written(self):
+
+    def test_api_delete_accepts_empty_204_body(self):
+        with patch.object(release, 'gh', return_value='') as gh:
+            self.assertIsNone(release.api('releases/assets/123', 'DELETE'))
+        gh.assert_called_once_with('api', f'repos/{release.REPO}/releases/assets/123',
+                                   '--method', 'DELETE')
+
+    def test_tag_push_requires_exact_old_sha_lease(self):
+        with patch.object(release.subprocess, 'run') as run:
+            release.move_tag_with_lease()
+        fetch, push = [c.args[0] for c in run.call_args_list]
+        self.assertEqual(fetch[-4:], ['fetch', '--no-tags',
+                                     f'https://github.com/{release.REPO}.git', release.SHA])
+        self.assertIn(f'--force-with-lease=refs/tags/{release.TAG}:{release.OLD_SHA}', push)
+        self.assertEqual(push[-1], f'{release.SHA}:refs/tags/{release.TAG}')
+        self.assertNotIn('--force', push)
+        self.assertTrue(all(c.kwargs == {'check': True} for c in run.call_args_list))
+
+    def test_ordered_downloads(self):
+        body = release.release_body()
+        self.assertLess(body.index('### Windows'), body.index('### macOS'))
+        self.assertLess(body.index('### macOS'), body.index('### Linux'))
+        for section in body.split('### ')[1:]:
+            self.assertLess(section.index('**x64**'), section.index('**ARM64**'))
+
+    def refresh_fixture(self):
         root = self.prepared()
-        with patch.object(release, 'api', return_value=[{
-                'ref': 'refs/tags/' + release.TAG, 'object': {'type': 'commit', 'sha': 'bad'}}]) as api:
+        new = Path(self.temp.name) / 'new'
+        new.mkdir()
+        for path in list(root.iterdir()):
+            if path.is_file():
+                path.rename(new / path.name)
+        previous = root / 'previous'
+        previous.mkdir()
+        for path in new.iterdir():
+            (previous / path.name).write_bytes(path.read_bytes())
+        provenance = json.loads((previous / 'PROVENANCE.json').read_text())
+        provenance.update(commit=release.OLD_SHA, run_id=release.OLD_RUN)
+        (previous / 'PROVENANCE.json').write_text(json.dumps(provenance))
+        # All twelve packages differ, as a real UI rebuild does.
+        for target in release.TARGETS:
+            for name in release.names(target):
+                (previous / name).write_bytes(b'old package')
+        (previous / 'SHA256SUMS').write_text(''.join(
+            f'{release.digest(p)}  {p.name}\n' for p in sorted(previous.iterdir())
+            if p.name != 'SHA256SUMS'))
+        expected = release.verify_files(new)
+        old = release.verify_files(previous, release.OLD_RUN, release.OLD_SHA)
+        self.state = {
+            'tag': release.OLD_SHA,
+            'release': {'id': release.RELEASE_ID, 'tag_name': release.TAG,
+                        'prerelease': True, 'draft': False, 'body': 'Old alpha',
+                        'target_commitish': release.OLD_SHA,
+                        'html_url': f'https://github.com/{release.REPO}/releases/tag/{release.TAG}'},
+            'assets': [{'id': i, 'name': n, 'digest': 'sha256:' + d, 'state': 'uploaded'}
+                       for i, (n, d) in enumerate(old.items(), 1)], 'writes': []}
+        def api(path, method='GET', payload=None):
+            if method != 'GET':
+                self.state['writes'].append((path, method, payload))
+            if path.startswith('git/matching-refs'):
+                return [{'ref': f'refs/tags/{release.TAG}',
+                         'object': {'type': 'commit', 'sha': self.state['tag']}}]
+            if method == 'DELETE':
+                asset_id = int(path.split('/')[-1])
+                self.state['assets'] = [a for a in self.state['assets'] if a['id'] != asset_id]
+                return None
+            if path.startswith('git/refs'):
+                self.state['tag'] = payload['sha']
+                return {}
+            if path == f'releases/{release.RELEASE_ID}':
+                if payload:
+                    self.state['release'].update(payload)
+                return dict(self.state['release'])
+            raise AssertionError(path)
+        def gh(*args):
+            self.state['writes'].append(args)
+            name = Path(args[3]).name
+            self.state['assets'].append({'id': 1000 + len(self.state['writes']), 'name': name,
+                                        'digest': 'sha256:' + expected[name], 'state': 'uploaded'})
+        self.enterContext(patch.object(release, 'api', side_effect=api))
+        self.enterContext(patch.object(release, 'pages', side_effect=lambda _: list(self.state['assets'])))
+        self.upload = self.enterContext(patch.object(release, 'gh', side_effect=gh))
+        def move_tag():
+            self.assertEqual(self.state['tag'], release.OLD_SHA)
+            self.state['writes'].append(('git/refs/lease', 'PUSH'))
+            self.state['tag'] = release.SHA
+        self.enterContext(patch.object(release, 'move_tag_with_lease', side_effect=move_tag))
+        backup = root / 'backup'
+        release.snapshot(new, previous, backup)
+        return new, previous, backup
+
+    def test_first_refresh_then_noop(self):
+        args = self.refresh_fixture()
+        release.publish(*args)
+        self.assertEqual(self.state['tag'], release.SHA)
+        self.assertEqual(self.upload.call_count, 14)
+        self.assertEqual(self.state['release']['make_latest'], 'false')
+        self.assertEqual(len(self.state['assets']), 14)
+        self.state['writes'].clear()
+        release.publish(*args)
+        self.assertEqual(self.state['writes'], [])
+
+    def test_retry_after_delete_before_upload(self):
+        args = self.refresh_fixture()
+        self.state['assets'].pop(0)
+        release.publish(*args)
+        self.assertEqual(len(self.state['assets']), 14)
+
+    def test_retry_mixed_old_new_assets(self):
+        args = self.refresh_fixture()
+        expected = release.verify_files(args[0])
+        for asset in self.state['assets'][:5]:
+            asset['digest'] = 'sha256:' + expected[asset['name']]
+        release.publish(*args)
+        self.assertEqual(self.upload.call_count, 9)
+
+    def test_retry_after_tag_move(self):
+        args = self.refresh_fixture()
+        self.state['tag'] = release.SHA
+        release.publish(*args)
+        self.assertFalse(any(w[0].startswith('git/refs') for w in self.state['writes']))
+
+    def test_unexpected_release_states(self):
+        args = self.refresh_fixture()
+        original = dict(self.state['release'])
+        for key, value in [('id', 7), ('draft', True), ('prerelease', False),
+                           ('immutable', True), ('tag_name', 'other'), ('html_url', 'other')]:
+            with self.subTest(key=key):
+                self.state['release'] = dict(original, **{key: value})
+                with self.assertRaises(ValueError):
+                    release.publish(*args)
+                self.assertEqual(self.state['writes'], [])
+
+    def test_unknown_duplicate_and_incomplete_assets(self):
+        args = self.refresh_fixture()
+        original = [dict(a) for a in self.state['assets']]
+        bad_sets = [original + [dict(original[0])],
+                    original + [dict(original[0], name='unexpected')],
+                    [dict(original[0], state='starter')] + original[1:]]
+        for assets in bad_sets:
+            self.state['assets'] = assets
             with self.assertRaises(ValueError):
-                release.publish(root)
-            self.assertEqual(api.call_count, 1)
+                release.publish(*args)
+            self.assertEqual(self.state['writes'], [])
 
-    def test_existing_asset_never_replaced(self):
-        root = self.prepared()
-        with patch.object(release, 'api', return_value=[{
-                'ref': 'refs/tags/' + release.TAG,
-                'object': {'type': 'commit', 'sha': release.SHA}}]), patch.object(
-                release, 'pages', side_effect=[
-                    [{'tag_name': release.TAG, 'prerelease': True, 'draft': True, 'id': 1}],
-                    [{'name': 'SHA256SUMS', 'digest': 'sha256:wrong'}]]), patch.object(release, 'gh') as gh:
-            with self.assertRaises(ValueError):
-                release.publish(root)
-            gh.assert_not_called()
+    def test_wrong_digest_never_mutates(self):
+        args = self.refresh_fixture()
+        self.state['assets'][0]['digest'] = 'sha256:' + '0' * 64
+        with self.assertRaises(ValueError):
+            release.publish(*args)
+        self.assertEqual(self.state['writes'], [])
 
+    def test_wrong_tag_never_mutates(self):
+        args = self.refresh_fixture()
+        self.state['tag'] = 'bad'
+        with self.assertRaises(ValueError):
+            release.publish(*args)
+        self.assertEqual(self.state['writes'], [])
 
-    def test_published_retry_is_read_only(self):
-        root = self.prepared()
-        checksums = release.verify_files(root)
-        published = {'tag_name': release.TAG, 'prerelease': True, 'draft': False, 'id': 1}
-        assets = [{'name': n, 'digest': 'sha256:' + d} for n, d in checksums.items()]
-        refs = [{'ref': 'refs/tags/' + release.TAG,
-                 'object': {'type': 'commit', 'sha': release.SHA}}]
-        with patch.object(release, 'api', side_effect=[refs, published]) as api, patch.object(
-                release, 'pages', side_effect=[[published], assets, assets]), patch.object(
-                release, 'gh') as gh:
-            release.publish(root)
-            gh.assert_not_called()
-            self.assertTrue(all(len(call.args) == 1 for call in api.call_args_list))
-
-    def test_draft_publishes_only_after_asset_validation(self):
-        root = self.prepared()
-        checksums = release.verify_files(root)
-        draft = {'tag_name': release.TAG, 'prerelease': True, 'draft': True, 'id': 1}
-        final = dict(draft, draft=False)
-        assets = [{'name': n, 'digest': 'sha256:' + d} for n, d in checksums.items()]
-        refs = [{'ref': 'refs/tags/' + release.TAG,
-                 'object': {'type': 'commit', 'sha': release.SHA}}]
-        with patch.object(release, 'api', side_effect=[refs, final, final]) as api, patch.object(
-                release, 'pages', side_effect=[[draft], [], assets]), patch.object(
-                release, 'gh') as gh:
-            release.publish(root)
-            self.assertEqual(gh.call_count, 14)
-            self.assertEqual(api.call_args_list[1].args,
-                             ('releases/1', 'PATCH', {'draft': False, 'prerelease': True,
-                                                      'make_latest': 'false'}))
+    def test_missing_backup_never_mutates(self):
+        args = self.refresh_fixture()
+        (args[2] / 'before-refresh.json').unlink()
+        with self.assertRaises(FileNotFoundError):
+            release.publish(*args)
+        self.assertEqual(self.state['writes'], [])
 
 if __name__ == '__main__':
     unittest.main()

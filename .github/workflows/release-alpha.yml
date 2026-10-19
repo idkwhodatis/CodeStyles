@@ -1,5 +1,5 @@
-name: Publish fixed alpha 0.1.0-alpha.1
-# One fixed release only. Later pushes can only verify/retry this same alpha.
+name: Refresh fixed alpha 0.1.0-alpha.1
+# One fixed old-to-new refresh only. Later runs verify/retry this same alpha.
 on:
   workflow_dispatch:
   push:
@@ -27,11 +27,15 @@ jobs:
       - name: Verify fixed CI run and prepare native packages
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/release_alpha.py prepare release-assets
+        run: |
+          python scripts/release_alpha.py prepare release-assets
+          python scripts/release_alpha.py prepare-previous previous-assets
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: verified-alpha-assets
-          path: release-assets/*
+          path: |
+            release-assets/*
+            previous-assets/*
           if-no-files-found: error
           retention-days: 7
   publish:
@@ -47,8 +51,21 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: verified-alpha-assets
-          path: release-assets
-      - name: Publish fixed prerelease, never replace existing assets
+          path: .
+      - name: Validate existing release and snapshot its state
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/release_alpha.py publish release-assets
+        run: python scripts/release_alpha.py snapshot release-assets --previous previous-assets --backup refresh-backup
+      - name: Retain original packages and pre-refresh metadata before replacement
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: alpha-before-refresh-${{ github.run_attempt }}
+          path: |
+            previous-assets/*
+            refresh-backup/*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Refresh only the approved fixed prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release_alpha.py publish release-assets --previous previous-assets --backup refresh-backup
