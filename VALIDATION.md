@@ -14,9 +14,9 @@
 - The release executable copied alone to an unrelated directory returned exit 1
   and a missing-resource JSON report, proving it cannot use the developer checkout
   fallback. Malformed diagnostic arguments and failure reporting are tested.
-- Package structure/permissions, Debian control metadata (independently checked
+- 73 Python tests pass for package structure/permissions, Debian control metadata (independently checked
   by dpkg-deb), ELF/Mach-O/PE fixtures, native ELF/readelf comparison, signing
-  sequencing, and safe extraction are covered by Python regression tests.
+  sequencing, and safe extraction.
 - Independent reviews corrected helper-specific DLL/dylib search paths, invalid
   imported-library types/architectures, Windows extended path comparisons,
   static Windows CRT linkage, privileged-container test semantics and temporary
@@ -28,9 +28,15 @@ The local optimized build used the current cloud Linux environment, **not** the
 old-ABI container; it is runtime-test evidence, not a glibc 2.28 artifact. The ABI
 auditor correctly rejects such newer-host builds. Both native Linux release lanes
 must build inside the pinned manylinux_2_28 images and pass the complete audit.
-The ARM image's package/toolchain setup succeeded in the first CI pass; portable
-fixture/path assumptions found by native CI are being corrected before the final
-six-target run is accepted.
+[Run 39178574499](https://github.com/idkwhodatis/CodeStyles/actions/runs/39178574499)
+at `f55092458edd14f24d330277ec9cedc90bb3fc30` passed both native Linux old-ABI
+lanes, including whole-payload ELF checks and genuinely network-disabled,
+unprivileged release tar/DEB smoke tests. It also passed both native macOS app ZIP
+and DMG lanes, including Intel 10.15.7 and ARM11.0 deployment audits. Windows x64/ARM64 built native releases and installers, then the
+auditor exposed four missing system-DLL catalog entries. Exact Microsoft-
+documented names were added with regression tests; VC runtimes still fail when
+unbundled. Final six-target acceptance must use the corrected head, not this
+partial earlier run.
 
 Local runs use unreachable proxies, not genuine network isolation. The Linux CI
 workflow separately repeats extracted-package tests in an unprivileged,

@@ -4,6 +4,7 @@ import io
 import json
 from pathlib import Path
 import subprocess
+import struct
 import tarfile
 import tempfile
 import unittest
@@ -24,6 +25,17 @@ class DistributionToolsTests(unittest.TestCase):
             setup.write_bytes(binary_fixtures.pe(machine=0x14c, is64=False))
             check_distribution.audit_bootstrap(setup, report)
             self.assertEqual(json.loads(report.read_text())['binary']['architecture'], 'x86')
+            windows10 = bytearray(binary_fixtures.pe(machine=0x14c, is64=False))
+            for offset in (40, 48):
+                struct.pack_into('<HH', windows10, 0x98 + offset, 10, 0)
+            setup.write_bytes(windows10)
+            check_distribution.audit_bootstrap(setup, report)
+            for offset in (40, 48):
+                newer = bytearray(windows10)
+                struct.pack_into('<HH', newer, 0x98 + offset, 10, 1)
+                setup.write_bytes(newer)
+                with self.assertRaises(ValueError):
+                    check_distribution.audit_bootstrap(setup, report)
             for payload in (binary_fixtures.pe(), binary_fixtures.pe(machine=0x14c, is64=False, imports=('VCRUNTIME140.dll',))):
                 setup.write_bytes(payload)
                 with self.assertRaises(ValueError):

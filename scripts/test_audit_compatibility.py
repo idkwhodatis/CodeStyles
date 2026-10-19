@@ -240,6 +240,26 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(report['binaries'][0]['delay_imports'], ['ucrtbase.dll'])
         self.assertEqual(report['binaries'][1]['subsystem'], 3)
 
+    def test_documented_windows_system_imports_are_exact_and_sourced(self):
+        names = ('pdh.dll', 'icuuc.dll', 'uiautomationcore.dll', 'gdiplus.dll')
+        for target, machine in [(WIN, 0x8664), ('aarch64-pc-windows-msvc', 0xaa64)]:
+            with self.subTest(target=target):
+                report = self.run_audit({'codestyles.exe': pe(machine=machine, imports=names, delay=()),
+                                         'resources/dprint.exe': pe(machine=machine, subsystem=3,
+                                                                    imports=('pdh.dll',), delay=())}, target)
+                self.assertPass(report)
+                for record in report['binaries']:
+                    self.assertTrue(all(dep['status'] == 'external-system' for dep in record['dependencies']))
+        for name in names:
+            evidence = POLICY['windows']['external_library_evidence'][name]
+            self.assertTrue(evidence['source'].startswith('https://learn.microsoft.com/'))
+            self.assertTrue(evidence['availability'])
+        self.assertIn('1703', POLICY['windows']['external_library_evidence']['icuuc.dll']['availability'])
+        self.assertTrue(set(POLICY['windows']['redistributable_libraries']).isdisjoint(
+            POLICY['windows']['external_libraries']))
+        for name in ('pdh-private.dll', 'icuuc_custom.dll', 'uiautomationcore_extra.dll', 'gdiplus-extension.dll'):
+            self.assertError(self.run_audit({'codestyles.exe': pe(imports=(name,), delay=())}, WIN), 'unresolved')
+
     def test_pe_main_console_wrong_arch_dll_or_unknown_import_fails(self):
         for content, expected in [(pe(subsystem=3), 'GUI subsystem'), (pe(machine=0xaa64), 'architecture'),
                                   (pe(dll=True), 'marked as a DLL'), (pe(delay=('custom.dll',)), 'custom.dll')]:

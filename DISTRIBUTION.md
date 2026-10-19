@@ -54,6 +54,8 @@ macOS tests mount the DMG read-only; Linux tests inspect/extract the actual Debi
 payload. Linux repeats its tests in an unprivileged Docker container with
 `--network none`, a read-only root and a read-only source/artifact mount. The
 writable temporary/cache/report directories are outside the installation tree.
+CI requires an effective installation write-denial probe on every platform; a
+Windows attribute-only fallback is reported but cannot pass that gate.
 Windows/macOS unreachable proxies are only a network-deterrence check, **not** a
 network isolation guarantee. These headless tests do not establish GUI first
 launch or display behavior.

@@ -159,7 +159,9 @@
       "dxgi.dll",
       "dxguid.dll",
       "gdi32.dll",
+      "gdiplus.dll",
       "hid.dll",
+      "icuuc.dll",
       "imm32.dll",
       "iphlpapi.dll",
       "kernel32.dll",
@@ -174,6 +176,7 @@
       "oleacc.dll",
       "oleaut32.dll",
       "opengl32.dll",
+      "pdh.dll",
       "powrprof.dll",
       "propsys.dll",
       "psapi.dll",
@@ -184,6 +187,7 @@
       "shlwapi.dll",
       "sspicli.dll",
       "ucrtbase.dll",
+      "uiautomationcore.dll",
       "user32.dll",
       "userenv.dll",
       "usp10.dll",
@@ -222,7 +226,30 @@
       "concrt140.dll"
     ],
     "subsystem_version_ceiling": "10.0",
-    "os_header_version_ceiling": "10.0"
+    "os_header_version_ceiling": "10.0",
+    "external_library_evidence": {
+      "icuuc.dll": {
+        "source": "https://learn.microsoft.com/en-us/windows/win32/intl/international-components-for-unicode--icu-",
+        "verified_on": "2026-10-19",
+        "availability": "Microsoft documents icuuc.dll as a Windows system DLL introduced in Windows 10 version 1703. Version 1709 introduced the combined icu.h header; the separate combined icu.dll arrived in 1903. The exact icuuc.dll import is within the desired Windows 10 22H2 baseline."
+      },
+      "pdh.dll": {
+        "source": "https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhopenqueryw",
+        "verified_on": "2026-10-19",
+        "availability": "Microsoft lists Pdh.dll for PdhOpenQueryW and a minimum supported Windows XP desktop client, preceding the desired Windows 10 22H2 baseline."
+      },
+      "uiautomationcore.dll": {
+        "source": "https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcoreapi/nf-uiautomationcoreapi-uiagetreservednotsupportedvalue",
+        "verified_on": "2026-10-19",
+        "availability": "Microsoft lists Uiautomationcore.dll for UiaGetReservedNotSupportedValue and a minimum supported Windows XP client, preceding the desired Windows 10 22H2 baseline."
+      },
+      "gdiplus.dll": {
+        "source": "https://learn.microsoft.com/en-us/windows/win32/api/gdiplusinit/nf-gdiplusinit-gdiplusstartup",
+        "verified_on": "2026-10-19",
+        "availability": "Microsoft lists Gdiplus.dll for GdiplusStartup and Windows XP/Windows 2000 Professional desktop clients, preceding the desired Windows 10 22H2 baseline."
+      }
+    },
+    "external_library_evidence_scope": "These exact OS-DLL entries were encountered in native Windows CI imports (dprint: pdh.dll; CodeStyles: icuuc.dll, uiautomationcore.dll, gdiplus.dll). Microsoft DLL availability evidence does not establish availability of every imported symbol, native ARM64 behavior, or application runtime acceptance on Windows 10 22H2. No Visual C++ Redistributable DLL is added to the OS catalog."
   },
   "audit_limitations": [
     "Static audit success is not minimum-OS certification. validated_minimum_os stays null until separately recorded native testing on the claimed minimum OS.",

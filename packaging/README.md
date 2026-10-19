@@ -74,3 +74,10 @@ resource integrity failures, reproducibility, permissions and native-tool comman
 contracts. When `dpkg-deb` is available, the tests independently parse the emitted
 Debian packages. Mocked native-tool contracts do not replace real installer/DMG
 validation on their native OS.
+
+Windows installers are built with [Inno Setup](https://jrsoftware.org/),
+by Jordan Russell and Martijn Laan. Its existing notices are retained in the
+installer. The tested hosted compiler is 6.7.1; see its
+[upstream license](https://github.com/jrsoftware/issrc/blob/is-6_7_1/license.txt)
+and the vendor's [commercial-license FAQ](https://jrsoftware.org/isorder.php).
+No license purchase or key configuration is performed by these scripts.

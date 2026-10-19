@@ -57,7 +57,7 @@ def audit_bootstrap(path, report):
     if record['architecture'] != 'x86' or record['is_dll'] or record['subsystem'] != 2:
         errors.append('Expected the explicitly configured x86 GUI Inno bootstrap')
     for field in ('os_header_version', 'subsystem_version'):
-        if audit_compatibility.version_tuple(record[field]) > (10, 0):
+        if audit_compatibility.version_tuple(record[field]) > audit_compatibility.version_tuple('10.0'):
             errors.append(f'{field} exceeds Windows 10 target')
     for name in record['imports'] + record['delay_imports']:
         lower = name.lower()

@@ -91,7 +91,7 @@ jobs:
       - name: Build native distribution formats
         run: python scripts/package_app.py --target ${{ matrix.target }} --output-dir dist
       - name: Audit complete bundles and exercise archived/installed resources
-        run: python scripts/check_distribution.py --target ${{ matrix.target }} --directory dist
+        run: python scripts/check_distribution.py --target ${{ matrix.target }} --directory dist --require-readonly
       - uses: actions/upload-artifact@v4
         if: always()
         with:
