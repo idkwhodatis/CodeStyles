@@ -4,9 +4,12 @@ import json
 import os
 from pathlib import Path, PureWindowsPath
 import stat
+import shutil
+import subprocess
 import tarfile
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 import zipfile
 
@@ -63,6 +66,79 @@ class ExtractionTests(unittest.TestCase):
                 out.addfile(info)
             with self.assertRaises(ValueError):
                 smoke.extract_archive(archive, root / "extracted")
+
+
+class ProtectionTests(unittest.TestCase):
+    def test_windows_acl_denies_only_mutations_not_shared_read_execute_rights(self):
+        command = smoke.windows_deny_write_command("installation", "S-1-5-21-123")
+        self.assertEqual(command, ["icacls", "installation", "/deny",
+                                   "*S-1-5-21-123:(OI)(CI)(WD,AD,WEA,WA)", "/T", "/Q"])
+
+    def test_partial_windows_acl_failure_removes_denial_before_fallback(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "sample").write_bytes(b"sample")
+            calls = [SimpleNamespace(stdout='"user","S-1-5-21-123"\n'),
+                     subprocess.CalledProcessError(5, ["icacls", "/deny"]),
+                     SimpleNamespace(returncode=0)]
+            try:
+                with mock.patch.object(smoke, "os", SimpleNamespace(name="nt")), \
+                        mock.patch.object(smoke.subprocess, "run", side_effect=calls) as run:
+                    evidence, sid = smoke.protect_install(root)
+                self.assertIsNone(sid)
+                self.assertTrue(evidence["partial_acl_removed"])
+                self.assertIn("exit status 5", evidence["acl_error"])
+                self.assertEqual(run.call_args_list[2].args[0],
+                                 ["icacls", str(root), "/remove:d", "*S-1-5-21-123", "/T", "/Q"])
+            finally:
+                smoke.restore_install(root, None)
+
+    def test_protection_exception_restores_modes_and_partial_acl(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            sample = root / "sample"
+            sample.write_bytes(b"sample")
+            calls = [SimpleNamespace(stdout='"user","S-1-5-21-123"\n'),
+                     SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)]
+            evidence = {}
+            with mock.patch.object(smoke, "os", SimpleNamespace(name="nt")), \
+                    mock.patch.object(smoke.subprocess, "run", side_effect=calls) as run, \
+                    mock.patch.object(Path, "write_bytes", side_effect=OSError("probe failure")):
+                with self.assertRaisesRegex(OSError, "probe failure"):
+                    smoke.protect_install(root, evidence)
+            self.assertEqual(run.call_args_list[-1].args[0][2], "/remove:d")
+            self.assertTrue(sample.stat().st_mode & stat.S_IWUSR)
+            self.assertTrue(root.stat().st_mode & stat.S_IWUSR)
+            self.assertNotIn("cleanup_error", evidence)
+
+    @unittest.skipUnless(os.name == "nt", "Requires native Windows ACL and executable semantics")
+    def test_native_windows_readonly_acl_preserves_reads_and_execution(self):
+        with tempfile.TemporaryDirectory(prefix="CodeStyles ACL 安装 ") as temp:
+            root = Path(temp)
+            nested = root / "nested resources"
+            nested.mkdir()
+            sample = nested / "sample.txt"
+            sample.write_bytes(b"readable resource")
+            executable = nested / "cmd.exe"
+            shutil.copyfile(Path(os.environ["SystemRoot"]) / "System32/cmd.exe", executable)
+            evidence, sid = smoke.protect_install(root)
+            try:
+                self.assertEqual(evidence["method"], "windows_deny_write_acl", evidence)
+                self.assertTrue(evidence["write_denied"], evidence)
+                self.assertEqual(sample.read_bytes(), b"readable resource")
+                self.assertEqual(executable.read_bytes()[:2], b"MZ")
+                self.assertTrue(smoke.snapshot(root))
+                subprocess.run([str(executable), "/d", "/c", "exit", "0"],
+                               check=True, capture_output=True, timeout=10)
+                with self.assertRaises(PermissionError):
+                    sample.write_bytes(b"changed")
+                with self.assertRaises(PermissionError):
+                    (nested / "new-file").write_bytes(b"changed")
+                with self.assertRaises(PermissionError):
+                    (nested / "new-directory").mkdir()
+            finally:
+                smoke.restore_install(root, sid)
+            sample.write_bytes(b"cleanup restored write access")
 
 
 class SmokeTests(unittest.TestCase):
@@ -161,6 +237,22 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({'status': 'passed', 'mode': 'he
             self.assertTrue(result["install_tree_unchanged"])
             self.assertFalse(result["network"]["isolation_enforced_by_script"])
             self.assertEqual(smoke.snapshot(payload), before)
+
+    def test_report_retains_failed_stage_and_traceback_after_cleanup(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            payload = root / "payload"
+            payload.mkdir()
+            (payload / "codestyles").write_bytes(b"fixture")
+            report = root / "report.json"
+            with mock.patch.object(smoke, "protect_install", return_value=({"write_denied": True}, None)), \
+                    mock.patch.object(smoke, "snapshot", side_effect=PermissionError("denied file read")):
+                self.assertEqual(smoke.main(["--directory", str(payload), "--report", str(report)]), 1)
+            result = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(result["error_stage"], "snapshot_before")
+            self.assertEqual(result["error_type"], "PermissionError")
+            self.assertIn("denied file read", result["traceback"])
+            self.assertIn("snapshot(install)", result["traceback"])
 
     def test_invalid_package_produces_failed_json_and_nonzero(self):
         with tempfile.TemporaryDirectory() as temp:

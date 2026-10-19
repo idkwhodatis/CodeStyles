@@ -14,8 +14,10 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
+import traceback
 import zipfile
 
 EXPECTED_EXTENSIONS = {"ts", "js", "tsx", "jsx", "json", "jsonc", "md", "toml"}
@@ -93,44 +95,71 @@ def snapshot(root):
     return result
 
 
-def protect_install(root):
-    """Return evidence plus cleanup data. Windows attributes alone are not ACLs."""
+def windows_deny_write_command(root, sid):
+    # Generic W/GW also denies SYNCHRONIZE, which generic read/execute request.
+    # Deny only mutation rights so icacls traversal and application loading work.
+    # https://learn.microsoft.com/windows/win32/fileio/file-security-and-access-rights
+    return ["icacls", str(root), "/deny", f"*{sid}:(OI)(CI)(WD,AD,WEA,WA)", "/T", "/Q"]
+
+
+def remove_windows_write_deny(root, sid):
+    subprocess.run(["icacls", str(root), "/remove:d", f"*{sid}", "/T", "/Q"],
+                   check=True, capture_output=True, text=True)
+
+
+def protect_install(root, evidence=None):
+    """Return evidence plus cleanup data; unwind partially applied protection."""
     acl_sid = None
-    evidence = {"method": "unix_mode_bits", "write_denied": False}
-    for path in sorted(root.rglob("*"), reverse=True) + [root]:
-        if not path.is_symlink():
-            path.chmod(stat.S_IMODE(path.stat().st_mode) & ~0o222)
-    if os.name == "nt":
-        evidence["method"] = "windows_readonly_attributes"
-        evidence["limitation"] = "Windows read-only attributes do not prohibit directory writes."
-        # Try an actual deny-write ACL on our disposable copy. This never changes
-        # the source installation and is removed before temporary-dir cleanup.
-        try:
-            identity = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"],
-                                      capture_output=True, text=True, check=True)
-            sid = next(csv.reader(identity.stdout.strip().splitlines()))[1]
-            acl_sid = sid  # Remove any partial ACL changes even if icacls fails.
-            subprocess.run(["icacls", str(root), "/deny", f"*{sid}:(OI)(CI)(W)", "/T", "/Q"],
-                           check=True, capture_output=True, text=True)
-            evidence.update(method="windows_deny_write_acl", limitation=None)
-        except (OSError, subprocess.SubprocessError, IndexError, StopIteration) as error:
-            evidence["acl_error"] = str(error)
-    # Probe directory creation instead of trusting chmod/administrator identity.
-    probe = root / ".codestyles-write-probe"
+    if evidence is None:
+        evidence = {}
+    evidence.update(method="unix_mode_bits", write_denied=False)
     try:
-        probe.write_bytes(b"write protection probe")
-    except PermissionError:
-        evidence["write_denied"] = True
-    else:
-        probe.unlink()
-        evidence["limitation"] = "Current process can still write to installation; snapshot detects persistent changes only."
-    return evidence, acl_sid
+        for path in sorted(root.rglob("*"), reverse=True) + [root]:
+            if not path.is_symlink():
+                path.chmod(stat.S_IMODE(path.stat().st_mode) & ~0o222)
+        if os.name == "nt":
+            evidence["method"] = "windows_readonly_attributes"
+            evidence["limitation"] = "Windows read-only attributes do not prohibit directory writes."
+            # Only our disposable copy is changed. If icacls applies part of an
+            # ACL before failing, remove it before falling back to attributes.
+            try:
+                identity = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"],
+                                          capture_output=True, text=True, check=True)
+                sid = next(csv.reader(identity.stdout.strip().splitlines()))[1]
+                acl_sid = sid
+                command = windows_deny_write_command(root, sid)
+                evidence["deny_rights"] = ["WD", "AD", "WEA", "WA"]
+                subprocess.run(command, check=True, capture_output=True, text=True)
+                evidence.update(method="windows_deny_write_acl", limitation=None)
+            except (OSError, subprocess.SubprocessError, IndexError, StopIteration) as error:
+                evidence["acl_error"] = str(error)
+                if acl_sid:
+                    remove_windows_write_deny(root, acl_sid)
+                    acl_sid = None
+                    evidence["partial_acl_removed"] = True
+        # Probe directory creation instead of trusting attributes or identity.
+        probe = root / ".codestyles-write-probe"
+        try:
+            probe.write_bytes(b"write protection probe")
+        except PermissionError:
+            evidence["write_denied"] = True
+        else:
+            probe.unlink()
+            evidence["limitation"] = "Current process can still write to installation; snapshot detects persistent changes only."
+        return evidence, acl_sid
+    except BaseException:
+        # The caller has no cleanup token until this function returns. Undo
+        # mode changes and even a partially installed ACL on exceptional exits.
+        try:
+            restore_install(root, acl_sid)
+        except (OSError, subprocess.SubprocessError) as error:
+            evidence["cleanup_error"] = str(error)
+        raise
 
 
 def restore_install(root, acl_sid):
     if acl_sid:
-        subprocess.run(["icacls", str(root), "/remove:d", f"*{acl_sid}", "/T", "/Q"],
-                       check=True, capture_output=True, text=True)
+        remove_windows_write_deny(root, acl_sid)
     for path in [root, *root.rglob("*")]:
         if not path.is_symlink():
             path.chmod(stat.S_IMODE(path.stat().st_mode) | (0o700 if path.is_dir() else 0o600))
@@ -218,17 +247,22 @@ def validate_backend_report(report, install, cache):
 
 
 def smoke(args, result):
+    result["stage"] = "create_workspace"
     with tempfile.TemporaryDirectory(prefix="CodeStyles package 验证 ") as temp:
         workspace = Path(temp).resolve()
         install = workspace / "安装 CodeStyles read only"
         install.mkdir()
         if args.archive:
+            result["stage"] = "extract_payload"
             extract_archive(args.archive, install)
         else:
+            result["stage"] = "copy_payload"
             # Preserve relative symlinks from native package layouts; executable
             # discovery ignores aliases, and the source directory is untouched.
             shutil.copytree(args.directory, install, dirs_exist_ok=True, symlinks=True)
+        result["stage"] = "locate_executable"
         executable = find_binary(install)
+        result["stage"] = "prepare_environment"
         env = isolated_environment(workspace)
         cache = Path(env["DPRINT_CACHE_DIR"])
         cwd = workspace / "unrelated working directory 工作"
@@ -237,31 +271,48 @@ def smoke(args, result):
         result.update(executable=str(executable), install_directory=str(install),
                       working_directory=str(cwd), cache_directory=str(cache),
                       cache_initially_absent=not cache.exists(), resource_override_removed=True)
-        protection, acl_sid = protect_install(install)
-        result["read_only_install"] = protection
+        result["stage"] = "protect_install"
+        result["read_only_install"] = {}
+        protection, acl_sid = protect_install(install, result["read_only_install"])
         try:
             if os.name != "nt" and not protection["write_denied"]:
                 raise ValueError("Unix install-tree write protection is ineffective; run as a non-root user")
             if args.require_readonly and not protection["write_denied"]:
                 raise ValueError("Installation is not protected against writes")
+            result["stage"] = "snapshot_before"
             before = snapshot(install)
+            result["stage"] = "execute_self_test"
             process = subprocess.run([str(executable), "--self-test", str(report_path)],
                                      cwd=cwd, env=env, capture_output=True, text=True,
                                      encoding="utf-8", errors="replace", timeout=args.timeout)
             result.update(exit_code=process.returncode, stdout=process.stdout, stderr=process.stderr)
+            result["stage"] = "snapshot_after"
             result["install_tree_unchanged"] = before == snapshot(install)
+            result["stage"] = "read_backend_report"
             if report_path.is_file():
                 result["backend"] = json.loads(report_path.read_text(encoding="utf-8"))
             if process.returncode != 0:
                 raise ValueError(f"Packaged executable exited {process.returncode}: {process.stderr}")
             if not result["install_tree_unchanged"]:
                 raise ValueError("Packaged executable modified its installation")
+            result["stage"] = "validate_backend_report"
             validate_backend_report(result.get("backend", {}), install, cache)
+            result["stage"] = "verify_cache"
             result["cache_populated"] = cache.is_dir() and any(path.is_file() for path in cache.rglob("*"))
             if not result["cache_populated"]:
                 raise ValueError("Formatter did not populate the fresh external cache")
         finally:
-            restore_install(install, acl_sid)
+            failed = sys.exc_info()[0] is not None
+            if not failed:
+                result["stage"] = "restore_install"
+            try:
+                restore_install(install, acl_sid)
+            except (OSError, subprocess.SubprocessError) as error:
+                result["cleanup_error"] = str(error)
+                if not failed:
+                    raise
+        result["stage"] = "cleanup_workspace"
+    result["stage"] = "complete"
 
 
 def main(argv=None):
@@ -286,11 +337,14 @@ def main(argv=None):
         result["status"] = "passed"
     except (OSError, ValueError, tarfile.TarError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
         result["error"] = str(error)
+        result["error_type"] = type(error).__name__
+        result["error_stage"] = result.get("stage", "unknown")
+        result["traceback"] = traceback.format_exc()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"Package smoke {result['status']}: {args.report}")
     if result.get("error"):
-        print(result["error"])
+        print(f"{result['error_stage']}: {result['error']}")
     return 0 if result["status"] == "passed" else 1
 
 
