@@ -1,0 +1,32 @@
+# Basic values and an inline comment.
+title="CodeStyles" # Application name
+enabled=true
+version=1
+ratio=0.75
+hex=0xDEAD_BEEF
+released=2026-01-15T09:30:00Z
+quoted."display name"='Style preview'
+message="Hello, \"preview\"!\nReady."
+path='C:\styles\preview'
+description="""
+Compare saved and draft settings.
+Keep the original source unchanged.
+"""
+
+[preview]
+width=80
+languages=["TypeScript","JavaScript","TSX","JSX","JSON","JSONC","Markdown","TOML"]
+layout={source=true,preview=true,spacing={width=2,tabs=false}}
+matrix=[[1,2],[3,4]]
+
+[preview.colors]
+background="dark"
+accent="blue"
+
+[[items]]
+name="alpha"
+tags=["short","a longer label"]
+
+[[items]]
+name="beta"
+tags=[]

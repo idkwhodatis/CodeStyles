@@ -7,7 +7,7 @@ checking and explicit formatting, plus editor/CI setup guidance on the P1/P2 edi
 ## P3 project workflow
 
 - Markdown **0.26.0** and TOML **0.9.0** join TypeScript and JSON in the same
-  checksummed bundle, schema controls and built-in/custom sample workflow.
+  checksummed bundle, schema controls and built-in sample workflow.
 - The Project page uses the selected saved configuration's directory as its root.
   Save or discard all pending raw/form/draft changes before running a project
   operation. Unsaved standalone configurations cannot operate on project files.
@@ -38,29 +38,32 @@ checking and explicit formatting, plus editor/CI setup guidance on the P1/P2 edi
   user-level VS Code settings and version-pinned CI guidance. It never edits the
   editor or workspace settings. See [editor integration](EDITOR_INTEGRATION.md).
 
-## P2 style tuning
+## Style tuning
 
 - Search the pinned TypeScript 0.96.1, JSON 0.25.2, Markdown 0.26.0 and TOML 0.9.0 schemas by setting name,
-  description or group. Select a group and then a setting. All bundled schema properties appear; unsupported complex fields explicitly
-  direct you to JSONC instead of approximating their schema.
+  description or group. The left pane previews code; the right pane uses category
+  tabs and inline setting rows with switches, dropdowns and value inputs.
+  All bundled schema properties appear; unsupported complex fields direct you
+  to JSONC instead of approximating their schema.
 - Native controls support local `$ref`, boolean, number/integer, string, typed
   `enum`, `const` and finite scalar `oneOf` choices. Unsupported constraints,
   remote/cyclic references and complex values fail closed to raw editing.
-- Filled dots identify explicitly written values. Reset writes the declared
-  schema default; Unset removes the property. The displayed schema default is
+- Each row identifies explicit versus unset values. Reset removes the property
+  so inheritance or plugin defaults can apply. The displayed schema default is
   documentation, not a claim about effective settings: global options, presets
   and inheritance may change what dprint uses. Existing global settings remain
   accessible in JSONC. Unknown fields and comments survive form edits. Pending
   scalar input is kept until Apply or Discard; it blocks Save and setting/category/
   language transitions and participates in open/close discard confirmation.
+  Press Enter in a value input to explicitly write its displayed value, including
+  an unchanged schema default.
 - Unknown plugin identities/versions, mixed unknown plugins and unresolved
   inheritance disable typed controls. Raw JSONC remains available. Supported
   known-version values are checked before Save; dprint supplies runtime diagnostics.
-- Choose a language and a built-in Overview, Collections or Comments example,
-  or edit Custom source. Group changes choose a relevant built-in example only
-  in built-in mode. Custom bytes survive language, category and setting changes,
-  as well as switching to a built-in example and back. Source is session-only;
-  closing warns when a custom buffer would be lost.
+- The current-language bar has a Change button opening a grouped language dialog.
+  Each of the eight supported dialects has one compact, immutable syntax tour.
+  Category changes retain that sample. The read-only preview uses GPUI
+  Tree-sitter syntax highlighting; no source entry or separate source pane is needed.
 - Preview formats the draft. Diff compares the saved configuration baseline
   against that draft using the exact same source and logical source path, never
   an earlier formatted output. Successful Save advances the baseline and queues
@@ -72,8 +75,7 @@ checking and explicit formatting, plus editor/CI setup guidance on the P1/P2 edi
   may resolve resources or execute process plugins. Save As to a new location
   revokes that trust, preserving P1 path safeguards.
 - Light/dark theme switching uses GPUI Kit theme colors. Persistent editor entities
-  and named scroll panes retain source selection and reading position across
-  setting changes. Tab navigates native controls; Enter/Space activate buttons,
+  and native code/setting panes provide scrolling and text selection. Tab navigates native controls; Enter/Space activate buttons,
   Enter applies the value input, Ctrl/Cmd+Shift+F focuses search and Ctrl/Cmd+S saves.
 
 ## P1 configuration workflow
@@ -103,7 +105,7 @@ checking and explicit formatting, plus editor/CI setup guidance on the P1/P2 edi
 ## Preview foundation
 
 - Native schema controls for TS/JS/TSX/JSX/JSON/JSONC/Markdown/TOML formatting.
-- Built-in or editable custom source beside formatted output or saved/draft diff.
+- Built-in syntax-highlighted formatted example, with optional saved/draft diff.
 - A 150 ms debounce, one background formatter worker, cancellation and revision
   gating. Stale results cannot replace the latest preview. The last successful
   output remains visible with an explicit stale label during updates or errors.
@@ -195,7 +197,7 @@ A read-only project directory produces a clear error rather than relocating the
 draft and silently changing relative path semantics.
 
 Window-close and the app-owned Quit menu/shortcut ask before discarding unsaved
-drafts, including invalid raw text and session-only custom source. OS/Dock/session termination can bypass the
+drafts, including invalid raw text and pending setting inputs. OS/Dock/session termination can bypass the
 framework close guard; drafts are not crash-persisted. Save important edits first.
 
 See [resources/README.md](resources/README.md) for resource provenance and

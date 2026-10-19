@@ -42,6 +42,43 @@ impl SourceLanguage {
         }
     }
 
+    /// Human-readable names for the language picker.
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::TypeScript => "TypeScript",
+            Self::JavaScript => "JavaScript",
+            Self::Tsx => "TypeScript JSX",
+            Self::Jsx => "JavaScript JSX",
+            Self::Json => "JSON",
+            Self::Jsonc => "JSON with Comments",
+            Self::Markdown => "Markdown",
+            Self::Toml => "TOML",
+        }
+    }
+
+    pub fn category(self) -> &'static str {
+        match self {
+            Self::TypeScript | Self::JavaScript | Self::Tsx | Self::Jsx => "Code",
+            Self::Json | Self::Jsonc | Self::Toml => "Data",
+            Self::Markdown => "Documentation",
+        }
+    }
+
+    /// One immutable, dialect-specific syntax tour, embedded in the executable.
+    /// Samples are deliberately compact and unformatted so settings remain visible.
+    pub fn builtin_source(self) -> &'static str {
+        match self {
+            Self::TypeScript => include_str!("../resources/samples/sample.ts"),
+            Self::JavaScript => include_str!("../resources/samples/sample.js"),
+            Self::Tsx => include_str!("../resources/samples/sample.tsx"),
+            Self::Jsx => include_str!("../resources/samples/sample.jsx"),
+            Self::Json => include_str!("../resources/samples/sample.json"),
+            Self::Jsonc => include_str!("../resources/samples/sample.jsonc"),
+            Self::Markdown => include_str!("../resources/samples/sample.md"),
+            Self::Toml => include_str!("../resources/samples/sample.toml"),
+        }
+    }
+
     pub fn extension(self) -> &'static str {
         match self {
             Self::TypeScript => "ts",
@@ -134,27 +171,21 @@ impl BuiltinSample {
 
     pub fn source(self, language: SourceLanguage) -> &'static str {
         match (language, self) {
-            (SourceLanguage::Markdown, Self::Overview) => MARKDOWN_OVERVIEW,
+            (_, Self::Overview) => language.builtin_source(),
             (SourceLanguage::Markdown, Self::Collections) => MARKDOWN_COLLECTIONS,
             (SourceLanguage::Markdown, Self::Comments) => MARKDOWN_COMMENTS,
-            (SourceLanguage::Toml, Self::Overview) => TOML_OVERVIEW,
             (SourceLanguage::Toml, Self::Collections) => TOML_COLLECTIONS,
             (SourceLanguage::Toml, Self::Comments) => TOML_COMMENTS,
-            (SourceLanguage::Json, Self::Overview) => JSON_OVERVIEW,
             (SourceLanguage::Json, Self::Collections) => JSON_COLLECTIONS,
             (SourceLanguage::Json, Self::Comments) => JSON_DESCRIPTIONS,
-            (SourceLanguage::Jsonc, Self::Overview) => JSONC_OVERVIEW,
             (SourceLanguage::Jsonc, Self::Collections) => JSONC_COLLECTIONS,
             (SourceLanguage::Jsonc, Self::Comments) => JSONC_COMMENTS,
-            (SourceLanguage::Tsx | SourceLanguage::Jsx, Self::Overview) => JSX_OVERVIEW,
             (SourceLanguage::Tsx | SourceLanguage::Jsx, Self::Collections) => JSX_COLLECTIONS,
             (SourceLanguage::Tsx | SourceLanguage::Jsx, Self::Comments) => JSX_COMMENTS,
-            (SourceLanguage::TypeScript, Self::Overview) => TS_OVERVIEW,
             (SourceLanguage::TypeScript, Self::Collections) => TS_COLLECTIONS,
             (SourceLanguage::TypeScript | SourceLanguage::JavaScript, Self::Comments) => {
                 JS_COMMENTS
             }
-            (SourceLanguage::JavaScript, Self::Overview) => JS_OVERVIEW,
             (SourceLanguage::JavaScript, Self::Collections) => JS_COLLECTIONS,
         }
     }
@@ -236,27 +267,20 @@ impl SourceState {
     }
 }
 
-const JS_OVERVIEW: &str = "import {readFile,writeFile} from 'node:fs/promises';\nconst preferences={theme:'dark',tabs:['source','preview']};\nexport async function greet(name){if(name){return {message:`Hello, ${name}!`,settings:preferences}}return null}\nconsole.log(greet('CodeStyles'));\n";
-const TS_OVERVIEW: &str = "type User={name:string;active:boolean};\nconst users:User[]=[{name:'Ada',active:true},{name:'Lin',active:false}];\nexport function activeNames(items:User[]){return items.filter(user=>user.active).map(user=>{return user.name})}\nconsole.log(activeNames(users));\n";
-const JSX_OVERVIEW: &str = "const items=['Source','Preview'];\nexport function App(){return <main className='preview'><h1>CodeStyles</h1><ul>{items.map(item=><li key={item}>{item}</li>)}</ul></main>}\n";
 const JS_COLLECTIONS: &str = "const items=[{name:'alpha',enabled:true},{name:'beta',enabled:false},];\nconst options={spacing:{width:4,tabs:false},labels:['short','a longer label','preview'],};\nconst result=items.map(({name,enabled})=>({name,enabled,options}));\n";
 const TS_COLLECTIONS: &str = "type Item={name:string;enabled:boolean;tags:readonly string[]};\ntype Pair=[string,number];\nconst items:Item[]=[{name:'alpha',enabled:true,tags:['one','two']},{name:'beta',enabled:false,tags:[]},];\nconst options={spacing:{width:4,tabs:false},labels:['short','a longer label','preview'],} satisfies Record<string,unknown>;\n";
 const JSX_COLLECTIONS: &str = "const items=[{id:1,name:'alpha',enabled:true},{id:2,name:'beta',enabled:false},];\nexport const List=()=> <section aria-label='Examples' className='sample-list'>{items.map(({id,name,enabled})=><div key={id} data-enabled={enabled} style={{display:'flex',gap:8}}>{name}</div>)}</section>;\n";
 const JS_COMMENTS: &str = "/**\n * Build a greeting.\n * @param name The display name.\n */\nexport function greet(name){\n//keep this explanation with the next statement\nconst message='Hello, '+name; //inline explanation\n/* A block comment inside the function. */\nreturn message;\n}\n";
 const JSX_COMMENTS: &str = "//Render a compact preview\nexport function Preview(){return <main>{/* A visible section follows. */}<h1 title='Preview'>CodeStyles</h1><p>Compare saved and draft settings.</p></main>}\n";
-const JSON_OVERVIEW: &str = "{\"name\":\"CodeStyles\",\"preview\":{\"enabled\":true,\"languages\":[\"TypeScript\",\"JSON\"]}}\n";
 const JSON_COLLECTIONS: &str = "{\"items\":[{\"name\":\"alpha\",\"enabled\":true},{\"name\":\"beta\",\"enabled\":false}],\"options\":{\"spacing\":{\"width\":4,\"tabs\":false},\"labels\":[\"short\",\"a longer label\",\"preview\"]}}\n";
 // JSON has no comments. Keep this example valid rather than silently switching
 // the language's parser to JSONC when the comments category is selected.
 const JSON_DESCRIPTIONS: &str = "{\"description\":\"JSON uses fields for descriptions; JSONC also supports comments.\",\"preview\":{\"description\":\"Saved and draft settings\",\"enabled\":true}}\n";
-const JSONC_OVERVIEW: &str = "{\n// Formatting preferences\n\"name\":\"CodeStyles\",\"preview\":{\"enabled\":true,\"languages\":[\"TypeScript\",\"JSON\"],},\n}\n";
 const JSONC_COLLECTIONS: &str = "{\n// Nested arrays and objects\n\"items\":[{\"name\":\"alpha\",\"enabled\":true},{\"name\":\"beta\",\"enabled\":false},],\n\"options\":{\"spacing\":{\"width\":4,\"tabs\":false},\"labels\":[\"short\",\"a longer label\",\"preview\"],},\n}\n";
 const JSONC_COMMENTS: &str = "{\n//keep this line comment\n\"name\":\"CodeStyles\", //inline description\n/* A block comment describing the preview. */\n\"preview\":{\"enabled\":true,\"labels\":[\"saved\",\"draft\"],},\n}\n";
 
-const MARKDOWN_OVERVIEW: &str = "# CodeStyles\n\nPreview **formatting** with the same original text, including a deliberately long paragraph that makes line wrapping changes easy to compare across saved and draft settings.\n\n*   Keep the source unchanged\n*   Compare the preview\n\n```ts\nconst settings={name:'CodeStyles',enabled:true};\n```\n";
 const MARKDOWN_COLLECTIONS: &str = "# Collections\n\n*   Source\n    *   Built-in examples\n    *   Custom input\n*   Preview\n\n|Name|Enabled|\n|:--|--:|\n|Saved|true|\n|Draft|false|\n\n```json\n{\"items\":[1,2,3],\"enabled\":true}\n```\n";
 const MARKDOWN_COMMENTS: &str = "# Comments\n\n<!-- Keep this explanation with the following paragraph. -->\n\nA paragraph with *emphasis*, a [link](https://dprint.dev/), and `inline code`.\n\n>   Compare the saved settings and draft settings while preserving the original source.\n\n```toml\n# A comment in a fenced TOML example\nname=\"CodeStyles\"\nenabled=true\n```\n";
-const TOML_OVERVIEW: &str = "title=\"CodeStyles\"\n\n[preview]\nenabled=true\nlanguages=[\"TypeScript\",\"JSON\",\"Markdown\",\"TOML\"]\nlayout={source=true,preview=true}\n";
 const TOML_COLLECTIONS: &str = "[options]\nlabels=[\"source\",\"saved\",\"draft\"]\nspacing={width=4,tabs=false}\n\n[[items]]\nname=\"alpha\"\nenabled=true\n\n[[items]]\nname=\"beta\"\nenabled=false\n";
 const TOML_COMMENTS: &str = "# Formatting preferences\ntitle=\"CodeStyles\" # Application name\n\n[preview]\n# Keep saved and draft output visible\nenabled=true\nlabels=[\"saved\",\"draft\"] # Comparison panes\n";
 
@@ -521,6 +545,203 @@ mod tests {
             }
             serde_json::from_str::<serde_json::Value>(sample.source(SourceLanguage::Json)).unwrap();
         }
+    }
+
+    #[test]
+    fn syntax_tours_keep_representative_coverage_for_each_dialect() {
+        // These are coverage contracts, separate from the formatter parity test:
+        // replacing a tour with a valid but trivial example must not pass.
+        let coverage: &[(SourceLanguage, &[&str])] = &[
+            (
+                SourceLanguage::TypeScript,
+                &[
+                    "import type",
+                    "interface Preview<T>",
+                    "readonly",
+                    "label?:",
+                    "type State=",
+                    "type Pair=",
+                    "[K in keyof T]",
+                    "infer U",
+                    "enum Mode",
+                    "satisfies",
+                    "class Store<T",
+                    "constructor(",
+                    "...items",
+                    "?.",
+                    "??",
+                    "async function",
+                    "try {",
+                    "catch(",
+                    "finally",
+                    "for(const",
+                    "/**",
+                    "//",
+                ],
+            ),
+            (
+                SourceLanguage::JavaScript,
+                &[
+                    "import {",
+                    "const options={",
+                    "...rest",
+                    "[1,2,3",
+                    ".filter(",
+                    "=>",
+                    "`Item ${",
+                    "/preview",
+                    "class Counter",
+                    "#value",
+                    "constructor(",
+                    "get value()",
+                    "?.",
+                    "??",
+                    "async function",
+                    "try {",
+                    "catch(",
+                    "finally",
+                    "function*",
+                    "yield",
+                    "switch(",
+                    "/**",
+                    "//",
+                ],
+            ),
+            (
+                SourceLanguage::Tsx,
+                &[
+                    "interface Entry",
+                    "type Props=",
+                    "useState<number|null>",
+                    ":void=>",
+                    "onSelect?.",
+                    "<main",
+                    "{/*",
+                    ".map(",
+                    "key={",
+                    "onClick={",
+                    "style={{",
+                    "?<>",
+                    "<hr/>",
+                    "??<footer>",
+                    "&amp;",
+                ],
+            ),
+            (
+                SourceLanguage::Jsx,
+                &[
+                    "import {",
+                    "useState(",
+                    "...props",
+                    "<main",
+                    "{/*",
+                    ".map(",
+                    "key={",
+                    "onClick={",
+                    "style={{",
+                    "?<>",
+                    "<hr/>",
+                    "&amp;",
+                ],
+            ),
+            (
+                SourceLanguage::Json,
+                &[
+                    "true",
+                    "false",
+                    "null",
+                    "0.75",
+                    "-2",
+                    "1.2e3",
+                    "\"preview\":{",
+                    "\"languages\":[",
+                    "\"items\":[{",
+                    "{}",
+                    "[]",
+                ],
+            ),
+            (
+                SourceLanguage::Jsonc,
+                &[
+                    "//",
+                    "/*",
+                    "*/",
+                    ",}",
+                    ",]",
+                    "true",
+                    "false",
+                    "null",
+                    "\"preview\":{",
+                    "\"languages\":[",
+                    "\"items\":[{",
+                ],
+            ),
+            (
+                SourceLanguage::Markdown,
+                &[
+                    "# CodeStyles",
+                    "## ",
+                    "**bold**",
+                    "_emphasis_",
+                    "~~",
+                    "`inline code`",
+                    "[dprint](",
+                    "[reference][guide]",
+                    "[guide]:",
+                    "*   ",
+                    "1.  ",
+                    "- [x]",
+                    "- [ ]",
+                    ">   ",
+                    "|Name|",
+                    "---",
+                    "<!--",
+                    "```ts",
+                    "```json",
+                    "```toml",
+                ],
+            ),
+            (
+                SourceLanguage::Toml,
+                &[
+                    "#",
+                    "true",
+                    "0.75",
+                    "0xDEAD_BEEF",
+                    "2026-01-15T09:30:00Z",
+                    "quoted.\"display name\"",
+                    "path='",
+                    "description=\"\"\"",
+                    "[preview]",
+                    "[preview.colors]",
+                    "[[items]]",
+                    "languages=[",
+                    "layout={",
+                    "matrix=[[",
+                    "tags=[]",
+                ],
+            ),
+        ];
+        assert_eq!(coverage.len(), SourceLanguage::ALL.len());
+        for &(language, syntax) in coverage {
+            for token in syntax {
+                assert!(
+                    language.builtin_source().contains(token),
+                    "{language:?} syntax tour lost representative syntax: {token}"
+                );
+            }
+        }
+        assert!(!SourceLanguage::Jsx.builtin_source().contains("interface "));
+        assert!(
+            !SourceLanguage::JavaScript
+                .builtin_source()
+                .contains("interface ")
+        );
+        let json: serde_json::Value =
+            serde_json::from_str(SourceLanguage::Json.builtin_source()).unwrap();
+        assert!(json["items"].is_array());
+        assert!(json["preview"]["indent"].is_object());
+        assert!(json["fallback"].is_null());
     }
 
     fn assert_reconstructs(before: &str, after: &str) -> Vec<DiffLine> {
