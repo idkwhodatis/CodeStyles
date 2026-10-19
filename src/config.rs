@@ -226,7 +226,7 @@ impl ConfigDocument {
                 prop.set_value(cst_input(value));
             }
             None => {
-                object.append(key, cst_input(value));
+                object.append(&cst_string_input(key), cst_input(value));
             }
         }
         self.replace_draft_text(&root.to_string())
@@ -527,12 +527,21 @@ fn parent_object(
                 )
             })?,
             None if create => object
-                .object_value_or_create(key)
-                .expect("missing object can be created"),
+                .append(&cst_string_input(key), CstInputValue::Object(Vec::new()))
+                .object_value()
+                .expect("new parent is an object"),
             None => return Ok(None),
         };
     }
     Ok(Some(object))
+}
+
+// jsonc-parser 0.29's CST insertion only escapes double quotes. Supply the
+// remaining JSON escapes ourselves, leaving quotes for its insertion routine.
+// Use the same adapter for property names, including newly created parents.
+fn cst_string_input(value: &str) -> String {
+    let encoded = serde_json::to_string(value).expect("strings always serialize");
+    encoded[1..encoded.len() - 1].replace("\\\"", "\"")
 }
 
 fn cst_input(value: Value) -> CstInputValue {
@@ -540,12 +549,12 @@ fn cst_input(value: Value) -> CstInputValue {
         Value::Null => CstInputValue::Null,
         Value::Bool(value) => CstInputValue::Bool(value),
         Value::Number(value) => CstInputValue::Number(value.to_string()),
-        Value::String(value) => CstInputValue::String(value),
+        Value::String(value) => CstInputValue::String(cst_string_input(&value)),
         Value::Array(values) => CstInputValue::Array(values.into_iter().map(cst_input).collect()),
         Value::Object(values) => CstInputValue::Object(
             values
                 .into_iter()
-                .map(|(key, value)| (key, cst_input(value)))
+                .map(|(key, value)| (cst_string_input(&key), cst_input(value)))
                 .collect(),
         ),
     }
@@ -734,6 +743,46 @@ mod tests {
         jsonc_parser::parse_to_serde_value(text, &jsonc_options())
             .unwrap()
             .unwrap()
+    }
+
+    #[test]
+    fn cst_edits_escape_windows_paths_controls_and_nested_keys_losslessly() {
+        let mut doc = document("{\n // keep this comment\n \"plugins\": [], \"untouched\": 42,\n}");
+        let strings = vec![
+            r"C:\Users\test\plugin.wasm".to_owned(),
+            r"C:\new\test\file.wasm".to_owned(),
+            r#"backslash-before-quote \" and two \\""#.to_owned(),
+            r"\\?\C:\项目 with spaces\plugin.wasm".to_owned(),
+            "quotes \" and slash \\".to_owned(),
+            (0u8..=31).map(char::from).collect::<String>(),
+            "Unicode 😀, literal \\n and actual\nnewline".to_owned(),
+        ];
+        doc.set(&["plugins"], json!(strings)).unwrap();
+        assert_eq!(doc.value(&["plugins"]).unwrap(), Some(json!(strings)));
+        let key = "key\\with\ncontrols\"";
+        let nested = json!({key: strings});
+        doc.set(&[key, key], nested.clone()).unwrap();
+        assert_eq!(doc.value(&[key, key]).unwrap(), Some(nested.clone()));
+        assert_eq!(parse(doc.draft_text())[key][key], nested);
+        assert!(doc.draft_text().contains("// keep this comment"));
+        assert!(doc.draft_text().contains("\"untouched\": 42"));
+        // Exercise replacing an existing escaped property as well as insertion.
+        doc.set(&[key, key], json!(strings)).unwrap();
+        assert_eq!(doc.value(&[key, key]).unwrap(), Some(json!(strings)));
+        let unchanged = doc.draft_text().to_owned();
+        doc.set(&[key, key], json!(strings)).unwrap();
+        assert_eq!(doc.draft_text(), unchanged);
+        // Encoded spellings are not lookup names: these are distinct parents.
+        doc.set(&[r"new\n", "leaf"], json!("literal")).unwrap();
+        doc.set(&["new\n", "leaf"], json!("newline")).unwrap();
+        assert_eq!(
+            doc.value(&[r"new\n", "leaf"]).unwrap(),
+            Some(json!("literal"))
+        );
+        assert_eq!(
+            doc.value(&["new\n", "leaf"]).unwrap(),
+            Some(json!("newline"))
+        );
     }
 
     #[test]
