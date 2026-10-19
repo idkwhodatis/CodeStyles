@@ -1,5 +1,9 @@
 //! Native P2 schema-driven style editing. Formatting and debounce live off the UI thread.
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::PathBuf,
+    time::Duration,
+};
 
 use crate::preview_display::PreviewDisplay;
 use codestyles::{
@@ -17,6 +21,7 @@ use gpui_kit::{
     component::{
         ActiveTheme, Disableable, Selectable, Sizable, Theme, ThemeMode, WindowExt,
         button::Button,
+        checkbox::Checkbox,
         input::{Input, InputEvent, InputState, Textarea, TextareaState},
         select::{Select, SelectEvent, SelectState},
         switch::Switch,
@@ -34,6 +39,7 @@ pub struct PreviewWindow {
     executable: Option<PathBuf>,
     page: Page,
     project_report: Option<ProjectReport>,
+    project_selection: ProjectSelection,
     project_status: String,
     project_error: bool,
     document: Option<ConfigDocument>,
@@ -100,6 +106,7 @@ impl PreviewWindow {
             executable,
             page: Page::Styles,
             project_report: None,
+            project_selection: ProjectSelection::default(),
             project_status:
                 "Choose a saved project configuration to check or format its directory.".into(),
             project_error: false,
@@ -150,11 +157,15 @@ impl PreviewWindow {
                             Ok(report) => {
                                 view.project_status = report.summary.clone();
                                 view.project_error = false;
+                                view.project_selection.clear();
+                                view.project_selection.focused =
+                                    report.files.first().map(|file| file.path.clone());
                                 view.project_report = Some(report);
                             }
                             Err(error) => {
                                 view.project_status = error;
                                 view.project_error = true;
+                                view.project_selection.clear();
                                 view.project_report = None;
                             }
                         }
@@ -313,6 +324,8 @@ impl PreviewWindow {
                 .document
                 .as_ref()
                 .is_some_and(|doc| doc.draft_text() != text.as_ref());
+            this.project_selection.clear();
+            this.project_report = None;
             this.document_version += 1;
             this.cancel_preview();
             this.status = if this.raw_dirty {
@@ -356,6 +369,8 @@ impl PreviewWindow {
         };
         match result {
             Ok(()) => {
+                self.project_selection.clear();
+                self.project_report = None;
                 self.document_version += 1;
                 self.sync_editor(window, cx);
                 if self.trusted {
@@ -383,6 +398,8 @@ impl PreviewWindow {
             Ok(()) => {
                 self.raw_dirty = false;
                 self.sync_field(window, cx);
+                self.project_selection.clear();
+                self.project_report = None;
                 self.document_version += 1;
                 // Raw edits can introduce or replace process plugins and extends.
                 self.trusted = false;
@@ -461,6 +478,7 @@ impl PreviewWindow {
                         match loaded {
                             Ok(document) => {
                                 this.cancel_preview();
+                                this.project_selection.clear();
                                 this.project_report = None;
                                 this.project_status = "Project changed. Check again to refresh results.".into();
                                 this.document = Some(document);
@@ -569,8 +587,9 @@ impl PreviewWindow {
         }
         match document.save() {
             Ok(()) => {
-                self.document_version += 1;
+                self.project_selection.clear();
                 self.project_report = None;
+                self.document_version += 1;
                 self.project_status =
                     "Configuration saved. Check again to refresh project results.".into();
                 self.disk_warning = None;
@@ -627,6 +646,7 @@ impl PreviewWindow {
                                 Ok(()) => {
                                     let moved = previous_path.as_deref() != document.path();
                                     this.disk_warning = None;
+                                    this.project_selection.clear();
                                     this.project_report = None;
                                     this.project_status = "Configuration saved to a new location. Check again to refresh project results.".into();
                                     this.document_version += 1;
@@ -756,6 +776,8 @@ impl PreviewWindow {
                     this.field_editor = Some(editor.clone());
                     if this.field_draft.text != text {
                         this.field_draft.text = text;
+                        this.project_selection.clear();
+                        this.project_report = None;
                         this.document_version += 1;
                         cx.notify();
                     }
@@ -1128,6 +1150,8 @@ impl PreviewWindow {
                                 .label("Discard")
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.sync_field(window, cx);
+                                    this.project_selection.clear();
+                                    this.project_report = None;
                                     this.document_version += 1;
                                     cx.notify();
                                 })),
@@ -1274,6 +1298,39 @@ fn project_can_start(dirty: bool, dialog: bool, running: bool, saved: bool, back
     !dirty && !dialog && !running && saved && backend
 }
 
+/// Paths, rather than row indexes, keep selection and focused review independent.
+#[derive(Default)]
+struct ProjectSelection {
+    selected: BTreeSet<PathBuf>,
+    focused: Option<PathBuf>,
+}
+
+impl ProjectSelection {
+    fn clear(&mut self) {
+        self.selected.clear();
+        self.focused = None;
+    }
+
+    fn set(&mut self, path: PathBuf, checked: bool, available: &[PathBuf]) {
+        if !available.contains(&path) {
+            return;
+        }
+        if checked {
+            self.selected.insert(path);
+        } else {
+            self.selected.remove(&path);
+        }
+    }
+
+    fn paths(&self, available: &[PathBuf]) -> Vec<PathBuf> {
+        available
+            .iter()
+            .filter(|path| self.selected.contains(*path))
+            .cloned()
+            .collect()
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
     Styles,
@@ -1309,6 +1366,24 @@ impl PreviewWindow {
         if !self.project_ready() {
             return;
         }
+        let review = if let ProjectAction::FormatSelected(paths) = &action {
+            let Some(report) = self.project_report.as_ref() else {
+                return;
+            };
+            if paths.is_empty()
+                || paths
+                    .iter()
+                    .any(|path| !report.files.iter().any(|file| &file.path == path))
+            {
+                return;
+            }
+            Some(report.clone())
+        } else if matches!(action, ProjectAction::FormatProject) {
+            // The UI only applies paths from an explicitly reviewed report.
+            return;
+        } else {
+            None
+        };
         let document = self.document.as_ref().unwrap();
         let root = document.path().unwrap().parent().unwrap().to_path_buf();
         let version = self.document_version;
@@ -1365,11 +1440,18 @@ impl PreviewWindow {
                     this.project_error = true;
                     cx.notify(); return;
                 }
-                let request = ProjectRequest::new(root, this.document.as_ref().unwrap(), action, true);
+                let document = this.document.as_ref().unwrap();
+                let request = match (action, review) {
+                    (ProjectAction::FormatSelected(paths), Some(report)) =>
+                        ProjectRequest::from_review(root, document, paths, &report, true),
+                    (action, None) => ProjectRequest::new(root, document, action, true),
+                    _ => Err("Check the project again before formatting.".into()),
+                };
                 match request.and_then(|request| this.project_controller.as_mut().unwrap().submit(request)) {
                     Ok(_) => {
                         this.cancel_preview();
                         this.page = Page::Project;
+                        this.project_selection.clear();
                         this.project_report = None;
                         this.project_error = false;
                         this.project_status = "Running bundled dprint with the saved project configuration…".into();
@@ -1382,47 +1464,11 @@ impl PreviewWindow {
         cx.notify();
     }
 
-    fn choose_project_files(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.project_ready() {
-            return;
-        }
-        self.dialog_pending = true;
-        let version = self.document_version;
-        let selection = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: true,
-            prompt: Some("Select source files inside the project directory".into()),
-        });
-        cx.spawn_in(window, async move |this, cx| {
-            let selected = selection.await;
-            let _ = this.update_in(cx, |this, window, cx| {
-                this.dialog_pending = false;
-                if !dialog_is_current(version, this.document_version) {
-                    this.project_status =
-                        "Configuration changed while choosing files. Choose them again.".into();
-                    this.project_error = true;
-                } else {
-                    match selected {
-                        Ok(Ok(Some(paths))) if !paths.is_empty() => {
-                            this.project_action(ProjectAction::FormatSelected(paths), window, cx)
-                        }
-                        Ok(Ok(_)) => {}
-                        Ok(Err(error)) => {
-                            this.project_status = format!("Cannot choose source files: {error}");
-                            this.project_error = true;
-                        }
-                        Err(error) => {
-                            this.project_status = format!("File picker closed: {error}");
-                            this.project_error = true;
-                        }
-                    }
-                }
-                cx.notify();
-            });
-        })
-        .detach();
-        cx.notify();
+    fn project_paths(&self) -> Vec<PathBuf> {
+        self.project_report
+            .as_ref()
+            .map(|report| report.files.iter().map(|file| file.path.clone()).collect())
+            .unwrap_or_default()
     }
 
     fn render_project(&mut self, cx: &mut Context<Self>) -> AnyElement {
@@ -1431,31 +1477,120 @@ impl PreviewWindow {
             .document
             .as_ref()
             .and_then(|doc| doc.path())
-            .and_then(|path| path.parent())
+            .and_then(|path| path.parent());
+        let root_label = root
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "Save or open a configuration first.".into());
-        let text = self.project_report.as_ref().map(|report| {
-            let mut text = format!("{}\n{} · {} source files · {} protected config/plugin files\nFormatting reports show pre-write diffs. Rerun Check project for current state.\n\n{}\n", report.summary, report.cli_version, report.checked_files, report.protected_configs, report.diagnostics);
-            for file in &report.files {
-                text.push_str(&format!("\n{}\n{}\n", file.path.display(), file.diff));
+        let paths = self.project_paths();
+        let selected = self.project_selection.paths(&paths).len();
+        let count = self
+            .project_report
+            .as_ref()
+            .map(|report| {
+                format!(
+                    "{} checked · {} changed · {} selected",
+                    report.checked_files,
+                    report.files.len(),
+                    selected
+                )
+            })
+            .unwrap_or_else(|| "Check the project to review formatting changes.".into());
+        let focused = self.project_report.as_ref().and_then(|report| {
+            report
+                .files
+                .iter()
+                .find(|file| Some(&file.path) == self.project_selection.focused.as_ref())
+        });
+        let diff_title = focused
+            .map(|file| format!("{} · unified diff", file.path.display()))
+            .unwrap_or_else(|| "File review".into());
+        let diff = focused.map(|file| file.diff.as_str()).unwrap_or_else(|| {
+            if self.project_report.as_ref().is_some_and(|report| {
+                report.files.is_empty() && !matches!(report.action, ProjectAction::PreparePlugins)
+            }) {
+                "No remaining formatting differences."
+            } else {
+                "Choose a changed file to inspect its diff, then select files to format."
             }
-            text
-        }).unwrap_or_else(|| "No current project report. A check reads project sources; formatting requires an explicit confirmation. Check results are a point-in-time report, not a live filesystem view.".into());
+        });
+        let rows: Vec<_> = paths
+            .iter()
+            .enumerate()
+            .map(|(index, path)| {
+                let label = root
+                    .and_then(|root| path.strip_prefix(root).ok())
+                    .unwrap_or(path)
+                    .display()
+                    .to_string();
+                let select_path = path.clone();
+                let focus_path = path.clone();
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .p_1()
+                    .child(
+                        Checkbox::new(("project-selected", index))
+                            .accessibility_label(format!("Select {label} for formatting"))
+                            .checked(self.project_selection.selected.contains(path))
+                            .disabled(disabled)
+                            .on_click(cx.listener(move |this, checked, _, cx| {
+                                if this.project_ready() {
+                                    this.project_selection.set(
+                                        select_path.clone(),
+                                        *checked,
+                                        &this.project_paths(),
+                                    );
+                                    cx.notify();
+                                }
+                            })),
+                    )
+                    .child(
+                        Button::new(("project-file", index))
+                            .label(label)
+                            .small()
+                            .selected(self.project_selection.focused.as_ref() == Some(path))
+                            .disabled(self.project_busy() || self.dialog_pending)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                if !this.project_busy()
+                                    && !this.dialog_pending
+                                    && this.project_paths().contains(&focus_path)
+                                {
+                                    this.project_selection.focused = Some(focus_path.clone());
+                                    cx.notify();
+                                }
+                            })),
+                    )
+            })
+            .collect();
         div().flex().flex_col().flex_1().min_h_0().gap_3()
-            .child(div().text_sm().child(format!("Project root · {root}")))
-            .child(div().text_sm().child("Saved configuration only · normal nested discovery · check exit 20 means formatting differences"))
-            .when(self.dirty(), |panel| panel.child(div().text_color(cx.theme().warning).child("Save or discard all draft, JSONC and pending value edits before project operations.")))
+            .child(div().text_sm().child(format!("Project root · {root_label}")))
+            .when(self.dirty(), |panel| panel.child(div().text_color(cx.theme().warning).child("Save or discard pending configuration edits before checking or formatting.")))
             .child(div().flex().flex_wrap().gap_2()
                 .child(Button::new("project-check").label("Check project…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::Check, window, cx))))
                 .child(Button::new("project-prepare").label("Prepare plugins…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::PreparePlugins, window, cx))))
-                .child(Button::new("project-format-selected").label("Format files…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.choose_project_files(window, cx))))
-                .child(Button::new("project-format-all").label("Format project…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::FormatProject, window, cx))))
+                .child(Button::new("project-format-selected").label(format!("Format selected ({selected})…")).disabled(disabled || selected == 0).on_click(cx.listener(|this, _, window, cx| {
+                    let paths = this.project_selection.paths(&this.project_paths());
+                    this.project_action(ProjectAction::FormatSelected(paths), window, cx);
+                })))
                 .child(Button::new("project-cancel").label("Cancel").disabled(!self.project_busy()).on_click(cx.listener(|this, _, _, cx| {
                     if let Some(controller) = &mut this.project_controller { controller.cancel(); }
                     this.project_status = "Cancellation requested. Waiting for dprint to stop; files already written are not rolled back.".into(); cx.notify();
                 }))))
             .child(div().text_sm().text_color(if self.project_error { cx.theme().danger } else { cx.theme().muted_foreground }).child(self.project_status.clone()))
-            .child(code_pane("project-report", "Project report · saved config".into(), &text, cx))
+            .child(div().flex().items_center().gap_2()
+                .child(div().flex_1().text_sm().child(count))
+                .child(Button::new("project-select-all").label("Select all").small().disabled(disabled || paths.is_empty()).on_click(cx.listener(|this, _, _, cx| {
+                    if this.project_ready() { this.project_selection.selected = this.project_paths().into_iter().collect(); cx.notify(); }
+                })))
+                .child(Button::new("project-select-none").label("Select none").small().disabled(disabled || selected == 0).on_click(cx.listener(|this, _, _, cx| {
+                    if this.project_ready() { this.project_selection.selected.clear(); cx.notify(); }
+                }))))
+            .child(div().flex().flex_1().min_h_0().gap_3()
+                .child(div().id("project-file-list").w(px(280.0)).flex_shrink_0().overflow_scroll().border_1().border_color(cx.theme().border).rounded_lg().children(rows))
+                .child(code_pane("project-file-diff", diff_title, diff, cx)))
+            .when_some(self.project_report.as_ref().filter(|report| !report.diagnostics.trim().is_empty()).map(|report| report.diagnostics.clone()), |panel, diagnostics| panel.child(div().id("project-diagnostics").max_h(px(70.0)).overflow_y_scroll().text_sm().child(diagnostics)))
+            .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Saved config · point-in-time check · selected files are checked again before writing and the project is verified afterward."))
             .into_any_element()
     }
 
@@ -1467,6 +1602,31 @@ impl PreviewWindow {
                 "Bundled executable is unavailable. Verify the resource bundle first.".to_owned()
             })
             .and_then(|path| integration::guidance(path));
+        let shell = integration::CommandShell::native();
+        let project = self
+            .executable
+            .as_ref()
+            .ok_or_else(|| "Bundled executable is unavailable.".to_owned())
+            .and_then(|path| {
+                integration::project_guidance(
+                    path,
+                    self.document.as_ref().and_then(|doc| doc.path()),
+                    self.dirty(),
+                    shell,
+                )
+            });
+        let project_status = project
+            .as_ref()
+            .map(|guide| guide.status.clone())
+            .unwrap_or_else(Clone::clone);
+        let check_command = project
+            .as_ref()
+            .ok()
+            .and_then(|guide| guide.check_command.clone());
+        let format_command = project
+            .as_ref()
+            .ok()
+            .and_then(|guide| guide.format_command.clone());
         let settings = guide.as_ref().ok().map(|guide| guide.settings_json.clone());
         let (text, path) = match guide {
             Ok(guide) => (
@@ -1478,41 +1638,38 @@ impl PreviewWindow {
             ),
             Err(error) => (error, None),
         };
-        div()
-            .flex()
-            .flex_col()
-            .flex_1()
-            .min_h_0()
-            .gap_3()
-            .child(
-                div()
-                    .text_lg()
-                    .child("Editor & CI"),
-            )
-            .child(
-                Button::new("copy-dprint-path")
-                    .label("Copy dprint path")
-                    .disabled(path.is_none())
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if let Some(path) = &path {
-                            cx.write_to_clipboard(ClipboardItem::new_string(path.clone()));
-                            this.status =
-                                "Bundled dprint path copied. Paste it into VS Code user settings."
-                                    .into();
-                            cx.notify();
-                        }
-                    })),
-            )
-            .child(Button::new("copy-editor-settings").label("Copy settings").disabled(settings.is_none()).on_click(cx.listener(move |this, _, _, cx| {
-                if let Some(settings) = &settings { cx.write_to_clipboard(ClipboardItem::new_string(settings.clone())); this.status = "Settings JSON copied. Merge it into VS Code user settings, preserving existing entries.".into(); cx.notify(); }
-            })))
-            .child(Button::new("open-dprint-extension").label("VS Code extension").on_click(|_, _, cx| cx.open_url(integration::EXTENSION_URL)))
-            .child(code_pane(
-                "integration-guide",
-                "Editor & CI setup · no settings changed automatically".into(),
-                &text,
-                cx,
-            ))
+        div().flex().flex_col().flex_1().min_h_0().gap_3()
+            .child(div().text_lg().child("Editor & CI"))
+            .child(div().text_sm().child(project_status))
+            .child(div().flex().flex_wrap().gap_2()
+                .child(Button::new("copy-project-check").label("Copy check command").disabled(check_command.is_none() || self.dialog_pending || self.project_busy()).on_click(cx.listener(move |this, _, _, cx| {
+                    if !this.dirty() && let Some(command) = &check_command {
+                        cx.write_to_clipboard(ClipboardItem::new_string(command.clone()));
+                        this.status = format!("Saved-project check command copied for {}.", shell.label()); cx.notify();
+                    }
+                })))
+                .child(Button::new("copy-project-format").label("Copy format command").disabled(format_command.is_none() || self.dialog_pending || self.project_busy()).on_click(cx.listener(move |this, _, _, cx| {
+                    if !this.dirty() && let Some(command) = &format_command {
+                        cx.write_to_clipboard(ClipboardItem::new_string(command.clone()));
+                        this.status = format!("Format command copied for {}. Running it writes project source files.", shell.label()); cx.notify();
+                    }
+                })))
+                .child(Button::new("copy-ci-step").label("Copy CI step").on_click(cx.listener(|this, _, _, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(integration::CI_STEP.into()));
+                    this.status = "CI step copied. Use after checkout with a committed, discoverable dprint configuration.".into(); cx.notify();
+                }))))
+            .child(div().flex().flex_wrap().gap_2()
+                .child(Button::new("copy-dprint-path").label("Copy dprint path").disabled(path.is_none()).on_click(cx.listener(move |this, _, _, cx| {
+                    if let Some(path) = &path {
+                        cx.write_to_clipboard(ClipboardItem::new_string(path.clone()));
+                        this.status = "Bundled dprint path copied. Paste it into VS Code user settings.".into(); cx.notify();
+                    }
+                })))
+                .child(Button::new("copy-editor-settings").label("Copy settings").disabled(settings.is_none()).on_click(cx.listener(move |this, _, _, cx| {
+                    if let Some(settings) = &settings { cx.write_to_clipboard(ClipboardItem::new_string(settings.clone())); this.status = "Settings JSON copied. Merge it into VS Code user settings, preserving existing entries.".into(); cx.notify(); }
+                })))
+                .child(Button::new("open-dprint-extension").label("VS Code extension").on_click(|_, _, cx| cx.open_url(integration::EXTENSION_URL))))
+            .child(code_pane("integration-guide", "Editor & CI setup · no settings changed automatically".into(), &text, cx))
             .into_any_element()
     }
 }
@@ -2048,6 +2205,37 @@ mod tests {
                     && range.end >= 10
                     && style.color == comment_color)
         );
+    }
+
+    #[test]
+    fn project_selection_is_explicit_and_independent_of_focused_diff() {
+        use std::path::PathBuf;
+        let paths = vec![PathBuf::from("a.ts"), PathBuf::from("b.ts")];
+        let mut selection = super::ProjectSelection::default();
+        assert!(selection.paths(&paths).is_empty());
+        selection.focused = Some(paths[1].clone());
+        assert!(selection.paths(&paths).is_empty());
+        selection.set(paths[0].clone(), true, &paths);
+        selection.set(paths[0].clone(), true, &paths);
+        assert_eq!(selection.paths(&paths), vec![paths[0].clone()]);
+        assert_eq!(selection.focused, Some(paths[1].clone()));
+        selection.set(paths[0].clone(), false, &paths);
+        assert!(selection.paths(&paths).is_empty());
+    }
+
+    #[test]
+    fn project_selection_rejects_unknown_paths_and_clears_for_replacement() {
+        use std::path::PathBuf;
+        let paths = vec![PathBuf::from("a.ts"), PathBuf::from("b.ts")];
+        let mut selection = super::ProjectSelection::default();
+        selection.set(PathBuf::from("unreviewed.ts"), true, &paths);
+        assert!(selection.selected.is_empty());
+        selection.selected = paths.iter().cloned().collect();
+        selection.focused = Some(paths[0].clone());
+        assert_eq!(selection.paths(&paths[1..]), vec![paths[1].clone()]);
+        selection.clear();
+        assert!(selection.paths(&paths).is_empty());
+        assert!(selection.focused.is_none());
     }
 
     #[test]

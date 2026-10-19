@@ -1,26 +1,36 @@
 # CodeStyles
 
-Native, offline-first code-style preview using Rust, GPUI Kit **0.7.3** and the
-bundled **dprint 0.63.0** executable. P3 adds Markdown/TOML controls, project
-checking and explicit formatting, plus editor/CI setup guidance on the P1/P2 editor.
+Native code-style editor and project formatter using Rust, GPUI Kit **0.7.3**
+and the bundled **dprint 0.63.0** executable. Tune a style against offline built-in
+examples, then inspect and format real project files with the saved configuration.
 
-## P3 project workflow
+## Format a project
 
 - Markdown **0.26.0** and TOML **0.9.0** join TypeScript and JSON in the same
   checksummed bundle, schema controls and built-in sample workflow.
 - The Project page uses the selected saved configuration's directory as its root.
   Save or discard all pending raw/form/draft changes before running a project
   operation. Unsaved standalone configurations cannot operate on project files.
-- Check invokes real `dprint check --json` and displays filenames and unified
-  diffs. Exit 20 means formatting differences, not a failed process. Reports are
-  point-in-time snapshots; rerun after external source changes.
+- Open or save a project configuration, then use **Project → Check**. Check invokes
+  real `dprint check --json`. Select a file to inspect its unified diff, check the
+  files you want to format, then choose **Format selected**. Selection starts empty;
+  **Select all** includes all reported differences. Exit 20 means formatting
+  differences, not a failed process.
+- Reviewed formatting rechecks selected source fingerprints, local configuration
+  and plugin resources, and the current differences before starting writes.
+  Observed changes require another Check. This is not an editor lock or atomic
+  patch application: avoid concurrent edits while formatting. Trusted remote
+  resources can still change between validation and execution.
+- A successful format automatically checks the full project again. The file list
+  then shows current remaining differences, including unselected files. A failed
+  or cancelled verification is not presented as a clean result.
 - Prepare plugins uses the pinned CLI and reports failures. Project operations
   use saved plugin references and normal nested config discovery, unlike the
   preview-only bundled plugin remapping. A cold project cache can need network
   access even for known pinned plugin URLs.
 - Every project action asks for trust covering the saved and nested configuration,
-  inherited resources and process plugins. Formatting selected files or the whole
-  project additionally asks before writing sources. Trust does not sandbox plugins.
+  inherited resources and process plugins. Formatting selected files additionally
+  asks before writing sources. Trust does not sandbox plugins.
 - Operations run off the UI thread. Cancel stops remaining work and waits for the
   child process to stop; formatting is not a transaction and already-written files
   are not rolled back. While an operation runs, configuration switches and saves

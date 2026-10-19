@@ -4,9 +4,41 @@ CodeStyles previews and saves dprint configuration. Your editor and CI should us
 the **same saved configuration, dprint 0.63.0, and exact plugin versions**.
 Unsaved CodeStyles settings have no effect in either place.
 
-The integration page supplies a copyable absolute path and JSON settings. These
+The integration page supplies project-aware check/format commands, a separate
+portable CI step, a copyable absolute executable path, and JSON settings. These
 are instructions for you to apply: the Editor & CI page does not install an extension,
 modify editor settings, or alter your project source files.
+
+## Run the bundled formatter from your terminal
+
+Save or discard your configuration edits, then use **Copy check command** or
+**Copy format command** on the Editor & CI page. Commands use the bundled native
+dprint console executable, not the CodeStyles GUI. Check reports differences;
+format writes project source files. Prefer the Project page's check/review/select
+workflow when you want to review the scope before applying changes.
+
+On macOS/Linux, paste into a POSIX shell such as sh, bash or zsh. On Windows,
+paste into PowerShell, not Command Prompt. Commands quote installation/project
+paths literally, change to the saved config's directory, and restore the previous
+directory afterward. PowerShell reports a nonzero dprint result as an error;
+its message includes dprint's exit code. Do not suppress that error in scripts.
+
+All commands select the saved config explicitly with `--config`, matching the
+Project runner; nested config discovery stays enabled. Keep only one root config
+for unambiguous editor/CI discovery. For a custom config filename, the page warns
+that VS Code and the generic copied CI step cannot discover it. Commands always read
+the saved files at execution time; copied commands do not freeze reviewed content.
+Review config/plugin trust before running: plugins can download resources or run
+processes. These commands do not inherit preview's offline plugin remapping.
+
+The executable path is resolved from the installed bundle, including macOS
+`CodeStyles.app/Contents/Resources/resources`. Moving a portable installation
+requires copying commands and updating VS Code's executable path again. No PATH
+changes, wrappers, extension installs or settings mutations are performed.
+
+**Copy CI step** copies only the portable action step shown below. Add it after
+checkout in an existing workflow, use the committed saved config, and set the
+action's `working-directory`/`config-path` explicitly when the project needs them.
 
 ## VS Code
 
@@ -135,3 +167,14 @@ path handling, language formatter selection, and resource-manifest version
 consistency. They do not launch VS Code or demonstrate an interactive extension
 integration test. Extension settings may evolve; review the official links when
 upgrading.
+
+The command helpers and action inputs were rechecked on **2026-10-19**, including
+[PowerShell quoting](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules)
+and [literal directory selection](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/push-location).
+`tests/integration_commands.rs` runs the generated native-shell commands through
+the real bundled dprint: failed check without writes, format, then clean check.
+It exercises Unicode and shell-special paths and a competing root config, with
+both standard and custom selected filenames. The Windows branch also tests
+failure reporting and directory restoration. This run was validated on Linux;
+native Windows/PowerShell execution remains a platform CI gate. No interactive
+VS Code verification is claimed.

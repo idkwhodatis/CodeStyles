@@ -11,6 +11,141 @@ pub const VSCODE_SETTINGS_URL: &str = "https://code.visualstudio.com/docs/config
 pub const CI_URL: &str = "https://github.com/dprint/check#specific-version";
 pub const RELEASE_URL: &str = "https://github.com/dprint/dprint/releases/tag/0.63.0";
 
+/// Portable step for an existing workflow, after checkout. No installation path
+/// or machine-local plugin references belong in this snippet.
+pub const CI_STEP: &str = "- uses: dprint/check@v2\n  with:\n    dprint-version: \"0.63.0\"\n";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CommandShell {
+    Posix,
+    PowerShell,
+}
+
+impl CommandShell {
+    pub fn native() -> Self {
+        if cfg!(windows) {
+            Self::PowerShell
+        } else {
+            Self::Posix
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Posix => "POSIX shell (sh/bash/zsh)",
+            Self::PowerShell => "PowerShell (not Command Prompt)",
+        }
+    }
+
+    fn quote(self, value: &str) -> String {
+        let escaped = match self {
+            Self::Posix => value.replace('\'', "'\"'\"'"),
+            // PowerShell also treats typographic single quotes as delimiters.
+            Self::PowerShell => value
+                .chars()
+                .flat_map(|ch| {
+                    let quote =
+                        matches!(ch, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}');
+                    std::iter::once(ch).chain(quote.then_some(ch))
+                })
+                .collect(),
+        };
+        format!("'{escaped}'")
+    }
+
+    fn command(
+        self,
+        executable: &str,
+        root: &str,
+        action: &str,
+        custom_config: Option<&str>,
+    ) -> String {
+        let executable = self.quote(executable);
+        let root = self.quote(root);
+        let config = custom_config
+            .map(|path| format!(" --config {}", self.quote(path)))
+            .unwrap_or_default();
+        match self {
+            Self::Posix => format!("(cd {root} && {executable} {action}{config})"),
+            Self::PowerShell => format!(
+                "& {{ $ErrorActionPreference = 'Stop'; Push-Location -LiteralPath {root}; try {{ & {executable} {action}{config}; if ($LASTEXITCODE -ne 0) {{ throw \"dprint exited with code $LASTEXITCODE\" }} }} finally {{ Pop-Location }} }}"
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjectIntegration {
+    /// A discoverable filename, not a claim that the extension is installed or
+    /// that its effective configuration has been checked.
+    pub discoverable: bool,
+    pub status: String,
+    pub check_command: Option<String>,
+    pub format_command: Option<String>,
+}
+
+/// Generate commands for an already-verified bundled console dprint and the
+/// current saved configuration. This function performs no I/O. The caller must
+/// include pending/invalid raw edits in `dirty`; draft changes are never used by
+/// an external editor, shell command, or CI job.
+pub fn project_guidance(
+    executable: &Path,
+    config: Option<&Path>,
+    dirty: bool,
+    shell: CommandShell,
+) -> Result<ProjectIntegration, String> {
+    let executable = command_path(executable)?;
+    let mut result = ProjectIntegration {
+        discoverable: false,
+        status: "Save a project configuration before copying project commands. Editor and CI use saved settings.".into(),
+        check_command: None,
+        format_command: None,
+    };
+    let Some(config) = config else {
+        return Ok(result);
+    };
+    let config_text = command_path(config)?;
+    let name = config
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or("Configuration path must name a file.")?;
+    result.discoverable = matches!(
+        name,
+        "dprint.json" | "dprint.jsonc" | ".dprint.json" | ".dprint.jsonc"
+    );
+    if dirty {
+        result.status = "Save or discard configuration edits first. Copied commands, VS Code and CI cannot use the unsaved draft.".into();
+        return Ok(result);
+    }
+    let root = command_path(
+        config
+            .parent()
+            .ok_or("Configuration needs a project directory.")?,
+    )?;
+    result.status = if result.discoverable {
+        "Discoverable configuration name. Commands run from its directory with this saved config explicitly selected; nested discovery stays enabled. Keep only one root config for editor/CI discovery; workspace overrides may affect VS Code. Format writes source files; review the Project check results first.".into()
+    } else {
+        "Custom configuration name: CLI commands use --config explicitly. VS Code and the generic CI step cannot discover this file. Save under a standard dprint config name for shared integration, or customize CI's config-path. Nested discovery stays enabled. Format writes source files.".into()
+    };
+    let custom = Some(config_text);
+    result.check_command = Some(shell.command(executable, root, "check", custom));
+    result.format_command = Some(shell.command(executable, root, "fmt", custom));
+    Ok(result)
+}
+
+fn command_path(path: &Path) -> Result<&str, String> {
+    if !path.is_absolute() {
+        return Err("Project commands require absolute executable and configuration paths.".into());
+    }
+    let text = path
+        .to_str()
+        .ok_or("Project command paths must be valid Unicode.")?;
+    if text.chars().any(char::is_control) {
+        return Err("Project command paths cannot contain control characters.".into());
+    }
+    Ok(text)
+}
+
 pub const STABLE_FORMAT_EXPLANATION: &str = "Set dprint.ensureStableFormat to true to repeat formatting until the output stops changing, like dprint fmt and CodeStyles preview. The extension defaults to false; true requires dprint 0.59 or newer and may take longer. This option does not pin the executable or plugin versions.";
 
 pub const EDITOR_STEPS: [&str; 5] = [
@@ -95,6 +230,157 @@ fn settings_json(executable_path: &str) -> Result<String, String> {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn portable_ci_step_pins_cli_without_local_paths() {
+        assert_eq!(
+            CI_STEP,
+            "- uses: dprint/check@v2\n  with:\n    dprint-version: \"0.63.0\"\n"
+        );
+        assert!(CI_INSTRUCTIONS.contains(CI_STEP.trim_end()));
+    }
+
+    #[test]
+    fn project_readiness_distinguishes_unsaved_dirty_and_custom_names() {
+        let executable = absolute_path();
+        let root = executable.parent().unwrap();
+        let missing = project_guidance(&executable, None, false, CommandShell::native()).unwrap();
+        assert!(!missing.discoverable);
+        assert!(missing.check_command.is_none());
+        for name in [
+            "dprint.json",
+            "dprint.jsonc",
+            ".dprint.json",
+            ".dprint.jsonc",
+        ] {
+            let config = root.join(name);
+            let guide = project_guidance(&executable, Some(&config), false, CommandShell::native())
+                .unwrap();
+            assert!(guide.discoverable);
+            assert!(guide.check_command.unwrap().contains("--config"));
+            assert!(guide.format_command.unwrap().contains(" fmt"));
+            let dirty =
+                project_guidance(&executable, Some(&config), true, CommandShell::native()).unwrap();
+            assert!(dirty.discoverable);
+            assert!(dirty.check_command.is_none() && dirty.format_command.is_none());
+        }
+        let custom = root.join("my style.jsonc");
+        let guide =
+            project_guidance(&executable, Some(&custom), false, CommandShell::native()).unwrap();
+        assert!(!guide.discoverable);
+        assert!(guide.status.contains("cannot discover"));
+        assert!(guide.check_command.unwrap().contains("--config"));
+    }
+
+    #[test]
+    fn project_commands_reject_ambiguous_paths_without_writing() {
+        let directory = tempfile::tempdir().unwrap();
+        let executable = directory.path().join("dprint");
+        for config in [
+            PathBuf::from("dprint.json"),
+            directory.path().join("bad\nconfig.json"),
+            directory.path().join("bad\0config.json"),
+        ] {
+            assert!(
+                project_guidance(&executable, Some(&config), false, CommandShell::native())
+                    .is_err()
+            );
+        }
+        assert!(
+            project_guidance(Path::new("dprint"), None, false, CommandShell::native()).is_err()
+        );
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn shell_quoting_keeps_windows_paths_literal() {
+        let shell = CommandShell::PowerShell;
+        assert_eq!(
+            shell.quote(r"C:\Program Files\格式\O'Brien\$HOME`[x]\dprint.exe"),
+            r"'C:\Program Files\格式\O''Brien\$HOME`[x]\dprint.exe'"
+        );
+        assert_eq!(shell.quote("‘a’‚b‛"), "'‘‘a’’‚‚b‛‛'");
+        let command = shell.command(
+            r"C:\Code Styles\dprint.exe",
+            r"C:\projects\[x]",
+            "check",
+            None,
+        );
+        assert!(command.contains("Push-Location -LiteralPath 'C:\\projects\\[x]'"));
+        assert!(command.contains("& 'C:\\Code Styles\\dprint.exe' check"));
+        assert!(command.contains("finally { Pop-Location }"));
+        assert!(!command.contains("cmd.exe"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn posix_commands_execute_literal_paths_arguments_and_preserve_exit_status() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().join("格式 ' \" $HOME ` echo ; [x]");
+        std::fs::create_dir(&root).unwrap();
+        let executable = root.join("dprint ' \" $HOME");
+        std::fs::write(
+            &executable,
+            "#!/bin/sh\nprintf '%s\\n' \"$PWD\" \"$@\"\nexit 7\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+        for name in ["dprint.jsonc", "style ' \" $HOME.jsonc"] {
+            let config = root.join(name);
+            let guide =
+                project_guidance(&executable, Some(&config), false, CommandShell::Posix).unwrap();
+            for (command, action) in [
+                (guide.check_command.unwrap(), "check"),
+                (guide.format_command.unwrap(), "fmt"),
+            ] {
+                let output = std::process::Command::new("sh")
+                    .args(["-c", &command])
+                    .output()
+                    .unwrap();
+                assert_eq!(output.status.code(), Some(7));
+                let mut expected = format!("{}\n{action}\n", root.display());
+                expected.push_str(&format!("--config\n{}\n", config.display()));
+                assert_eq!(String::from_utf8(output.stdout).unwrap(), expected);
+                assert!(output.stderr.is_empty());
+            }
+        }
+        let command = CommandShell::Posix.command(
+            executable.to_str().unwrap(),
+            root.join("missing").to_str().unwrap(),
+            "fmt",
+            None,
+        );
+        let output = std::process::Command::new("sh")
+            .args(["-c", &command])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(
+            output.stdout.is_empty(),
+            "must not format after a failed directory change"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn powershell_literal_quoting_round_trips_in_real_parser() {
+        let value = r"C:\Program Files\格式\O'Brien’s\$HOME`[x]\dprint.exe";
+        let script = format!(
+            "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); [Console]::Write({})",
+            CommandShell::PowerShell.quote(value)
+        );
+        let output = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(String::from_utf8(output.stdout).unwrap(), value);
+    }
 
     fn absolute_path() -> PathBuf {
         if cfg!(windows) {

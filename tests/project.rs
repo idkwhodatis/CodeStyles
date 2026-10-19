@@ -439,3 +439,323 @@ fn configuration_hard_link_aliases_cannot_be_formatted_as_sources() {
     assert!(error.contains("protected"));
     assert_eq!(fs::read(doc.path().unwrap()).unwrap(), before);
 }
+
+#[test]
+fn reviewed_apply_formats_only_selected_and_returns_current_remaining_diffs() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let doc = config(root, "lf");
+    let a = root.join("a.ts");
+    let b = root.join("b.ts");
+    fs::write(&a, "const a={x:1}\n").unwrap();
+    fs::write(&b, "const b={x:2}\n").unwrap();
+    let review = run(root, &doc, ProjectAction::Check);
+    let before = fs::read(&b).unwrap();
+    let apply =
+        ProjectRequest::from_review(root.to_owned(), &doc, vec![a.clone()], &review, true).unwrap();
+    let verified = backend()
+        .execute_project(&apply, Arc::new(AtomicBool::new(false)))
+        .unwrap();
+    assert_eq!(verified.checked_files, 2);
+    assert_eq!(verified.files.len(), 1);
+    assert_eq!(verified.files[0].path, fs::canonicalize(&b).unwrap());
+    assert_eq!(fs::read(&b).unwrap(), before);
+    assert!(verified.summary.contains("Verified"));
+    let finish =
+        ProjectRequest::from_review(root.to_owned(), &doc, vec![b], &verified, true).unwrap();
+    assert!(
+        backend()
+            .execute_project(&finish, Arc::new(AtomicBool::new(false)))
+            .unwrap()
+            .files
+            .is_empty()
+    );
+    assert!(ProjectRequest::from_review(root.to_owned(), &doc, vec![a], &verified, true).is_err());
+}
+
+#[test]
+fn reviewed_apply_rejects_stale_sources_and_configs_even_after_queueing() {
+    for changed in ["source", "nested", "added_nested", "inherited", "root"] {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let mut doc = config(root, "lf");
+        let nested = root.join("nested");
+        fs::create_dir(&nested).unwrap();
+        let source = nested.join("source.ts");
+        fs::write(&source, "const a={x:1}\n").unwrap();
+        let child = nested.join("dprint.json");
+        if changed == "nested" {
+            fs::write(&child, "{\"inherit\":true}").unwrap();
+        }
+        let base = root.join("base.json");
+        fs::write(&base, "{\"lineWidth\":80}").unwrap();
+        doc.set(&["extends"], json!("./base.json")).unwrap();
+        doc.save().unwrap();
+        let review = run(root, &doc, ProjectAction::Check);
+        let apply =
+            ProjectRequest::from_review(root.to_owned(), &doc, vec![source.clone()], &review, true)
+                .unwrap();
+        match changed {
+            "source" => fs::write(&source, "const edited={x:2}\n").unwrap(),
+            "nested" | "added_nested" => {
+                fs::write(&child, "{\"inherit\":true,\"lineWidth\":100}").unwrap()
+            }
+            "inherited" => fs::write(&base, "{\"lineWidth\":100}").unwrap(),
+            _ => fs::write(doc.path().unwrap(), "{}").unwrap(),
+        }
+        let before = fs::read(&source).unwrap();
+        let error = backend()
+            .execute_project(&apply, Arc::new(AtomicBool::new(false)))
+            .unwrap_err();
+        assert!(!error.contains("may already"), "{error}");
+        assert_eq!(fs::read(&source).unwrap(), before, "{changed}");
+    }
+}
+
+#[test]
+fn reviewed_apply_cancelled_before_write_preserves_sources() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let doc = config(root, "lf");
+    let source = root.join("source.ts");
+    fs::write(&source, "const a={x:1}\n").unwrap();
+    let review = run(root, &doc, ProjectAction::Check);
+    let apply =
+        ProjectRequest::from_review(root.to_owned(), &doc, vec![source.clone()], &review, true)
+            .unwrap();
+    let before = fs::read(&source).unwrap();
+    let error = backend()
+        .execute_project(&apply, Arc::new(AtomicBool::new(true)))
+        .unwrap_err();
+    assert!(error.contains("cancelled"));
+    assert!(!error.contains("may already"));
+    assert_eq!(fs::read(source).unwrap(), before);
+}
+
+#[cfg(unix)]
+#[test]
+fn reviewed_apply_rejects_source_mutation_during_cli_recheck_before_fmt() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let doc = config(root, "lf");
+    let source = root.join("source.ts");
+    fs::write(&source, "const a={x:1}\n").unwrap();
+    let review = run(root, &doc, ProjectAction::Check);
+    let apply =
+        ProjectRequest::from_review(root.to_owned(), &doc, vec![source.clone()], &review, true)
+            .unwrap();
+    let executable = root.join("fixture-dprint");
+    fs::write(&executable, r#"#!/bin/sh
+case "$1" in
+--version) echo 'dprint 0.63.0';;
+file-paths) cat >/dev/null; echo './source.ts';;
+check) cat >/dev/null; printf 'const changed=2\n' > source.ts; echo '{"file":"source.ts","diff":"changed"}'; exit 20;;
+fmt) cat >/dev/null; touch fmt-was-called;;
+esac
+"#).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+    let error = Backend::new(executable, vec![])
+        .execute_project(&apply, Arc::new(AtomicBool::new(false)))
+        .unwrap_err();
+    assert!(error.contains("Source changed"), "{error}");
+    assert!(!root.join("fmt-was-called").exists());
+}
+
+#[test]
+fn reviewed_apply_rejects_changed_local_plugin_bytes() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let mut doc = config(root, "lf");
+    let plugin = root.join("local-json.wasm");
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/plugins/json-0.25.2.wasm"),
+        &plugin,
+    )
+    .unwrap();
+    doc.set(
+        &["plugins"],
+        json!([
+            plugin,
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/plugins/typescript-0.96.1.wasm")
+        ]),
+    )
+    .unwrap();
+    doc.save().unwrap();
+    let source = root.join("source.json");
+    fs::write(&source, "{\"a\":1}").unwrap();
+    let review = run(root, &doc, ProjectAction::Check);
+    let apply =
+        ProjectRequest::from_review(root.to_owned(), &doc, vec![source.clone()], &review, true)
+            .unwrap();
+    fs::write(&plugin, "changed plugin").unwrap();
+    let before = fs::read(&source).unwrap();
+    let error = backend()
+        .execute_project(&apply, Arc::new(AtomicBool::new(false)))
+        .unwrap_err();
+    assert!(!error.contains("may already"));
+    assert_eq!(fs::read(source).unwrap(), before);
+}
+
+#[cfg(unix)]
+#[test]
+fn reviewed_apply_rejects_config_or_diff_mutation_during_cli_recheck() {
+    use std::os::unix::fs::PermissionsExt;
+    for change_config in [false, true] {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let doc = config(root, "lf");
+        let source = root.join("source.ts");
+        fs::write(&source, "const a={x:1}\n").unwrap();
+        let review = run(root, &doc, ProjectAction::Check);
+        let apply =
+            ProjectRequest::from_review(root.to_owned(), &doc, vec![source.clone()], &review, true)
+                .unwrap();
+        let executable = root.join("fixture-dprint");
+        let mutation = if change_config {
+            "printf '{}' > dprint.jsonc;"
+        } else {
+            ""
+        };
+        fs::write(
+            &executable,
+            format!(
+                r#"#!/bin/sh
+case "$1" in
+--version) echo 'dprint 0.63.0';;
+file-paths) cat >/dev/null; echo './source.ts';;
+check) cat >/dev/null; {mutation} echo '{{"file":"source.ts","diff":"different formatter output"}}'; exit 20;;
+fmt) cat >/dev/null; touch fmt-was-called;;
+esac
+"#
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+        let before = fs::read(&source).unwrap();
+        let error = Backend::new(executable, vec![])
+            .execute_project(&apply, Arc::new(AtomicBool::new(false)))
+            .unwrap_err();
+        assert!(error.contains("changed"), "{error}");
+        assert!(!root.join("fmt-was-called").exists());
+        assert_eq!(fs::read(&source).unwrap(), before);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn cancellation_during_reviewed_format_reports_possible_partial_writes() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let doc = config(root, "lf");
+    let source = root.join("source.ts");
+    fs::write(&source, "const a={x:1}\n").unwrap();
+    let review = run(root, &doc, ProjectAction::Check);
+    let apply =
+        ProjectRequest::from_review(root.to_owned(), &doc, vec![source], &review, true).unwrap();
+    fs::write(
+        root.join("review-output"),
+        json!({"file":"source.ts", "diff": review.files[0].diff}).to_string(),
+    )
+    .unwrap();
+    let executable = root.join("fixture-dprint");
+    fs::write(
+        &executable,
+        r#"#!/bin/sh
+case "$1" in
+--version) echo 'dprint 0.63.0';;
+file-paths) cat >/dev/null; echo './source.ts';;
+check) cat >/dev/null; cat review-output; exit 20;;
+fmt) cat >/dev/null; printf 'const a = { x: 1 };\n' > source.ts; touch fmt-started; sleep 60;;
+esac
+"#,
+    )
+    .unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let flag = cancelled.clone();
+    let worker = std::thread::spawn(move || {
+        Backend::new(executable, vec![])
+            .with_timeout(Duration::from_secs(10))
+            .execute_project(&apply, flag)
+    });
+    let deadline = std::time::Instant::now() + Duration::from_secs(8);
+    while !root.join("fmt-started").exists() {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    cancelled.store(true, Ordering::Release);
+    let error = worker.join().unwrap().unwrap_err();
+    assert!(error.contains("cancelled"), "{error}");
+    assert!(error.contains("not transactional"), "{error}");
+    assert!(error.contains("may already"), "{error}");
+}
+
+#[cfg(unix)]
+#[test]
+fn stale_review_is_rejected_before_cli_can_load_changed_dependencies() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let doc = config(root, "lf");
+    let nested = root.join("nested");
+    fs::create_dir(&nested).unwrap();
+    let source = nested.join("source.ts");
+    fs::write(&source, "const a={x:1}\n").unwrap();
+    let review = run(root, &doc, ProjectAction::Check);
+    let apply =
+        ProjectRequest::from_review(root.to_owned(), &doc, vec![source], &review, true).unwrap();
+    fs::write(
+        nested.join("dprint.json"),
+        "{\"inherit\":true,\"lineWidth\":100}",
+    )
+    .unwrap();
+    let executable = root.join("fixture-dprint");
+    fs::write(&executable, "#!/bin/sh\ntouch cli-was-called\nexit 1\n").unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+    let error = Backend::new(executable, vec![])
+        .execute_project(&apply, Arc::new(AtomicBool::new(false)))
+        .unwrap_err();
+    assert!(error.contains("changed since review"), "{error}");
+    assert!(!root.join("cli-was-called").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn failed_post_format_verification_returns_error_instead_of_stale_report() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let doc = config(root, "lf");
+    let source = root.join("source.ts");
+    fs::write(&source, "const a={x:1}\n").unwrap();
+    let review = run(root, &doc, ProjectAction::Check);
+    let apply =
+        ProjectRequest::from_review(root.to_owned(), &doc, vec![source.clone()], &review, true)
+            .unwrap();
+    fs::write(
+        root.join("review-output"),
+        json!({"file":"source.ts", "diff": review.files[0].diff}).to_string(),
+    )
+    .unwrap();
+    let executable = root.join("fixture-dprint");
+    fs::write(&executable, r#"#!/bin/sh
+case "$1" in
+--version) echo 'dprint 0.63.0';;
+file-paths) cat >/dev/null; echo './source.ts';;
+check) cat >/dev/null; if [ -f fmt-finished ]; then echo 'verification failed' >&2; exit 1; fi; cat review-output; exit 20;;
+fmt) cat >/dev/null; printf 'const a = { x: 1 };\n' > source.ts; touch fmt-finished;;
+esac
+"#).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+    let error = Backend::new(executable, vec![])
+        .execute_project(&apply, Arc::new(AtomicBool::new(false)))
+        .unwrap_err();
+    assert!(
+        error.contains("Formatting ran, but the automatic verification failed"),
+        "{error}"
+    );
+    assert!(error.contains("not transactional"), "{error}");
+    assert_eq!(fs::read_to_string(source).unwrap(), "const a = { x: 1 };\n");
+}

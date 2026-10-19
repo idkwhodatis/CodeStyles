@@ -8,6 +8,7 @@ use crate::{
     backend::{Backend, cache_directory},
     config::{ConfigDocument, ConfigSnapshot},
 };
+use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::OsString,
@@ -52,6 +53,7 @@ pub struct ProjectRequest {
     root: PathBuf,
     config: ConfigSnapshot,
     action: ProjectAction,
+    review: Option<Arc<ReviewSnapshot>>,
 }
 impl ProjectRequest {
     /// `trusted` means the user approved this run's saved config, inherited and
@@ -88,6 +90,7 @@ impl ProjectRequest {
             root,
             config: document.saved_snapshot(),
             action,
+            review: None,
         };
         request.verify_saved_config()?;
         if let ProjectAction::FormatSelected(paths) = &request.action {
@@ -100,6 +103,64 @@ impl ProjectRequest {
         }
         Ok(request)
     }
+    /// Format only differing files selected from a successful displayed check.
+    /// The worker revalidates sources, dependencies and diffs before formatting.
+    /// This is not an atomic patch application: trusted plugins are rerun, so
+    /// avoid concurrent edits and rely on the automatic post-format check.
+    pub fn from_review(
+        root: PathBuf,
+        document: &ConfigDocument,
+        selected_paths: Vec<PathBuf>,
+        report: &ProjectReport,
+        trusted: bool,
+    ) -> Result<Self, String> {
+        let mut request = Self::new(
+            root,
+            document,
+            ProjectAction::FormatSelected(selected_paths),
+            trusted,
+        )?;
+        let review = report
+            .review
+            .as_ref()
+            .ok_or("Run Check project before applying reviewed changes.")?;
+        if review.root != request.root || review.config_path != request.config_path() {
+            return Err(
+                "The review belongs to a different project configuration. Check again.".into(),
+            );
+        }
+        if let ProjectAction::FormatSelected(paths) = &request.action {
+            for path in paths {
+                if !review.sources.contains_key(&request.safe_file(path)?) {
+                    return Err("Only files with differences in the displayed review may be applied. Check again.".into());
+                }
+            }
+        }
+        request.review = Some(review.clone());
+        Ok(request)
+    }
+
+    fn verify_review(&self, discovered: &BTreeSet<PathBuf>) -> Result<(), String> {
+        let Some(review) = &self.review else {
+            return Ok(());
+        };
+        if protected_configs(self, discovered)? != review.configs {
+            return Err("Project configuration or local plugins changed since review. Run Check project again before applying.".into());
+        }
+        verify_configs(&review.configs)?;
+        if let ProjectAction::FormatSelected(paths) = &self.action {
+            for path in paths {
+                let path = self.safe_file(path)?;
+                let expected = review
+                    .sources
+                    .get(&path)
+                    .ok_or("A selected source path changed since review. Check again.")?;
+                verify_source(&path, expected)?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn root(&self) -> &Path {
         &self.root
     }
@@ -153,12 +214,23 @@ pub struct ProjectFile {
 pub struct ProjectReport {
     pub action: ProjectAction,
     pub cli_version: String,
-    /// Check: differing files. Format: diffs captured immediately before writing.
+    /// Current differing files, including the full-project check after formatting.
     pub files: Vec<ProjectFile>,
     pub diagnostics: String,
     pub summary: String,
     pub checked_files: usize,
     pub protected_configs: usize,
+    review: Option<Arc<ReviewSnapshot>>,
+}
+
+#[derive(Clone, Debug)]
+struct ReviewSnapshot {
+    root: PathBuf,
+    config_path: PathBuf,
+    discovered: BTreeSet<PathBuf>,
+    configs: BTreeMap<PathBuf, Vec<u8>>,
+    sources: BTreeMap<PathBuf, SourceFingerprint>,
+    diffs: BTreeMap<PathBuf, String>,
 }
 
 impl Backend {
@@ -167,9 +239,10 @@ impl Backend {
         request: &ProjectRequest,
         cancelled: Arc<AtomicBool>,
     ) -> Result<ProjectReport, String> {
-        let result = self.execute_project_inner(request, &cancelled);
+        let mut writes_started = false;
+        let result = self.execute_project_inner(request, &cancelled, &mut writes_started);
         result.map_err(|error| {
-            if request.action.writes_sources() {
+            if writes_started {
                 format!("{error}\nFormatting is not transactional; files may already have been changed. Run Check project to inspect the current state.")
             } else { error }
         })
@@ -179,8 +252,17 @@ impl Backend {
         &self,
         request: &ProjectRequest,
         cancelled: &Arc<AtomicBool>,
+        writes_started: &mut bool,
     ) -> Result<ProjectReport, String> {
+        if cancelled.load(Ordering::Acquire) {
+            return Err("Project operation cancelled.".into());
+        }
         request.verify_saved_config()?;
+        if let Some(review) = &request.review {
+            // Reject stale trusted resources before any CLI operation can load
+            // or execute configuration plugins. Fresh discovery is checked again.
+            request.verify_review(&review.discovered)?;
+        }
         let version = self.project_process(request, &["--version"], None, cancelled)?;
         ensure_success(&version, "Version check")?;
         let version =
@@ -200,6 +282,7 @@ impl Backend {
             summary: String::new(),
             checked_files: 0,
             protected_configs: 0,
+            review: None,
         };
         if request.action == ProjectAction::PreparePlugins {
             // No positional plugins: unlike `install URL`, this never edits the
@@ -226,6 +309,7 @@ impl Backend {
         ensure_success(&enumerated, "Project file discovery")?;
         append_diagnostics(&mut diagnostics, &enumerated.stderr);
         let all_files = parse_file_paths(request, &enumerated.stdout)?;
+        request.verify_review(&all_files)?;
         let configs = protected_configs(request, &all_files)?;
         // Canonical paths resolve symlinks, not hard links. Compare file identity
         // too so a source-looking hard link cannot rewrite a protected config.
@@ -291,6 +375,10 @@ impl Backend {
             return Err("Cannot represent these file names unambiguously in dprint's CLI. No formatting was started.".into());
         }
         verify_configs(&configs)?;
+        let sources = targets
+            .iter()
+            .map(|path| source_fingerprint(path).map(|fingerprint| (path.clone(), fingerprint)))
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
         let checked = self.project_process(
             request,
             &["check", "--json", "--incremental=false", "--stdin-files"],
@@ -306,6 +394,29 @@ impl Backend {
             return Err("dprint returned an inconsistent check result (exit status and JSON differences disagree).".into());
         }
         verify_configs(&configs)?;
+        for (path, bytes) in &sources {
+            verify_source(path, bytes)?;
+        }
+        request.verify_review(&all_files)?;
+        if let Some(review) = &request.review {
+            let current: BTreeMap<_, _> = report
+                .files
+                .iter()
+                .map(|file| (file.path.clone(), file.diff.clone()))
+                .collect();
+            let expected: BTreeMap<_, _> = targets
+                .iter()
+                .map(|path| (path.clone(), review.diffs[path].clone()))
+                .collect();
+            if current != expected {
+                return Err("Formatting differences changed since review. Run Check project again before applying.".into());
+            }
+        }
+        if protected_configs(request, &all_files)? != configs {
+            return Err(
+                "Project configuration dependencies changed during check. Check again.".into(),
+            );
+        }
         if request.action.writes_sources() {
             request.verify_saved_config()?;
             // Recheck file identity/containment immediately before starting writes.
@@ -314,6 +425,26 @@ impl Backend {
                     return Err("A source path changed during project validation. Check again before formatting.".into());
                 }
             }
+            // Last content/config recheck catches changes during the CLI check.
+            // CLI writes are not atomic with these reads; concurrent editors must
+            // still be avoided while applying, and failures may be partial.
+            request.verify_review(&all_files)?;
+            let current_protected = configs
+                .keys()
+                .map(same_file::Handle::from_path)
+                .collect::<Result<std::collections::HashSet<_>, _>>()
+                .map_err(|e| format!("Cannot revalidate protected files: {e}"))?;
+            for path in &targets {
+                let identity = same_file::Handle::from_path(path)
+                    .map_err(|e| format!("Cannot revalidate source {}: {e}", path.display()))?;
+                if current_protected.contains(&identity) {
+                    return Err("A source became an alias of a protected configuration or plugin. Check again before formatting.".into());
+                }
+            }
+            if cancelled.load(Ordering::Acquire) {
+                return Err("Project operation cancelled.".into());
+            }
+            *writes_started = true;
             let formatted = self.project_process(
                 request,
                 &["fmt", "--incremental=false", "--stdin-files"],
@@ -324,11 +455,27 @@ impl Backend {
             append_diagnostics(&mut diagnostics, &formatted.stderr);
             append_diagnostics(&mut diagnostics, &formatted.stdout);
             verify_configs(&configs)?;
-            report.summary = format!(
-                "Formatting completed for {} selected source files; {} had differences. Configuration and local plugin files were protected. Run Check project to refresh.",
+            let verification_request = ProjectRequest {
+                root: request.root.clone(),
+                config: request.config.clone(),
+                action: ProjectAction::Check,
+                review: None,
+            };
+            let mut verification = self
+                .execute_project_inner(&verification_request, cancelled, writes_started)
+                .map_err(|error| {
+                    format!("Formatting ran, but the automatic verification failed: {error}")
+                })?;
+            verification.action = request.action.clone();
+            verification.summary = format!(
+                "Formatted {} selected source files. Verified all {} included source files; {} still need formatting. Configuration and local plugin files were protected.",
                 targets.len(),
-                report.files.len()
+                verification.checked_files,
+                verification.files.len()
             );
+            append_diagnostics(&mut diagnostics, verification.diagnostics.as_bytes());
+            verification.diagnostics = diagnostics;
+            return Ok(verification);
         } else {
             report.summary = if report.files.is_empty() {
                 format!(
@@ -344,6 +491,22 @@ impl Backend {
             };
         }
         request.verify_saved_config()?;
+        report.review = Some(Arc::new(ReviewSnapshot {
+            root: request.root.clone(),
+            config_path: request.config_path().to_owned(),
+            discovered: all_files,
+            configs,
+            diffs: report
+                .files
+                .iter()
+                .map(|file| (file.path.clone(), file.diff.clone()))
+                .collect(),
+            sources: report
+                .files
+                .iter()
+                .map(|file| (file.path.clone(), sources[&file.path]))
+                .collect(),
+        }));
         report.diagnostics = diagnostics;
         Ok(report)
     }
@@ -888,6 +1051,44 @@ fn local_dependency_path(directory: &Path, reference: &str) -> PathBuf {
     #[cfg(windows)]
     let reference = reference.replace('/', "\\");
     directory.join(reference)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SourceFingerprint {
+    bytes: u64,
+    sha256: [u8; 32],
+}
+fn source_fingerprint(path: &Path) -> Result<SourceFingerprint, String> {
+    let mut file =
+        fs::File::open(path).map_err(|e| format!("Cannot read source {}: {e}", path.display()))?;
+    let mut digest = Sha256::new();
+    let mut bytes = 0;
+    let mut buffer = [0; 64 * 1024];
+    loop {
+        let count = file
+            .read(&mut buffer)
+            .map_err(|e| format!("Cannot read source {}: {e}", path.display()))?;
+        if count == 0 {
+            break;
+        }
+        bytes += count as u64;
+        digest.update(&buffer[..count]);
+    }
+    Ok(SourceFingerprint {
+        bytes,
+        sha256: digest.finalize().into(),
+    })
+}
+fn verify_source(path: &Path, expected: &SourceFingerprint) -> Result<(), String> {
+    if source_fingerprint(path).ok().as_ref() != Some(expected)
+        || fs::canonicalize(path).ok().as_deref() != Some(path)
+    {
+        return Err(format!(
+            "Source changed since review or during check: {}. Run Check project again before applying.",
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 fn verify_configs(configs: &BTreeMap<PathBuf, Vec<u8>>) -> Result<(), String> {
