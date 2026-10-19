@@ -622,3 +622,77 @@ fn corrupted_markdown_and_toml_bundles_are_rejected_before_use() {
         assert!(error.contains(plugin.filename()));
     }
 }
+
+#[test]
+fn every_builtin_syntax_tour_formats_and_is_idempotent_with_both_styles() {
+    use codestyles::comparison::{BuiltinSample, SourceLanguage, SourceState};
+    let (exe, plugins) = assets();
+    let backend = Backend::new(exe, plugins);
+    let mut state = SourceState::default();
+    for language in SourceLanguage::ALL {
+        state.select_language(language);
+        let source = language.builtin_source();
+        assert_eq!(state.source(), source);
+        assert_eq!(BuiltinSample::Overview.source(language), source);
+        assert!(
+            source.lines().count() <= 60,
+            "{language:?} must stay compact"
+        );
+        let mut outputs = Vec::new();
+        for changed in [false, true] {
+            let mut document = backend.standalone_config().unwrap();
+            if changed {
+                document.set(&["indentWidth"], json!(4)).unwrap();
+                document.set(&["lineWidth"], json!(50)).unwrap();
+                document
+                    .set(&["typescript", "quoteStyle"], json!("preferSingle"))
+                    .unwrap();
+                document
+                    .set(&["typescript", "semiColons"], json!("asi"))
+                    .unwrap();
+                document
+                    .set(&["markdown", "textWrap"], json!("always"))
+                    .unwrap();
+                document
+                    .set(&["toml", "spaceSurroundingEquals"], json!(false))
+                    .unwrap();
+                document
+                    .set(&["toml", "quoteStyle"], json!("preferSingle"))
+                    .unwrap();
+            }
+            let mut input = FormatRequest {
+                source: source.into(),
+                source_path: state.source_path().into(),
+                config: document.snapshot(),
+            };
+            let output = backend
+                .format(&input, Arc::new(AtomicBool::new(false)))
+                .unwrap_or_else(|error| panic!("{language:?}, changed={changed}: {error}"));
+            assert!(!output.trim().is_empty());
+            assert_eq!(input.source, source, "original source must stay immutable");
+            if language == SourceLanguage::Json {
+                let original: serde_json::Value = serde_json::from_str(source).unwrap();
+                let formatted: serde_json::Value = serde_json::from_str(&output).unwrap();
+                assert_eq!(original, formatted, "strict JSON retains its values");
+            }
+            input.source = output.clone();
+            let repeated = backend
+                .format(&input, Arc::new(AtomicBool::new(false)))
+                .unwrap_or_else(|error| panic!("formatted {language:?} must parse: {error}"));
+            assert_eq!(
+                output, repeated,
+                "{language:?} formatting must be idempotent"
+            );
+            outputs.push(output);
+        }
+        assert_ne!(
+            outputs[0], outputs[1],
+            "{language:?} must demonstrate changed settings"
+        );
+        assert_eq!(state.source(), source);
+    }
+    assert_ne!(
+        SourceLanguage::Tsx.builtin_source(),
+        SourceLanguage::Jsx.builtin_source()
+    );
+}

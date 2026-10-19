@@ -1,0 +1,9 @@
+{
+"name":"CodeStyles","enabled":true,"archived":false,"fallback":null,
+"version":1,"ratio":0.75,"offset":-2,"scale":1.2e3,
+"message":"Hello, \"preview\"!\nKeep Unicode: café.",
+"languages":["TypeScript","JavaScript","TSX","JSX","JSON","JSONC","Markdown","TOML"],
+"preview":{"width":80,"indent":{"size":2,"tabs":false},"labels":["saved","draft"]},
+"items":[{"id":1,"name":"alpha","tags":["short","a longer label"]},{"id":2,"name":"beta","tags":[]}],
+"emptyObject":{},"emptyArray":[]
+}

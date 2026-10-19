@@ -29,3 +29,16 @@ not the application UI or executable; application packaging must include them.
 Supported resource targets: Linux x64/ARM64 GNU, macOS arm64/x64, Windows arm64/x64.
 Only Linux x64 is executed during this build; other binaries are checksum-
 verified official release artifacts, not claimed as runtime-tested.
+
+## Built-in syntax tours
+
+`samples/sample.{ts,js,tsx,jsx,json,jsonc,md,toml}` are the compact, immutable
+preview inputs embedded into the application at compile time. Each dialect has
+its own source file; they are formatting examples, not programs to execute.
+Imports illustrate syntax and do not require the referenced packages or files.
+Keep these sources deliberately compact and unformatted so setting changes are
+visible. The preview only displays these inputs and never writes into them.
+
+The parity suite formats all eight samples with default and changed styles,
+reformats the outputs to check parsing and idempotence, and checks strict JSON
+value preservation. The sample files do not need separate runtime packaging.

@@ -1,9 +1,9 @@
 //! Native P2 schema-driven style editing. Formatting and debounce live off the UI thread.
-use std::{path::PathBuf, time::Duration};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use codestyles::{
     backend::FormatRequest,
-    comparison::{BuiltinSample, DiffKind, SourceLanguage, SourceState, line_diff},
+    comparison::{DiffKind, SourceLanguage, SourceState, line_diff},
     config::ConfigDocument,
     integration,
     preview::PreviewController,
@@ -14,9 +14,12 @@ use codestyles::{
 };
 use gpui_kit::{
     component::{
-        ActiveTheme, Disableable, Selectable, Theme, ThemeMode,
+        ActiveTheme, Disableable, Selectable, Sizable, Theme, ThemeMode, WindowExt,
         button::Button,
-        input::{Input, InputEvent, InputState, Textarea, TextareaState},
+        input::{Editor, EditorState, Input, InputEvent, InputState, Textarea, TextareaState},
+        select::{Select, SelectEvent, SelectState},
+        switch::Switch,
+        tab::{Tab, TabBar},
     },
     prelude::*,
     *,
@@ -35,7 +38,10 @@ pub struct PreviewWindow {
     // Only the checksummed bundle's exact plugin references have a known schema.
     schema: Result<SchemaCatalog, String>,
     source: SourceState,
-    source_editor: Option<Entity<TextareaState>>,
+    preview_editor: Option<Entity<EditorState>>,
+    preview_language: Option<SourceLanguage>,
+    inline_selects: HashMap<String, Entity<SelectState<Vec<String>>>>,
+    inline_editors: HashMap<String, Entity<InputState>>,
     search_editor: Option<Entity<InputState>>,
     field_editor: Option<Entity<InputState>>,
     field_draft: FieldDraft,
@@ -99,7 +105,10 @@ impl PreviewWindow {
             document,
             schema: SchemaCatalog::bundled(),
             source: SourceState::default(),
-            source_editor: None,
+            preview_editor: None,
+            preview_language: None,
+            inline_selects: HashMap::new(),
+            inline_editors: HashMap::new(),
             search_editor: None,
             field_editor: None,
             field_draft: FieldDraft::default(),
@@ -170,8 +179,8 @@ impl PreviewWindow {
                                 None => {}
                             }
                             view.status = format!(
-                                "Formatted {} · draft revision {}",
-                                view.source.source_path(),
+                                "Formatted {} example · draft revision {}",
+                                view.source.language().display_name(),
                                 result.revision
                             );
                             view.error = false;
@@ -673,27 +682,9 @@ impl PreviewWindow {
     }
 
     fn ensure_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.source_editor.is_some() {
+        if self.search_editor.is_some() {
             return;
         }
-        let source = self.source.source().to_owned();
-        let editor = cx.new(|cx| {
-            let mut state = TextareaState::new(window, cx);
-            state.set_value(source, window, cx);
-            state
-        });
-        self.subscriptions
-            .push(cx.subscribe(&editor, |this, editor, event, cx| {
-                if matches!(event, InputEvent::Change) && this.source.is_custom() {
-                    let text = editor.read(cx).value().to_string();
-                    if text != this.source.source() {
-                        this.source.set_custom_source(text);
-                        this.document_version += 1;
-                        this.request_preview(cx);
-                    }
-                }
-            }));
-        self.source_editor = Some(editor);
         let search = cx.new(|cx| {
             InputState::new(window, cx).placeholder("Search settings (Ctrl/Cmd+Shift+F)…")
         });
@@ -705,36 +696,183 @@ impl PreviewWindow {
                 }
             }));
         self.search_editor = Some(search);
-        let field = cx.new(|cx| InputState::new(window, cx).placeholder("Explicit value"));
-        self.subscriptions.push(
-            cx.subscribe_in(&field, window, |this, editor, event, window, cx| {
-                if matches!(event, InputEvent::Change) {
-                    let text = editor.read(cx).value().to_string();
-                    if text != this.field_draft.text {
-                        this.field_draft.text = text; this.document_version += 1;
-                        this.status = if this.field_draft.is_dirty() { "Value input is not applied. Apply or discard it before saving or changing settings.".into() } else { "Value input matches the draft.".into() };
-                        cx.notify();
-                    }
-                }
-                if matches!(event, InputEvent::PressEnter { .. }) {
-                    this.apply_field(window, cx);
-                }
-            }),
-        );
-        self.field_editor = Some(field);
     }
 
-    fn sync_source(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(editor) = &self.source_editor {
-            let text = self.source.source().to_owned();
-            if editor.read(cx).value().as_ref() != text {
-                editor.update(cx, |editor, cx| editor.set_value(text, window, cx));
-            }
-        }
+    fn sync_source(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         self.request_preview(cx);
     }
 
+    fn inline_editor(
+        &mut self,
+        field: &SchemaField,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<InputState> {
+        let key = format!("{}.{}", self.plugin().section(), field.name);
+        let baseline = self
+            .document
+            .as_ref()
+            .map(|doc| field_input_text(field, doc, self.plugin()))
+            .unwrap_or_default();
+        if let Some(editor) = self.inline_editors.get(&key) {
+            if !(self.selected_field.as_ref() == Some(&field.name) && self.field_draft.is_dirty())
+                && editor.read(cx).value().as_ref() != baseline
+            {
+                editor.update(cx, |editor, cx| editor.set_value(baseline, window, cx));
+            }
+            return editor.clone();
+        }
+        let editor = cx.new(|cx| {
+            let mut state = InputState::new(window, cx).placeholder("Value");
+            state.set_value(baseline, window, cx);
+            state
+        });
+        let field = field.clone();
+        let plugin = self.plugin();
+        self.subscriptions.push(cx.subscribe_in(
+            &editor,
+            window,
+            move |this, editor, event, window, cx| {
+                if this.plugin() != plugin {
+                    return;
+                }
+                if matches!(event, InputEvent::Change) {
+                    let text = editor.read(cx).value().to_string();
+                    let baseline = this
+                        .document
+                        .as_ref()
+                        .map(|doc| field_input_text(&field, doc, plugin))
+                        .unwrap_or_default();
+                    // Programmatic synchronization is not a pending user edit.
+                    if text == baseline && this.selected_field.as_ref() != Some(&field.name) {
+                        return;
+                    }
+                    if this.selected_field.as_ref() != Some(&field.name) {
+                        if !this.allow_field_transition(cx) {
+                            editor.update(cx, |editor, cx| editor.set_value(baseline, window, cx));
+                            return;
+                        }
+                        this.selected_field = Some(field.name.clone());
+                        this.field_draft.reset(baseline);
+                    }
+                    this.field_editor = Some(editor.clone());
+                    if this.field_draft.text != text {
+                        this.field_draft.text = text;
+                        this.document_version += 1;
+                        cx.notify();
+                    }
+                } else if matches!(event, InputEvent::PressEnter { .. }) {
+                    let baseline = this
+                        .document
+                        .as_ref()
+                        .map(|doc| field_input_text(&field, doc, plugin))
+                        .unwrap_or_default();
+                    let text = editor.read(cx).value().to_string();
+                    if !prepare_inline_apply(
+                        &mut this.selected_field,
+                        &mut this.field_draft,
+                        &field.name,
+                        baseline,
+                        text,
+                    ) {
+                        this.allow_field_transition(cx);
+                        return;
+                    }
+                    this.field_editor = Some(editor.clone());
+                    this.apply_field(window, cx);
+                }
+            },
+        ));
+        self.inline_editors.insert(key, editor.clone());
+        editor
+    }
+
+    fn inline_select(
+        &mut self,
+        field: &SchemaField,
+        values: Vec<Value>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<SelectState<Vec<String>>> {
+        let key = format!("{}.{}", self.plugin().section(), field.name);
+        let explicit = self
+            .document
+            .as_ref()
+            .and_then(|doc| field.state(doc, self.plugin()).ok())
+            .and_then(|state| state.explicit);
+        let label = |value: &Value| {
+            value
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| value.to_string())
+        };
+        let selected = explicit.as_ref().map(label);
+        if let Some(select) = self.inline_selects.get(&key) {
+            if select.read(cx).selected_value() != selected.as_ref() {
+                select.update(cx, |select, cx| {
+                    if let Some(value) = &selected {
+                        select.set_selected_value(value, window, cx);
+                    } else {
+                        select.set_selected_index(None, window, cx);
+                    }
+                });
+            }
+            return select.clone();
+        }
+        let labels: Vec<String> = values.iter().map(label).collect();
+        let select = cx.new(|cx| {
+            let mut state = SelectState::new(labels.clone(), None, window, cx);
+            if let Some(value) = &selected {
+                state.set_selected_value(value, window, cx);
+            }
+            state
+        });
+        let name = field.name.clone();
+        let plugin = self.plugin();
+        self.subscriptions.push(cx.subscribe_in(
+            &select,
+            window,
+            move |this, _, event, window, cx| {
+                if this.plugin() != plugin {
+                    return;
+                }
+                let SelectEvent::Confirm(value) = event;
+                if let Some(index) = value
+                    .as_ref()
+                    .and_then(|value| labels.iter().position(|label| label == value))
+                {
+                    this.set_inline_field(&name, Some(values[index].clone()), window, cx);
+                }
+            },
+        ));
+        self.inline_selects.insert(key, select.clone());
+        select
+    }
+
+    fn set_inline_field(
+        &mut self,
+        name: &str,
+        value: Option<Value>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.allow_field_transition(cx) {
+            return;
+        }
+        self.selected_field = Some(name.to_owned());
+        self.field_editor = self
+            .inline_editors
+            .get(&format!("{}.{}", self.plugin().section(), name))
+            .cloned();
+        self.set_field(value, window, cx);
+    }
+
     fn sync_field(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_field.is_none() {
+            self.field_draft.reset(String::new());
+            self.field_editor = None;
+            return;
+        }
         let text = self
             .selected_schema_field()
             .and_then(|field| {
@@ -826,8 +964,8 @@ impl PreviewWindow {
                     .ok_or_else(|| "No configuration loaded".into())
                     .and_then(|doc| schema.available(doc, plugin))
             });
-        let disabled = self.raw_dirty || availability.is_err();
-        let fields: Vec<SchemaField> = self
+        let disabled = self.raw_dirty || availability.is_err() || self.project_busy();
+        let fields = self
             .schema
             .as_ref()
             .map(|schema| schema.fields(plugin).to_vec())
@@ -836,58 +974,208 @@ impl PreviewWindow {
         groups.sort();
         groups.dedup();
         let visible: Vec<_> = fields
-            .iter()
+            .into_iter()
             .filter(|field| {
                 (self.group == "All" || field.group == self.group) && field.matches(&self.search)
             })
-            .cloned()
             .collect();
-        let field = self.selected_schema_field();
-        let mut panel = div()
+        let mut rows = Vec::new();
+        for (index, field) in visible.iter().enumerate() {
+            let state = self
+                .document
+                .as_ref()
+                .ok_or_else(|| "No document".to_owned())
+                .and_then(|doc| field.state(doc, plugin));
+            let explicit = state.as_ref().ok().and_then(|state| state.explicit.clone());
+            let pending =
+                self.field_draft.is_dirty() && self.selected_field.as_ref() == Some(&field.name);
+            let blocked = disabled || state.is_err() || (self.field_draft.is_dirty() && !pending);
+            let mut controls = div().flex().items_center().gap_1().flex_wrap();
+            match &field.kind {
+                FieldKind::Boolean => {
+                    if let Some(checked) = explicit.as_ref().and_then(Value::as_bool) {
+                        let name = field.name.clone();
+                        controls = controls.child(
+                            Switch::new(("boolean", index))
+                                .small()
+                                .checked(checked)
+                                .label(if checked { "true" } else { "false" })
+                                .accessibility_label(field.name.clone())
+                                .disabled(blocked)
+                                .on_change(cx.listener(move |this, value: &bool, window, cx| {
+                                    this.set_inline_field(
+                                        &name,
+                                        Some(Value::Bool(*value)),
+                                        window,
+                                        cx,
+                                    )
+                                })),
+                        );
+                    } else {
+                        // Unset is a third state, not false. Offer either explicit value directly.
+                        let select = self.inline_select(
+                            field,
+                            vec![Value::Bool(false), Value::Bool(true)],
+                            window,
+                            cx,
+                        );
+                        controls = controls.child(
+                            Select::new(&select)
+                                .w(px(170.0))
+                                .small()
+                                .placeholder("Unset")
+                                .accessibility_label(field.name.clone())
+                                .disabled(blocked),
+                        );
+                    }
+                }
+                FieldKind::Enum(choices) => {
+                    let select = self.inline_select(
+                        field,
+                        choices.iter().map(|choice| choice.value.clone()).collect(),
+                        window,
+                        cx,
+                    );
+                    controls = controls.child(
+                        Select::new(&select)
+                            .w(px(170.0))
+                            .small()
+                            .placeholder("Unset")
+                            .accessibility_label(field.name.clone())
+                            .disabled(blocked),
+                    );
+                }
+                FieldKind::Const(value) => {
+                    let select = self.inline_select(field, vec![value.clone()], window, cx);
+                    controls = controls.child(
+                        Select::new(&select)
+                            .w(px(170.0))
+                            .small()
+                            .placeholder("Unset")
+                            .accessibility_label(field.name.clone())
+                            .disabled(blocked),
+                    );
+                }
+                FieldKind::Raw { reason } => {
+                    controls =
+                        controls.child(div().text_xs().child(format!("Edit in JSONC: {reason}")));
+                }
+                _ => {
+                    let editor = self.inline_editor(field, window, cx);
+                    controls = controls.child(
+                        div().w(px(160.0)).child(
+                            Input::new(&editor)
+                                .disabled(blocked)
+                                .aria_label(format!("Value for {}", field.name)),
+                        ),
+                    )
+                }
+            }
+            let name = field.name.clone();
+            let annotation = match &explicit {
+                Some(value) => format!("Explicit: {value}"),
+                None => format!(
+                    "Unset · schema default: {}",
+                    field
+                        .default
+                        .as_ref()
+                        .map(Value::to_string)
+                        .unwrap_or_else(|| "not declared".into())
+                ),
+            };
+            let mut row = div().id(("setting-row", index)).flex().flex_col().gap_1().py_3().border_b_1().border_color(cx.theme().border)
+                .child(div().flex().items_center().gap_3()
+                    .child(div().flex_1().min_w_0().text_sm().child(field.name.clone()))
+                    .child(controls)
+                    .child(Button::new(("reset", index)).small().label("Reset").tooltip("Remove explicit value; inherit configuration or plugin default")
+                        .disabled(blocked || pending || explicit.is_none()).on_click(cx.listener(move |this, _, window, cx| this.set_inline_field(&name, None, window, cx)))))
+                .child(div().text_xs().text_color(cx.theme().muted_foreground).child(field.description.clone()))
+                .child(div().text_xs().text_color(cx.theme().muted_foreground).child(annotation));
+            if pending {
+                row = row.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .child(div().flex_1().text_xs().child("Pending input"))
+                        .child(
+                            Button::new(("apply", index))
+                                .small()
+                                .label("Apply")
+                                .disabled(blocked)
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| this.apply_field(window, cx)),
+                                ),
+                        )
+                        .child(
+                            Button::new(("discard", index))
+                                .small()
+                                .label("Discard")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.sync_field(window, cx);
+                                    this.document_version += 1;
+                                    cx.notify();
+                                })),
+                        ),
+                );
+            }
+            if let Some(error) = state
+                .as_ref()
+                .err()
+                .cloned()
+                .or_else(|| state.ok().and_then(|state| state.validation_error))
+            {
+                row = row.child(div().text_xs().text_color(cx.theme().danger).child(error));
+            }
+            rows.push(row);
+        }
+        let tabs: Vec<String> = std::iter::once("All".to_owned()).chain(groups).collect();
+        let selected_tab = tabs
+            .iter()
+            .position(|group| group == &self.group)
+            .unwrap_or(0);
+        div()
             .id("settings-pane")
-            .overflow_y_scroll()
             .flex()
             .flex_col()
-            .w(px(340.0))
-            .min_w(px(260.0))
+            .flex_1()
+            .min_w(px(360.0))
             .h_full()
             .gap_2()
+            .child(div().text_lg().child("Style options"))
             .child(
                 div()
-                    .text_lg()
-                    .child(format!("{} · {}", plugin.section(), plugin.version())),
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(format!(
+                        "{} {} · {} matching settings",
+                        plugin.section(),
+                        plugin.version(),
+                        visible.len()
+                    )),
             )
             .child(
                 Input::new(self.search_editor.as_ref().unwrap())
+                    .disabled(self.field_draft.is_dirty())
                     .aria_label("Search setting names and descriptions"),
             )
             .child(
                 div()
-                    .id("setting-groups")
-                    .max_h(px(90.0))
-                    .overflow_y_scroll()
-                    .flex()
-                    .flex_wrap()
-                    .gap_1()
-                    .children(
-                        std::iter::once("All".to_owned())
-                            .chain(groups)
-                            .enumerate()
-                            .map(|(index, group)| {
-                                Button::new(("group", index))
-                                    .label(group.clone())
-                                    .selected(self.group == group)
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        if !this.allow_field_transition(cx) {
-                                            return;
-                                        }
-                                        this.group = group.clone();
-                                        this.selected_field = None;
-                                        this.source.select_category(&group);
-                                        this.sync_source(window, cx);
-                                        cx.notify();
-                                    }))
-                            }),
+                    .id("category-scroll")
+                    .overflow_x_scroll()
+                    .flex_shrink_0()
+                    .child(
+                        TabBar::new("category-tabs")
+                            .underline()
+                            .menu(true)
+                            .selected_index(selected_tab)
+                            .children(tabs.iter().map(|group| Tab::new().label(group.clone())))
+                            .on_click(cx.listener(move |this, index: &usize, _, cx| {
+                                if this.allow_field_transition(cx) {
+                                    this.group = tabs[*index].clone();
+                                    cx.notify();
+                                }
+                            })),
                     ),
             )
             .when_some(availability.err(), |panel, error| {
@@ -900,217 +1188,70 @@ impl PreviewWindow {
             })
             .child(
                 div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(format!(
-                        "{} matching settings · Tab to navigate, Enter/Space to activate",
-                        visible.len()
-                    )),
-            )
-            .child(
-                div()
                     .id("settings-list")
                     .flex_1()
-                    .min_h(px(80.0))
+                    .min_h_0()
                     .overflow_y_scroll()
-                    .flex()
-                    .flex_col()
-                    .gap_1()
-                    .children(visible.iter().enumerate().map(|(index, field)| {
-                        let name = field.name.clone();
-                        let indicator =
-                            match self.document.as_ref().map(|doc| field.state(doc, plugin)) {
-                                Some(Ok(state)) if state.explicit.is_some() => "● ",
-                                Some(Ok(_)) => "○ ",
-                                _ => "! ",
-                            };
-                        Button::new(("field", index))
-                            .label(format!("{}{}", indicator, name))
-                            .selected(self.selected_field.as_ref() == Some(&name))
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                if !this.allow_field_transition(cx) {
-                                    return;
-                                }
-                                this.selected_field = Some(name.clone());
-                                this.sync_field(window, cx);
-                                cx.notify();
-                            }))
-                    })),
-            );
-        if let Some(field) = field {
-            let state = self
-                .document
-                .as_ref()
-                .ok_or_else(|| "No document".to_owned())
-                .and_then(|doc| field.state(doc, plugin));
-            let disabled = disabled || state.is_err();
-            let state_error = state.as_ref().err().cloned();
-            let validation_error = state
-                .as_ref()
-                .ok()
-                .and_then(|state| state.validation_error.clone());
-            let explicit = state.ok().and_then(|state| state.explicit);
-            let label = if let Some(error) = state_error {
-                format!("Cannot read value: {error}. Use JSONC.")
-            } else {
-                explicit
-                    .as_ref()
-                    .map(|v| format!("Explicit: {v}"))
-                    .unwrap_or_else(|| "Unset · inherited/plugin default".into())
-            };
-            let mut form = div()
-                .id("setting-form")
-                .max_h(px(300.0))
-                .overflow_y_scroll()
-                .flex()
-                .flex_col()
-                .gap_2()
-                .border_t_1()
-                .border_color(cx.theme().border)
-                .pt_3()
-                .child(div().text_sm().child(field.name.clone()))
-                .child(
-                    div()
-                        .id("setting-description")
-                        .max_h(px(80.0))
-                        .overflow_y_scroll()
-                        .text_xs()
-                        .child(field.description.clone()),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(label),
-                )
-                .child(div().text_xs().child(format!(
-                        "Schema default: {}",
-                        field
-                            .default
-                            .as_ref()
-                            .map(Value::to_string)
-                            .unwrap_or_else(|| "not declared".into())
-                    )));
-            if let Some(error) = validation_error {
-                form = form.child(
-                    div()
-                        .text_sm()
-                        .text_color(cx.theme().danger)
-                        .child(format!("Invalid explicit value: {error}")),
-                );
-            }
-            match &field.kind {
-                FieldKind::Boolean => {
-                    form = form.child(div().flex().gap_2().children(
-                        [false, true].into_iter().enumerate().map(|(index, value)| {
-                            Button::new(("bool-value", index))
-                                .label(value.to_string())
-                                .selected(explicit == Some(Value::Bool(value)))
-                                .disabled(disabled)
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.set_field(Some(Value::Bool(value)), window, cx)
-                                }))
-                        }),
-                    ));
-                }
-                FieldKind::Enum(choices) => {
-                    form = form.child(
-                        div()
-                            .id("enum-choices")
-                            .max_h(px(140.0))
-                            .overflow_y_scroll()
-                            .flex()
-                            .flex_wrap()
-                            .gap_1()
-                            .children(choices.iter().enumerate().map(|(index, choice)| {
-                                let value = choice.value.clone();
-                                Button::new(("enum-value", index))
-                                    .label(
-                                        value
-                                            .as_str()
-                                            .map(str::to_owned)
-                                            .unwrap_or_else(|| value.to_string()),
-                                    )
-                                    .selected(explicit.as_ref() == Some(&value))
-                                    .disabled(disabled)
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.set_field(Some(value.clone()), window, cx)
-                                    }))
-                            })),
-                    );
-                }
-                FieldKind::Const(value) => {
-                    let value = value.clone();
-                    form = form.child(
-                        Button::new("const-value")
-                            .label(format!("Set {value}"))
-                            .disabled(disabled)
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.set_field(Some(value.clone()), window, cx)
-                            })),
-                    );
-                }
-                FieldKind::Raw { reason } => {
-                    form = form.child(div().text_sm().child(format!("Raw JSONC only: {reason}")));
-                }
-                _ => {
-                    form = form
-                        .child(
-                            Input::new(self.field_editor.as_ref().unwrap())
-                                .disabled(disabled)
-                                .aria_label(format!("Value for {}", field.name)),
-                        )
-                        .child(
-                            Button::new("apply-field")
-                                .label("Apply value")
-                                .disabled(disabled)
-                                .on_click(
-                                    cx.listener(|this, _, window, cx| this.apply_field(window, cx)),
-                                ),
-                        );
-                }
-            }
-            form = form.child(
-                Button::new("discard-field-input")
-                    .label("Discard pending input")
-                    .disabled(!self.field_draft.is_dirty())
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.sync_field(window, cx);
-                        this.document_version += 1;
-                        this.status = "Pending value discarded; configuration unchanged.".into();
-                        this.error = false;
-                        cx.notify();
-                    })),
-            );
-            let raw = matches!(field.kind, FieldKind::Raw { .. });
-            let default = field.default.clone();
-            form = form.child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .child(
-                        Button::new("reset-field")
-                            .label("Reset to default")
-                            .disabled(disabled || raw || default.is_none())
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.set_field(default.clone(), window, cx)
-                            })),
-                    )
-                    .child(
-                        Button::new("unset-field")
-                            .label("Unset")
-                            .disabled(disabled || explicit.is_none())
-                            .on_click(
-                                cx.listener(|this, _, window, cx| this.set_field(None, window, cx)),
-                            ),
-                    ),
-            );
-            panel = panel.child(form);
-        } else {
-            panel = panel.child(div().text_sm().child("Choose a setting. ● explicit value; ○ unset. Reset writes a default; Unset removes the property."));
+                    .children(rows),
+            )
+            .into_any_element()
+    }
+
+    fn open_language_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.allow_field_transition(cx) {
+            return;
         }
-        let _ = window;
-        panel.into_any_element()
+        let view = cx.entity().downgrade();
+        let selected = self.source.language();
+        window.open_dialog(cx, move |dialog, _, _| {
+            dialog
+                .title("Choose language")
+                .w(px(520.0))
+                .overlay_closable(true)
+                .child(
+                    div().flex().flex_col().gap_4().children(
+                        ["Code", "Data", "Documentation"]
+                            .into_iter()
+                            .map(|category| {
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap_2()
+                                    .child(div().text_sm().child(category))
+                                    .child(
+                                        div().flex().flex_wrap().gap_2().children(
+                                            SourceLanguage::ALL
+                                                .into_iter()
+                                                .filter(|language| language.category() == category)
+                                                .enumerate()
+                                                .map(|(index, language)| {
+                                                    let view = view.clone();
+                                                    Button::new((category, index))
+                                                        .label(language.display_name())
+                                                        .selected(selected == language)
+                                                        .on_click(move |_, window, cx| {
+                                                            let _ = view.update(cx, |this, cx| {
+                                                                if !this.allow_field_transition(cx)
+                                                                {
+                                                                    return;
+                                                                }
+                                                                this.source
+                                                                    .select_language(language);
+                                                                this.selected_field = None;
+                                                                this.field_editor = None;
+                                                                this.group = "All".into();
+                                                                this.sync_source(window, cx);
+                                                                cx.notify();
+                                                                window.close_dialog(cx);
+                                                            });
+                                                        })
+                                                }),
+                                        ),
+                                    )
+                            }),
+                    ),
+                )
+        });
     }
 }
 
@@ -1376,6 +1517,26 @@ impl FieldDraft {
     }
 }
 
+/// Enter explicitly applies even an unchanged displayed default. Never steal a
+/// pending draft from another row (including queued keyboard events).
+fn prepare_inline_apply(
+    selected: &mut Option<String>,
+    draft: &mut FieldDraft,
+    name: &str,
+    baseline: String,
+    text: String,
+) -> bool {
+    if selected.as_deref() != Some(name) {
+        if draft.is_dirty() {
+            return false;
+        }
+        *selected = Some(name.to_owned());
+        draft.reset(baseline);
+    }
+    draft.text = text;
+    true
+}
+
 fn visible_diff(baseline: &str, draft: &str) -> String {
     line_diff(baseline, draft)
         .iter()
@@ -1427,6 +1588,17 @@ fn comparison_is_current(
     raw_dirty: bool,
 ) -> bool {
     last_success == Some(revision) && !pending && trusted && !raw_dirty
+}
+
+fn highlight_language(language: SourceLanguage) -> &'static str {
+    match language {
+        SourceLanguage::TypeScript => "typescript",
+        SourceLanguage::JavaScript | SourceLanguage::Jsx => "javascript",
+        SourceLanguage::Tsx => "tsx",
+        SourceLanguage::Json | SourceLanguage::Jsonc => "json",
+        SourceLanguage::Markdown => "markdown",
+        SourceLanguage::Toml => "toml",
+    }
 }
 
 fn code_pane(id: &'static str, title: String, source: &str, cx: &App) -> impl IntoElement {
@@ -1506,7 +1678,20 @@ impl Render for PreviewWindow {
         } else {
             ""
         };
-        let preview_title = format!("Preview · {}{freshness}", self.source.source_path());
+        let preview_title = format!("Formatted example{freshness}");
+        let language = self.source.language();
+        if self.preview_language != Some(language) || self.preview_editor.is_none() {
+            self.preview_editor = Some(
+                cx.new(|cx| EditorState::new(window, cx).language(highlight_language(language))),
+            );
+            self.preview_language = Some(language);
+        }
+        let preview_editor = self.preview_editor.as_ref().unwrap();
+        if preview_editor.read(cx).value().as_ref() != self.output {
+            preview_editor.update(cx, |editor, cx| {
+                editor.set_value(self.output.clone(), window, cx)
+            });
+        }
         let settings = self.render_settings(window, cx);
         let source = if self.show_saved {
             code_pane(
@@ -1557,31 +1742,7 @@ impl Render for PreviewWindow {
                 )
                 .into_any_element()
         } else {
-            div()
-                .flex()
-                .flex_col()
-                .flex_1()
-                .min_w_0()
-                .h_full()
-                .gap_2()
-                .child(div().text_sm().child(format!(
-                    "Source · {} · {}",
-                    self.source.source_path(),
-                    if self.source.is_custom() {
-                        "custom, editable"
-                    } else {
-                        "built-in, read only"
-                    }
-                )))
-                .child(
-                    Textarea::new(self.source_editor.as_ref().unwrap())
-                        .h_full()
-                        .font_family("monospace")
-                        .text_size(px(13.0))
-                        .readonly(!self.source.is_custom())
-                        .aria_label("Source code"),
-                )
-                .into_any_element()
+            div().into_any_element()
         };
         let result = if self.diff_mode {
             let text = if !comparison_is_current(
@@ -1611,7 +1772,27 @@ impl Render for PreviewWindow {
             )
             .into_any_element()
         } else {
-            code_pane("preview-pane", preview_title, &self.output, cx).into_any_element()
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_h_0()
+                .gap_2()
+                .child(
+                    div()
+                        .text_sm()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(preview_title),
+                )
+                .child(
+                    Editor::new(self.preview_editor.as_ref().unwrap())
+                        .h_full()
+                        .readonly(true)
+                        .font_family("monospace")
+                        .text_size(px(13.0))
+                        .aria_label("Formatted built-in language example"),
+                )
+                .into_any_element()
         };
         let body = match self.page {
             Page::Styles => div()
@@ -1619,23 +1800,70 @@ impl Render for PreviewWindow {
                 .gap_3()
                 .flex_1()
                 .min_h_0()
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .flex_1()
+                        .min_w_0()
+                        .h_full()
+                        .gap_3()
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap_2()
+                                .p_2()
+                                .border_1()
+                                .border_color(cx.theme().border)
+                                .rounded_lg()
+                                .child(div().flex_1().text_sm().child(format!(
+                                    "{} · built-in example",
+                                    self.source.language().display_name()
+                                )))
+                                .child(
+                                    Button::new("change-language")
+                                        .label("Change")
+                                        .disabled(self.field_draft.is_dirty())
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.open_language_picker(window, cx)
+                                        })),
+                                )
+                                .child(
+                                    Button::new("diff")
+                                        .label(if self.diff_mode {
+                                            "Preview"
+                                        } else {
+                                            "Compare saved"
+                                        })
+                                        .selected(self.diff_mode)
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.diff_mode = !this.diff_mode;
+                                            cx.notify();
+                                        })),
+                                ),
+                        )
+                        .child(if self.show_config || self.show_saved {
+                            source
+                        } else {
+                            result
+                        }),
+                )
                 .child(settings)
-                .child(source)
-                .child(result)
                 .into_any_element(),
             Page::Project => self.render_project(cx),
             Page::Integration => self.render_integration(cx),
         };
-        div().size_full().flex().flex_col().gap_2().p_4().bg(cx.theme().background).text_color(cx.theme().foreground)
+        div().relative().size_full().flex().flex_col().gap_2().p_4().bg(cx.theme().background).text_color(cx.theme().foreground)
             .child(div().flex().items_center().gap_2().flex_wrap()
                 .child(div().text_2xl().mr_3().child("CodeStyles"))
                 .child(Button::new("open-config").label("Open config…").disabled(self.dialog_pending || self.project_busy()).on_click(cx.listener(|this, _, window, cx| this.open_config(window, cx))))
                 .child(Button::new("save-config").label("Save").disabled(disabled || self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.save(window, cx))))
                 .child(Button::new("save-config-as").label("Save As…").disabled(disabled || self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.save_as(window, cx))))
                 .child(Button::new("check-disk").label("Check disk").disabled(self.document.as_ref().is_none_or(|doc| doc.path().is_none())).on_click(cx.listener(|this, _, _, cx| this.check_disk(cx))))
-                .child(Button::new("show-config").label(if self.show_config { "Show source" } else { "Edit JSONC" }).selected(self.show_config).disabled(no_document)
+                .child(Button::new("show-config").label(if self.show_config { "Show preview" } else { "Edit JSONC" }).selected(self.show_config).disabled(no_document)
                     .on_click(cx.listener(|this, _, _, cx| { this.show_config = !this.show_config; this.show_saved = false; cx.notify(); })))
-                .child(Button::new("saved-baseline").label(if self.show_saved { "Return to draft/source" } else { "Review saved baseline" }).selected(self.show_saved).disabled(no_document).on_click(cx.listener(|this, _, _, cx| { this.show_saved = !this.show_saved; cx.notify(); })))
+                .child(Button::new("saved-baseline").label(if self.show_saved { "Return to preview" } else { "Review saved baseline" }).selected(self.show_saved).disabled(no_document).on_click(cx.listener(|this, _, _, cx| { this.show_saved = !this.show_saved; cx.notify(); })))
                 .child(Button::new("theme").label(if cx.theme().is_dark() { "Light theme" } else { "Dark theme" }).on_click(cx.listener(|_, _, window, cx| {
                     let mode = if cx.theme().is_dark() { ThemeMode::Light } else { ThemeMode::Dark }; Theme::change(mode, Some(window), cx); cx.notify();
                 }))))
@@ -1646,13 +1874,6 @@ impl Render for PreviewWindow {
                 .child(Button::new("trust-config").label("Review & trust…").disabled(self.dialog_pending || self.project_busy() || self.raw_dirty).on_click(cx.listener(|this, _, window, cx| this.trust_config(window, cx))))))
             .child(div().flex().gap_2()
                 .children([(Page::Styles, "Style editor"), (Page::Project, "Project"), (Page::Integration, "Editor & CI")].into_iter().enumerate().map(|(index, (page, label))| Button::new(("page", index)).label(label).selected(self.page == page).disabled(self.project_busy() || self.dialog_pending).on_click(cx.listener(move |this, _, _, cx| { this.page = page; if page == Page::Styles { this.request_preview(cx); } cx.notify(); })))))
-            .when(self.page == Page::Styles, |panel| panel.child(div().flex().items_center().gap_1().flex_wrap()
-                .children(SourceLanguage::ALL.into_iter().enumerate().map(|(index, language)| Button::new(("language", index)).label(language.label()).selected(self.source.language() == language)
-                    .on_click(cx.listener(move |this, _, window, cx| { if !this.allow_field_transition(cx) { return; } this.source.select_language(language); this.selected_field = None; this.group = "All".into(); this.sync_source(window, cx); }))))
-                .child(Button::new("custom-source").label("Custom source").selected(self.source.is_custom()).on_click(cx.listener(|this, _, window, cx| { this.source.use_custom(); this.sync_source(window, cx); })))
-                .children(BuiltinSample::ALL.into_iter().enumerate().map(|(index, sample)| Button::new(("builtin", index)).label(sample.label()).selected(!self.source.is_custom() && self.source.sample() == sample)
-                    .on_click(cx.listener(move |this, _, window, cx| { this.source.select_sample(sample); this.sync_source(window, cx); }))))
-                .child(Button::new("diff").label(if self.diff_mode { "Show preview" } else { "Show diff" }).selected(self.diff_mode).on_click(cx.listener(|this, _, _, cx| { this.diff_mode = !this.diff_mode; cx.notify(); })))))
             .child(body)
             .child(div().max_h(px(55.0)).id("status").overflow_y_scroll().text_sm().text_color(if self.error { cx.theme().danger } else { cx.theme().muted_foreground }).child(self.status.clone()))
     }
@@ -1668,6 +1889,119 @@ mod tests {
         config::ConfigDocument,
         schema::{PinnedPlugin, SchemaCatalog},
     };
+
+    #[test]
+    fn enter_selects_unchanged_default_and_preserves_other_pending_input() {
+        let mut selected = None;
+        let mut draft = FieldDraft::default();
+        assert!(super::prepare_inline_apply(
+            &mut selected,
+            &mut draft,
+            "lineWidth",
+            "120".into(),
+            "120".into()
+        ));
+        assert_eq!(selected.as_deref(), Some("lineWidth"));
+        assert_eq!(draft.text, "120");
+        assert!(!draft.is_dirty());
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("dprint.jsonc");
+        let plugin = PinnedPlugin::TypeScript;
+        std::fs::write(
+            &path,
+            format!(r#"{{"plugins":["{}"],"typescript":{{}}}}"#, plugin.url()),
+        )
+        .unwrap();
+        let mut doc = ConfigDocument::load(&path).unwrap();
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let field = catalog.schema(plugin).field("lineWidth").unwrap();
+        field
+            .set(&mut doc, plugin, field.parse_input(&draft.text).unwrap())
+            .unwrap();
+        assert_eq!(
+            field.state(&doc, plugin).unwrap().explicit,
+            Some(serde_json::json!(120))
+        );
+        draft.text = "invalid".into();
+        assert!(!super::prepare_inline_apply(
+            &mut selected,
+            &mut draft,
+            "indentWidth",
+            "2".into(),
+            "2".into()
+        ));
+        assert_eq!(selected.as_deref(), Some("lineWidth"));
+        assert_eq!(draft.text, "invalid");
+        assert!(draft.is_dirty());
+        assert!(super::prepare_inline_apply(
+            &mut selected,
+            &mut draft,
+            "lineWidth",
+            "120".into(),
+            "130".into()
+        ));
+        assert_eq!(draft.text, "130");
+    }
+
+    #[test]
+    fn every_preview_language_has_real_syntax_highlighting() {
+        use codestyles::comparison::SourceLanguage;
+        use gpui_kit::component::{
+            highlighter::{HighlightTheme, LanguageRegistry, SyntaxHighlighter},
+            input::Rope,
+        };
+        for language in SourceLanguage::ALL {
+            let grammar = super::highlight_language(language);
+            assert!(
+                LanguageRegistry::singleton()
+                    .language(grammar)
+                    .is_some_and(|config| config.has_grammar()),
+                "missing grammar: {grammar}"
+            );
+            let text = language.builtin_source();
+            let mut highlighter = SyntaxHighlighter::new(grammar);
+            assert!(highlighter.update(None, &Rope::from_str(text), None));
+            assert!(highlighter.tree().is_some(), "no parse tree: {grammar}");
+            for theme in [
+                HighlightTheme::default_dark(),
+                HighlightTheme::default_light(),
+            ] {
+                let spans = highlighter.styles(&(0..text.len()), &*theme);
+                assert!(spans.len() > 2, "missing token spans: {grammar}");
+                assert!(
+                    spans.iter().any(|(_, style)| style.color.is_some()),
+                    "no token color: {grammar}"
+                );
+                assert!(spans.iter().all(|(range, _)| range.start <= range.end
+                    && range.end <= text.len()
+                    && text.is_char_boundary(range.start)
+                    && text.is_char_boundary(range.end)));
+            }
+        }
+    }
+
+    #[test]
+    fn jsonc_comments_are_colored_as_comments() {
+        use gpui_kit::component::{
+            highlighter::{HighlightTheme, SyntaxHighlighter},
+            input::Rope,
+        };
+        let text = "// comment\n{\"enabled\": true}\n";
+        let mut highlighter = SyntaxHighlighter::new(super::highlight_language(
+            codestyles::comparison::SourceLanguage::Jsonc,
+        ));
+        highlighter.update(None, &Rope::from_str(text), None);
+        let theme = HighlightTheme::default_dark();
+        let comment_color = theme.style("comment").unwrap().color;
+        assert!(
+            highlighter
+                .styles(&(0..text.len()), &*theme)
+                .iter()
+                .any(|(range, style)| range.start == 0
+                    && range.end >= 10
+                    && style.color == comment_color)
+        );
+    }
 
     #[test]
     fn project_actions_require_saved_clean_idle_state() {
