@@ -147,3 +147,32 @@ date, and result. Check the compatibility-goal OS as well as current systems.
 - Linux: test X11 and Wayland sessions, both available graphics backend paths,
   clipboard/IME/portal behavior and actual Debian install/remove on a supported
   distro. A container headless run is not a desktop GPU acceptance test.
+
+## Fixed first-alpha publication
+
+`.github/workflows/release-alpha.yml` publishes only `v0.1.0-alpha.1`, from
+commit `5135f7af5cf1da08b985e19470291f0d1cdcfe85` and native CI run
+[39194115622](https://github.com/idkwhodatis/CodeStyles/actions/runs/39194115622).
+It runs on its initial installation/change on master, or manually from master.
+It does not follow future build completions or publish future versions.
+
+The read-only preparation job requires all six native jobs to succeed, validates
+repository/event/commit provenance and each GitHub artifact SHA-256, then copies
+only the twelve expected native packages from the Actions wrappers. Artifact
+contents are never executed. Package bytes, filenames and embedded `0.1.0`
+version are retained; the release itself is explicitly an alpha prerelease.
+`PROVENANCE.json` records source artifact IDs and digests; `SHA256SUMS` covers the
+packages and provenance. This is verified-byte reuse, not a claim that the
+native installers/DMGs can be reproduced bit-for-bit by rebuilding.
+
+Only the publishing job receives ephemeral `contents: write`; no stored
+credential, signing secret, or new persistent grant is required. It creates the
+fixed tag at the validated commit and a draft prerelease, uploads missing assets,
+checks their server-side digests, then publishes with `make_latest: false`.
+Retries accept only matching tags/assets and never overwrite release files.
+A partially uploaded draft can be resumed by manually rerunning the workflow;
+a conflicting tag, asset, or published incomplete release requires investigation.
+The source run must finish successfully before the initial publication trigger.
+
+macOS assets are unsigned and not notarized, and Windows installers are unsigned.
+All existing OS/dependency compatibility notes above continue to apply.

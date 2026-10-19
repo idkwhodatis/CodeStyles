@@ -1,0 +1,54 @@
+name: Publish fixed alpha 0.1.0-alpha.1
+# One fixed release only. Later pushes can only verify/retry this same alpha.
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/release-alpha.yml
+      - scripts/release_alpha.py
+permissions: {}
+concurrency:
+  group: publish-fixed-alpha-0.1.0-alpha.1
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.repository == 'idkwhodatis/CodeStyles' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Test publication guards
+        run: python -m unittest discover -s scripts -p test_release_alpha.py
+      - name: Verify fixed CI run and prepare native packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release_alpha.py prepare release-assets
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verified-alpha-assets
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: verified-alpha-assets
+          path: release-assets
+      - name: Publish fixed prerelease, never replace existing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release_alpha.py publish release-assets
