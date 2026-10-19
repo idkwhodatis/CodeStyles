@@ -9,9 +9,11 @@ use jsonc_parser::{
 };
 use serde_json::Value;
 use std::{
+    collections::HashMap,
     fs::{self, File, Metadata},
     io::{Read, Write},
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
     time::SystemTime,
 };
 use tempfile::{NamedTempFile, TempDir};
@@ -87,7 +89,14 @@ pub struct ConfigDocument {
     saved_text: String,
     draft_text: String,
     saved_stamp: Option<FileStamp>,
+    // WM_MOVE/resize/hover can redraw every settings row without changing the
+    // draft. Cache the exact CST read result, including duplicate-key errors,
+    // instead of reparsing the whole JSONC once per field and identity check.
+    // Clones may share reads; every successful edit installs a separate cache.
+    value_cache: Arc<Mutex<ValueCache>>,
 }
+
+type ValueCache = HashMap<Vec<String>, Result<Option<Value>, String>>;
 
 impl ConfigDocument {
     pub fn load(path: &Path) -> Result<Self, String> {
@@ -100,6 +109,7 @@ impl ConfigDocument {
             saved_text: text.clone(),
             draft_text: text,
             saved_stamp: Some(stamp),
+            value_cache: Default::default(),
         })
     }
 
@@ -134,6 +144,7 @@ impl ConfigDocument {
             saved_text: text.clone(),
             draft_text: text,
             saved_stamp: None,
+            value_cache: Default::default(),
         })
     }
 
@@ -171,21 +182,32 @@ impl ConfigDocument {
     pub fn replace_draft_text(&mut self, text: &str) -> Result<(), String> {
         parse_object(text)?;
         self.draft_text = text.to_owned();
+        self.value_cache = Default::default();
         Ok(())
     }
 
     pub fn discard_changes(&mut self) {
         self.draft_text.clone_from(&self.saved_text);
+        self.value_cache = Default::default();
     }
 
     /// Missing means inherited/unset, not an implicit default or JSON null.
     pub fn value(&self, path: &[&str]) -> Result<Option<Value>, String> {
         validate_path(path)?;
-        let root = parse_object(&self.draft_text)?;
-        let Some(object) = parent_object(&root, path, false)? else {
-            return Ok(None);
-        };
-        Ok(unique_property(&object, path[path.len() - 1])?.and_then(|prop| prop.to_serde_value()))
+        let key: Vec<String> = path.iter().map(|part| (*part).to_owned()).collect();
+        if let Some(value) = self.value_cache.lock().unwrap().get(&key) {
+            return value.clone();
+        }
+        let result = (|| {
+            let root = parse_object(&self.draft_text)?;
+            let Some(object) = parent_object(&root, path, false)? else {
+                return Ok(None);
+            };
+            Ok(unique_property(&object, path[path.len() - 1])?
+                .and_then(|prop| prop.to_serde_value()))
+        })();
+        self.value_cache.lock().unwrap().insert(key, result.clone());
+        result
     }
 
     /// Change only the requested CST value, adding absent parent objects. A
@@ -712,6 +734,147 @@ mod tests {
         jsonc_parser::parse_to_serde_value(text, &jsonc_options())
             .unwrap()
             .unwrap()
+    }
+
+    #[test]
+    fn repeated_reads_reuse_results_without_losing_jsonc_path_semantics() {
+        let doc = document(
+            r#"{
+            // Keep duplicate keys visible to path reads, rather than converting
+            // the whole document to serde_json and silently choosing one.
+            "duplicate": 1, "duplicate": 2,
+            "parent": {}, "parent": {},
+            "scalar": 1, "null": null, "nested": {"value": 3},
+            "a.b": 4, "a": {"b": 5},
+        }"#,
+        );
+        let paths: &[&[&str]] = &[
+            &["duplicate"],
+            &["parent", "child"],
+            &["scalar", "child"],
+            &["null", "child"],
+            &["null"],
+            &["missing", "child"],
+            &["nested", "value"],
+            &["a.b"],
+            &["a", "b"],
+        ];
+        for path in paths {
+            let first = doc.value(path);
+            assert_eq!(doc.value(path), first);
+        }
+        assert_eq!(doc.value_cache.lock().unwrap().len(), paths.len());
+        assert!(doc.value(&["duplicate"]).unwrap_err().contains("Duplicate"));
+        assert!(
+            doc.value(&["parent", "child"])
+                .unwrap_err()
+                .contains("Duplicate")
+        );
+        assert!(
+            doc.value(&["scalar", "child"])
+                .unwrap_err()
+                .contains("must be an object")
+        );
+        assert_eq!(doc.value(&["null"]).unwrap(), Some(Value::Null));
+        assert_eq!(doc.value(&["missing", "child"]).unwrap(), None);
+        assert_eq!(doc.value(&["a.b"]).unwrap(), Some(json!(4)));
+        assert_eq!(doc.value(&["a", "b"]).unwrap(), Some(json!(5)));
+        assert!(doc.value(&[]).is_err());
+        assert!(doc.value(&[""]).is_err());
+        assert_eq!(doc.value_cache.lock().unwrap().len(), paths.len());
+    }
+
+    #[test]
+    fn cached_reads_follow_edits_discard_and_independent_clones() {
+        let mut doc = document(r#"{"nested":{"value":1}}"#);
+        let path = &["nested", "value"];
+        assert_eq!(doc.value(path).unwrap(), Some(json!(1)));
+        let untouched = doc.clone();
+        assert!(Arc::ptr_eq(&doc.value_cache, &untouched.value_cache));
+        doc.set(path, json!(2)).unwrap();
+        assert!(!Arc::ptr_eq(&doc.value_cache, &untouched.value_cache));
+        assert_eq!(doc.value(path).unwrap(), Some(json!(2)));
+        assert_eq!(untouched.value(path).unwrap(), Some(json!(1)));
+        doc.remove(path).unwrap();
+        assert_eq!(doc.value(path).unwrap(), None);
+        doc.replace_draft_text(r#"{"nested":{"value":3}}"#).unwrap();
+        assert_eq!(doc.value(path).unwrap(), Some(json!(3)));
+        let valid_cache = doc.value_cache.clone();
+        assert!(doc.replace_draft_text("{").is_err());
+        assert!(Arc::ptr_eq(&doc.value_cache, &valid_cache));
+        assert_eq!(doc.value(path).unwrap(), Some(json!(3)));
+        doc.discard_changes();
+        assert_eq!(doc.value(path).unwrap(), Some(json!(1)));
+        doc.replace_draft_text(r#"{"nested":{"value":4,"value":5}}"#)
+            .unwrap();
+        assert!(doc.value(path).is_err());
+        doc.replace_draft_text(r#"{"nested":{"value":6}}"#).unwrap();
+        assert_eq!(doc.value(path).unwrap(), Some(json!(6)));
+    }
+
+    #[test]
+    fn shared_read_cache_keeps_document_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<ConfigDocument>();
+        let doc = document(r#"{"lineWidth":80}"#);
+        std::thread::scope(|scope| {
+            for _ in 0..4 {
+                scope.spawn(|| {
+                    for _ in 0..100 {
+                        assert_eq!(doc.value(&["lineWidth"]).unwrap(), Some(json!(80)));
+                    }
+                });
+            }
+        });
+        assert_eq!(doc.value_cache.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn cached_reads_follow_save_and_disk_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("dprint.jsonc");
+        fs::write(&path, r#"{"lineWidth":80}"#).unwrap();
+        let mut doc = ConfigDocument::load(&path).unwrap();
+        assert_eq!(doc.value(&["lineWidth"]).unwrap(), Some(json!(80)));
+        doc.set(&["lineWidth"], json!(100)).unwrap();
+        doc.save().unwrap();
+        assert_eq!(doc.value(&["lineWidth"]).unwrap(), Some(json!(100)));
+        doc.set(&["lineWidth"], json!(120)).unwrap();
+        doc.discard_changes();
+        assert_eq!(doc.value(&["lineWidth"]).unwrap(), Some(json!(100)));
+        fs::write(&path, r#"{"lineWidth":90}"#).unwrap();
+        let reloaded = ConfigDocument::load(&path).unwrap();
+        assert_eq!(reloaded.value(&["lineWidth"]).unwrap(), Some(json!(90)));
+        assert_eq!(doc.value(&["lineWidth"]).unwrap(), Some(json!(100)));
+    }
+
+    /// Measures the read work repeated by a settings redraw (including WM_MOVE).
+    #[test]
+    #[ignore = "manual performance measurement; no timing assertion"]
+    fn settings_redraw_read_cost() {
+        let catalog = crate::schema::SchemaCatalog::bundled().unwrap();
+        let plugin = crate::schema::PinnedPlugin::TypeScript;
+        let fields = &catalog.fields(plugin)[..30];
+        for unknown_fields in [0, 100] {
+            let mut value = serde_json::json!({
+                "plugins": ["https://plugins.dprint.dev/typescript-0.96.1.wasm"],
+                "typescript": {"semiColons": "always", "quoteStyle": "preferDouble"}
+            });
+            for index in 0..unknown_fields {
+                value[format!("unknown{index}")] = serde_json::json!({"keep": [1, 2, 3]});
+            }
+            let doc = document(&value.to_string());
+            let start = std::time::Instant::now();
+            for _ in 0..100 {
+                for field in fields {
+                    std::hint::black_box(field.state(&doc, plugin).unwrap());
+                }
+            }
+            eprintln!(
+                "100 settings redraws, 30 rows, {unknown_fields} unknown fields: {:?}",
+                start.elapsed()
+            );
+        }
     }
 
     #[test]
