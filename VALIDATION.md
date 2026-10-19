@@ -1,3 +1,19 @@
+# UI simplification validation — 2026-10-19
+
+- `cargo test --locked --offline`: 76 library, 12 native UI/display,
+  19 real-backend, and 11 project tests pass on Linux x86-64.
+- `cargo clippy --locked --offline --all-targets -- -D warnings`, formatting,
+  desktop build, and `git diff --check` pass.
+- New tests cover exhaustive category membership for every schema field across
+  all eight dialects, populated JetBrains-style tabs with no All tab or repeated
+  category headings, unique compact labels, original-key and readable-label
+  search, and display-only syntax highlighting in both themes with Unicode-safe
+  ranges and empty-output reset. Raw-field hover help retains explicit values
+  separately from schema defaults, including Unicode and unset states.
+- The formatted preview now renders highlighted static text, with a default
+  pointer and no input/caret handler. Copy retains the exact full output.
+  Category and value editing behavior remains covered by existing state tests.
+
 # P4 validation — 2026-10-18
 
 ## Executed locally on Linux x86-64

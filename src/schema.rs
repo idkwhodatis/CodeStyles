@@ -216,7 +216,132 @@ impl FieldState {
     }
 }
 
+/// Stable broad tabs; schema scopes are subgroups rather than separate tabs.
+pub const SETTING_CATEGORIES: [&str; 8] = [
+    "Tabs and Indents",
+    "Spaces",
+    "Wrapping and Braces",
+    "Blank Lines",
+    "Punctuation",
+    "Imports",
+    "Arrangement",
+    "Other",
+];
+
+/// JetBrains-style formatting concerns, limited to tabs supported by this schema.
+/// No catch-all view: every property belongs to exactly one populated category.
+pub fn setting_categories(fields: &[SchemaField]) -> Vec<&'static str> {
+    SETTING_CATEGORIES
+        .into_iter()
+        .filter(|category| fields.iter().any(|field| field.category() == *category))
+        .collect()
+}
+
+/// Turn schema identifiers into compact labels without losing dotted suffixes.
+fn setting_words(name: &str) -> String {
+    let mut words = String::new();
+    for (index, ch) in name.chars().enumerate() {
+        if ch == '.' {
+            words.push_str(" · ");
+        } else if ch.is_uppercase() {
+            if index > 0 {
+                words.push(' ');
+            }
+            words.extend(ch.to_lowercase());
+        } else {
+            words.push(ch);
+        }
+    }
+    if let Some(first) = words.get_mut(..1) {
+        first.make_ascii_uppercase();
+    }
+    words
+        .replace("Jsx", "JSX")
+        .replace("Json", "JSON")
+        .replace("Html", "HTML")
+}
+
 impl SchemaField {
+    pub fn category(&self) -> &'static str {
+        // Match the option, not its scope: import spacing belongs to Spaces,
+        // while import sorting belongs to Imports, just as in WebStorm.
+        let name = self.name.to_ascii_lowercase();
+        let option = self
+            .name
+            .split_once('.')
+            .map_or(self.name.as_str(), |(_, option)| option)
+            .to_ascii_lowercase();
+        if option.contains("sort") {
+            if name.contains("import") || name.contains("export") {
+                "Imports"
+            } else {
+                "Arrangement"
+            }
+        } else if matches!(self.name.as_str(), "locked" | "deno" | "tags")
+            || [
+                "ignore",
+                "skipformat",
+                "raisesyntaxerrors",
+                "applyconventions",
+            ]
+            .iter()
+            .any(|part| option.contains(part))
+        {
+            "Other"
+        } else if option.contains("indent") || option == "usetabs" {
+            "Tabs and Indents"
+        } else if option.contains("blankline") {
+            "Blank Lines"
+        } else if option.contains("space")
+            || option.contains("spacing")
+            || option.contains("padding")
+        {
+            // wrapUnspacedScripts controls line wrapping, not spaces.
+            if option.starts_with("wrap") {
+                "Wrapping and Braces"
+            } else {
+                "Spaces"
+            }
+        } else if [
+            "quote",
+            "comma",
+            "semicolon",
+            "separator",
+            "parentheses",
+            "marker",
+            "emphasiskind",
+            "strongkind",
+            "headingkind",
+            "unorderedlistkind",
+        ]
+        .iter()
+        .any(|part| option.contains(part))
+            || self.name == "heading.kind"
+        {
+            "Punctuation"
+        } else {
+            "Wrapping and Braces"
+        }
+    }
+
+    pub fn subgroup_label(&self) -> String {
+        // Base settings are displayed directly; never repeat the tab heading or
+        // add a synthetic General/Defaults heading above them.
+        if self.group == "General" {
+            String::new()
+        } else {
+            setting_words(&self.group)
+        }
+    }
+
+    pub fn short_label(&self) -> String {
+        setting_words(
+            self.name
+                .split_once('.')
+                .map_or(self.name.as_str(), |(_, suffix)| suffix),
+        )
+    }
+
     pub fn validate(&self, value: &Value) -> Result<(), String> {
         match &self.kind {
             FieldKind::Boolean if value.is_boolean() => Ok(()),
@@ -261,7 +386,15 @@ impl SchemaField {
     }
 
     pub fn matches(&self, query: &str) -> bool {
-        let mut text = format!("{} {} {}", self.name, self.description, self.group);
+        let mut text = format!(
+            "{} {} {} {} {} {}",
+            self.name,
+            self.description,
+            self.group,
+            self.category(),
+            self.subgroup_label(),
+            self.short_label()
+        );
         if let FieldKind::Enum(choices) = &self.kind {
             for choice in choices {
                 text.push_str(&format!(" {} {}", choice.value, choice.description));
@@ -775,6 +908,131 @@ mod tests {
         let path = directory.path().join("dprint.jsonc");
         fs::write(&path, serde_json::to_string(&value).unwrap()).unwrap();
         ConfigDocument::load(&path).unwrap()
+    }
+
+    #[test]
+    fn broad_categories_cover_every_field_for_all_eight_dialects() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 8);
+        for language in crate::comparison::SourceLanguage::ALL {
+            let fields = catalog.fields(language.plugin());
+            let mut seen = std::collections::HashSet::new();
+            for category in SETTING_CATEGORIES {
+                for field in fields.iter().filter(|field| field.category() == category) {
+                    assert!(seen.insert(&field.name), "duplicate {}", field.name);
+                    assert_ne!(field.subgroup_label(), "General");
+                    assert_ne!(field.subgroup_label(), field.category());
+                    assert!(!field.short_label().is_empty());
+                    assert!(field.matches(category));
+                    assert!(field.matches(&field.short_label()));
+                }
+            }
+            assert_eq!(seen.len(), fields.len(), "{}", language.display_name());
+            assert!(!seen.is_empty());
+        }
+    }
+
+    #[test]
+    fn jetbrains_categories_are_populated_ordered_and_never_all() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        for language in crate::comparison::SourceLanguage::ALL {
+            let fields = catalog.fields(language.plugin());
+            let categories = setting_categories(fields);
+            assert_eq!(categories.first(), Some(&"Tabs and Indents"));
+            assert!(!categories.contains(&"All"));
+            assert!(!categories.contains(&"General"));
+            assert!(
+                categories
+                    .iter()
+                    .all(|category| fields.iter().any(|field| field.category() == *category))
+            );
+            assert_eq!(
+                categories
+                    .iter()
+                    .map(|category| fields
+                        .iter()
+                        .filter(|field| field.category() == *category)
+                        .count())
+                    .sum::<usize>(),
+                fields.len()
+            );
+        }
+        let ts = catalog.schema(PinnedPlugin::TypeScript);
+        for (key, category) in [
+            ("indentWidth", "Tabs and Indents"),
+            ("useTabs", "Tabs and Indents"),
+            ("importDeclaration.spaceSurroundingNamedImports", "Spaces"),
+            ("importDeclaration.preferHanging", "Wrapping and Braces"),
+            ("importDeclaration.trailingCommas", "Punctuation"),
+            ("importDeclaration.sortNamedImports", "Imports"),
+            ("ifStatement.useBraces", "Wrapping and Braces"),
+            ("ignoreFileCommentText", "Other"),
+        ] {
+            assert_eq!(ts.field(key).unwrap().category(), category, "{key}");
+        }
+        assert!(ts.field("indentWidth").unwrap().subgroup_label().is_empty());
+        assert_eq!(
+            catalog
+                .schema(PinnedPlugin::Markdown)
+                .field("heading.blankLinesAbove")
+                .unwrap()
+                .category(),
+            "Blank Lines"
+        );
+        assert_eq!(
+            catalog
+                .schema(PinnedPlugin::Toml)
+                .field("sortKeys")
+                .unwrap()
+                .category(),
+            "Arrangement"
+        );
+        assert!(!setting_categories(catalog.fields(PinnedPlugin::Json)).contains(&"Imports"));
+        assert!(
+            !setting_categories(catalog.fields(PinnedPlugin::TypeScript)).contains(&"Blank Lines")
+        );
+    }
+
+    #[test]
+    fn short_labels_keep_distinguishing_suffixes_and_original_key_search() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let ts = catalog.schema(PinnedPlugin::TypeScript);
+        let field = ts.field("typeLiteral.separatorKind.singleLine").unwrap();
+        assert_eq!(field.short_label(), "Separator kind · single line");
+        assert_eq!(field.subgroup_label(), "Type literal");
+        assert!(field.matches("typeLiteral.separatorKind.singleLine"));
+        assert_eq!(
+            ts.field("lineWidth").unwrap().category(),
+            "Wrapping and Braces"
+        );
+        assert_eq!(
+            ts.field("arguments.spaceAround").unwrap().category(),
+            "Spaces"
+        );
+        assert_eq!(
+            ts.field("arrowFunction.useParentheses").unwrap().category(),
+            "Punctuation"
+        );
+        assert_eq!(
+            ts.field("module.sortImportDeclarations")
+                .unwrap()
+                .category(),
+            "Imports"
+        );
+        for plugin in PinnedPlugin::ALL {
+            let mut labels = std::collections::HashSet::new();
+            for field in catalog.fields(plugin) {
+                assert!(
+                    labels.insert((
+                        field.category(),
+                        field.subgroup_label(),
+                        field.short_label()
+                    )),
+                    "ambiguous label: {}",
+                    field.name
+                );
+            }
+        }
     }
 
     #[test]

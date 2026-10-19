@@ -41,15 +41,23 @@ checking and explicit formatting, plus editor/CI setup guidance on the P1/P2 edi
 ## Style tuning
 
 - Search the pinned TypeScript 0.96.1, JSON 0.25.2, Markdown 0.26.0 and TOML 0.9.0 schemas by setting name,
-  description or group. The left pane previews code; the right pane uses category
-  tabs and inline setting rows with switches, dropdowns and value inputs.
+  description or group. Tabs follow JetBrains' formatting concerns: Tabs and
+  Indents, Spaces, Wrapping and Braces, Blank Lines, Punctuation, Imports and
+  Arrangement. Only tabs supported by the current language's schema appear;
+  Other contains dprint-specific directives, presets and conventions. There is
+  no All tab. Base options appear directly, followed by separated named scopes
+  without repeated category headings. Search filters the current category.
+  Compact labels retain exact keys, descriptions, explicit values and schema
+  defaults in hover help. Unset means the key is absent, not that its effective
+  value equals the schema default. The left pane previews code; the right pane
+  has inline switches, dropdowns and value inputs.
   All bundled schema properties appear; unsupported complex fields direct you
   to JSONC instead of approximating their schema.
 - Native controls support local `$ref`, boolean, number/integer, string, typed
   `enum`, `const` and finite scalar `oneOf` choices. Unsupported constraints,
   remote/cyclic references and complex values fail closed to raw editing.
 - Each row identifies explicit versus unset values. Reset removes the property
-  so inheritance or plugin defaults can apply. The displayed schema default is
+  so inheritance or plugin defaults can apply. The schema default in hover help is
   documentation, not a claim about effective settings: global options, presets
   and inheritance may change what dprint uses. Existing global settings remain
   accessible in JSONC. Unknown fields and comments survive form edits. Pending
@@ -63,20 +71,29 @@ checking and explicit formatting, plus editor/CI setup guidance on the P1/P2 edi
 - The current-language bar has a Change button opening a grouped language dialog.
   Each of the eight supported dialects has one compact, immutable syntax tour.
   Category changes retain that sample. The read-only preview uses GPUI
-  Tree-sitter syntax highlighting; no source entry or separate source pane is needed.
+  Tree-sitter syntax highlighting in a display-only pane: no caret or text cursor.
+  Scroll to inspect the code or use Copy to copy the complete formatted example.
 - Preview formats the draft. Diff compares the saved configuration baseline
   against that draft using the exact same source and logical source path, never
   an earlier formatted output. Successful Save advances the baseline and queues
   a fresh pair. Invalid or cancelled pairs never masquerade as current comparisons.
   Both sides run serially off the UI thread under the same cancellation token.
   Changed diff rows annotate LF, CRLF or missing final newline explicitly.
-- Review saved baseline shows the exact saved JSONC beside the current editor.
+- Saved config shows the exact saved JSONC beside the current editor.
   Trust approval covers both the saved and draft configuration, because either
   may resolve resources or execute process plugins. Save As to a new location
   revokes that trust, preserving P1 path safeguards.
 - Light/dark theme switching uses GPUI Kit theme colors. Persistent editor entities
-  and native code/setting panes provide scrolling and text selection. Tab navigates native controls; Enter/Space activate buttons,
+  and native code/setting panes provide scrolling. The preview Copy button copies
+  its full text; editable JSONC retains text selection. Tab navigates native controls; Enter/Space activate buttons,
   Enter applies the value input, Ctrl/Cmd+Shift+F focuses search and Ctrl/Cmd+S saves.
+
+The category structure is adapted from JetBrains' official
+[TypeScript](https://www.jetbrains.com/help/webstorm/settings-code-style-typescript.html),
+[JSON](https://www.jetbrains.com/help/idea/settings-code-style-json.html), and
+[Markdown](https://www.jetbrains.com/help/idea/code-style-markdown.html) documentation.
+It organizes dprint's available options; it does not add JetBrains-only settings.
+TOML uses the same formatting concerns for its available dprint options.
 
 ## P1 configuration workflow
 

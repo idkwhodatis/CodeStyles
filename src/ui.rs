@@ -1,6 +1,7 @@
 //! Native P2 schema-driven style editing. Formatting and debounce live off the UI thread.
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
+use crate::preview_display::PreviewDisplay;
 use codestyles::{
     backend::FormatRequest,
     comparison::{DiffKind, SourceLanguage, SourceState, line_diff},
@@ -10,16 +11,17 @@ use codestyles::{
     project::{ProjectAction, ProjectReport, ProjectRequest},
     project_worker::ProjectController,
     resources,
-    schema::{FieldKind, PinnedPlugin, SchemaCatalog, SchemaField},
+    schema::{FieldKind, PinnedPlugin, SchemaCatalog, SchemaField, setting_categories},
 };
 use gpui_kit::{
     component::{
         ActiveTheme, Disableable, Selectable, Sizable, Theme, ThemeMode, WindowExt,
         button::Button,
-        input::{Editor, EditorState, Input, InputEvent, InputState, Textarea, TextareaState},
+        input::{Input, InputEvent, InputState, Textarea, TextareaState},
         select::{Select, SelectEvent, SelectState},
         switch::Switch,
         tab::{Tab, TabBar},
+        tooltip::Tooltip,
     },
     prelude::*,
     *,
@@ -38,8 +40,7 @@ pub struct PreviewWindow {
     // Only the checksummed bundle's exact plugin references have a known schema.
     schema: Result<SchemaCatalog, String>,
     source: SourceState,
-    preview_editor: Option<Entity<EditorState>>,
-    preview_language: Option<SourceLanguage>,
+    preview_display: PreviewDisplay,
     inline_selects: HashMap<String, Entity<SelectState<Vec<String>>>>,
     inline_editors: HashMap<String, Entity<InputState>>,
     search_editor: Option<Entity<InputState>>,
@@ -105,8 +106,7 @@ impl PreviewWindow {
             document,
             schema: SchemaCatalog::bundled(),
             source: SourceState::default(),
-            preview_editor: None,
-            preview_language: None,
+            preview_display: PreviewDisplay::default(),
             inline_selects: HashMap::new(),
             inline_editors: HashMap::new(),
             search_editor: None,
@@ -114,7 +114,7 @@ impl PreviewWindow {
             field_draft: FieldDraft::default(),
             subscriptions: Vec::new(),
             selected_field: None,
-            group: "All".into(),
+            group: String::new(),
             search: String::new(),
             diff_mode: false,
             baseline: None,
@@ -179,7 +179,7 @@ impl PreviewWindow {
                                 None => {}
                             }
                             view.status = format!(
-                                "Formatted {} example · draft revision {}",
+                                "{} · revision {}",
                                 view.source.language().display_name(),
                                 result.revision
                             );
@@ -685,9 +685,7 @@ impl PreviewWindow {
         if self.search_editor.is_some() {
             return;
         }
-        let search = cx.new(|cx| {
-            InputState::new(window, cx).placeholder("Search settings (Ctrl/Cmd+Shift+F)…")
-        });
+        let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search this tab…"));
         self.subscriptions
             .push(cx.subscribe(&search, |this, editor, event, cx| {
                 if matches!(event, InputEvent::Change) {
@@ -970,17 +968,40 @@ impl PreviewWindow {
             .as_ref()
             .map(|schema| schema.fields(plugin).to_vec())
             .unwrap_or_default();
-        let mut groups: Vec<String> = fields.iter().map(|field| field.group.clone()).collect();
-        groups.sort();
-        groups.dedup();
-        let visible: Vec<_> = fields
+        let tabs: Vec<String> = setting_categories(&fields)
             .into_iter()
-            .filter(|field| {
-                (self.group == "All" || field.group == self.group) && field.matches(&self.search)
-            })
+            .map(str::to_owned)
             .collect();
+        if !tabs.contains(&self.group) {
+            self.group = tabs.first().cloned().unwrap_or_default();
+        }
+        let mut visible: Vec<_> = fields
+            .into_iter()
+            .filter(|field| field.category() == self.group && field.matches(&self.search))
+            .collect();
+        visible.sort_by_key(|field| (field.subgroup_label(), field.name.clone()));
         let mut rows = Vec::new();
+        let mut previous_section = None;
         for (index, field) in visible.iter().enumerate() {
+            let section = field.subgroup_label();
+            if previous_section.as_ref() != Some(&section) {
+                if !section.is_empty() {
+                    rows.push(
+                        div()
+                            .pt_3()
+                            .pb_1()
+                            .mt_2()
+                            .when(previous_section.is_some(), |row| {
+                                row.border_t_1().border_color(cx.theme().border)
+                            })
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(section.clone())
+                            .into_any_element(),
+                    );
+                }
+                previous_section = Some(section);
+            }
             let state = self
                 .document
                 .as_ref()
@@ -1072,24 +1093,18 @@ impl PreviewWindow {
                 }
             }
             let name = field.name.clone();
-            let annotation = match &explicit {
-                Some(value) => format!("Explicit: {value}"),
-                None => format!(
-                    "Unset · schema default: {}",
-                    field
-                        .default
-                        .as_ref()
-                        .map(Value::to_string)
-                        .unwrap_or_else(|| "not declared".into())
-                ),
+            let annotation = if explicit.is_some() {
+                "Custom"
+            } else {
+                "Unset"
             };
-            let mut row = div().id(("setting-row", index)).flex().flex_col().gap_1().py_3().border_b_1().border_color(cx.theme().border)
+            let help = field_help(field, explicit.as_ref());
+            let mut row = div().id(("setting-row", index)).aria_label(field.name.clone()).aria_description(help.clone()).flex().flex_col().gap_1().py_2()
                 .child(div().flex().items_center().gap_3()
-                    .child(div().flex_1().min_w_0().text_sm().child(field.name.clone()))
+                    .child(div().id(("setting-label", index)).flex_1().min_w_0().text_sm().child(field.short_label()).tooltip(move |window, cx| Tooltip::new(help.clone()).build(window, cx)))
                     .child(controls)
                     .child(Button::new(("reset", index)).small().label("Reset").tooltip("Remove explicit value; inherit configuration or plugin default")
                         .disabled(blocked || pending || explicit.is_none()).on_click(cx.listener(move |this, _, window, cx| this.set_inline_field(&name, None, window, cx)))))
-                .child(div().text_xs().text_color(cx.theme().muted_foreground).child(field.description.clone()))
                 .child(div().text_xs().text_color(cx.theme().muted_foreground).child(annotation));
             if pending {
                 row = row.child(
@@ -1127,9 +1142,8 @@ impl PreviewWindow {
             {
                 row = row.child(div().text_xs().text_color(cx.theme().danger).child(error));
             }
-            rows.push(row);
+            rows.push(row.into_any_element());
         }
-        let tabs: Vec<String> = std::iter::once("All".to_owned()).chain(groups).collect();
         let selected_tab = tabs
             .iter()
             .position(|group| group == &self.group)
@@ -1142,22 +1156,20 @@ impl PreviewWindow {
             .min_w(px(360.0))
             .h_full()
             .gap_2()
-            .child(div().text_lg().child("Style options"))
+            .child(div().text_lg().child("Settings"))
             .child(
                 div()
                     .text_xs()
                     .text_color(cx.theme().muted_foreground)
-                    .child(format!(
-                        "{} {} · {} matching settings",
-                        plugin.section(),
-                        plugin.version(),
-                        visible.len()
-                    )),
+                    .child(format!("{} settings", visible.len())),
             )
             .child(
                 Input::new(self.search_editor.as_ref().unwrap())
                     .disabled(self.field_draft.is_dirty())
-                    .aria_label("Search setting names and descriptions"),
+                    .aria_label(format!(
+                        "Search setting names and descriptions in {}",
+                        self.group
+                    )),
             )
             .child(
                 div()
@@ -1192,6 +1204,9 @@ impl PreviewWindow {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .when(rows.is_empty(), |list| {
+                        list.child(div().py_3().text_sm().child("No matches in this tab"))
+                    })
                     .children(rows),
             )
             .into_any_element()
@@ -1239,7 +1254,7 @@ impl PreviewWindow {
                                                                     .select_language(language);
                                                                 this.selected_field = None;
                                                                 this.field_editor = None;
-                                                                this.group = "All".into();
+                                                                this.group.clear();
                                                                 this.sync_source(window, cx);
                                                                 cx.notify();
                                                                 window.close_dialog(cx);
@@ -1433,9 +1448,9 @@ impl PreviewWindow {
             .child(div().flex().flex_wrap().gap_2()
                 .child(Button::new("project-check").label("Check project…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::Check, window, cx))))
                 .child(Button::new("project-prepare").label("Prepare plugins…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::PreparePlugins, window, cx))))
-                .child(Button::new("project-format-selected").label("Format selected files…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.choose_project_files(window, cx))))
+                .child(Button::new("project-format-selected").label("Format files…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.choose_project_files(window, cx))))
                 .child(Button::new("project-format-all").label("Format project…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::FormatProject, window, cx))))
-                .child(Button::new("project-cancel").label("Cancel operation").disabled(!self.project_busy()).on_click(cx.listener(|this, _, _, cx| {
+                .child(Button::new("project-cancel").label("Cancel").disabled(!self.project_busy()).on_click(cx.listener(|this, _, _, cx| {
                     if let Some(controller) = &mut this.project_controller { controller.cancel(); }
                     this.project_status = "Cancellation requested. Waiting for dprint to stop; files already written are not rolled back.".into(); cx.notify();
                 }))))
@@ -1472,11 +1487,11 @@ impl PreviewWindow {
             .child(
                 div()
                     .text_lg()
-                    .child("Use the same dprint in your editor and CI"),
+                    .child("Editor & CI"),
             )
             .child(
                 Button::new("copy-dprint-path")
-                    .label("Copy bundled dprint path")
+                    .label("Copy dprint path")
                     .disabled(path.is_none())
                     .on_click(cx.listener(move |this, _, _, cx| {
                         if let Some(path) = &path {
@@ -1488,10 +1503,10 @@ impl PreviewWindow {
                         }
                     })),
             )
-            .child(Button::new("copy-editor-settings").label("Copy user settings JSON").disabled(settings.is_none()).on_click(cx.listener(move |this, _, _, cx| {
+            .child(Button::new("copy-editor-settings").label("Copy settings").disabled(settings.is_none()).on_click(cx.listener(move |this, _, _, cx| {
                 if let Some(settings) = &settings { cx.write_to_clipboard(ClipboardItem::new_string(settings.clone())); this.status = "Settings JSON copied. Merge it into VS Code user settings, preserving existing entries.".into(); cx.notify(); }
             })))
-            .child(Button::new("open-dprint-extension").label("Open official VS Code extension").on_click(|_, _, cx| cx.open_url(integration::EXTENSION_URL)))
+            .child(Button::new("open-dprint-extension").label("VS Code extension").on_click(|_, _, cx| cx.open_url(integration::EXTENSION_URL)))
             .child(code_pane(
                 "integration-guide",
                 "Editor & CI setup · no settings changed automatically".into(),
@@ -1564,6 +1579,22 @@ fn visible_diff(baseline: &str, draft: &str) -> String {
         .join("\n")
 }
 
+fn field_help(field: &SchemaField, explicit: Option<&Value>) -> String {
+    format!(
+        "{}\n{}\nExplicit value: {}\nSchema default: {}. Unset values may inherit a different value.",
+        field.name,
+        field.description,
+        explicit
+            .map(Value::to_string)
+            .unwrap_or_else(|| "unset".into()),
+        field
+            .default
+            .as_ref()
+            .map(Value::to_string)
+            .unwrap_or_else(|| "not declared".into())
+    )
+}
+
 fn field_input_text(
     field: &SchemaField,
     document: &ConfigDocument,
@@ -1590,6 +1621,7 @@ fn comparison_is_current(
     last_success == Some(revision) && !pending && trusted && !raw_dirty
 }
 
+#[cfg(test)]
 fn highlight_language(language: SourceLanguage) -> &'static str {
     match language {
         SourceLanguage::TypeScript => "typescript",
@@ -1661,13 +1693,13 @@ impl Render for PreviewWindow {
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "Untitled · bundled plugins".into());
         let state_label = if self.field_draft.is_dirty() {
-            "Value input not applied"
+            "Unapplied value"
         } else if self.raw_dirty {
-            "Raw edits not applied"
+            "Unapplied JSONC"
         } else if self.dirty() {
-            "Unsaved draft"
+            "Unsaved"
         } else {
-            "Draft matches saved baseline"
+            "Saved"
         };
         let freshness = if self.raw_dirty || !self.trusted {
             " · paused; previous result"
@@ -1678,25 +1710,13 @@ impl Render for PreviewWindow {
         } else {
             ""
         };
-        let preview_title = format!("Formatted example{freshness}");
+        let preview_title = format!("Preview{freshness}");
         let language = self.source.language();
-        if self.preview_language != Some(language) || self.preview_editor.is_none() {
-            self.preview_editor = Some(
-                cx.new(|cx| EditorState::new(window, cx).language(highlight_language(language))),
-            );
-            self.preview_language = Some(language);
-        }
-        let preview_editor = self.preview_editor.as_ref().unwrap();
-        if preview_editor.read(cx).value().as_ref() != self.output {
-            preview_editor.update(cx, |editor, cx| {
-                editor.set_value(self.output.clone(), window, cx)
-            });
-        }
         let settings = self.render_settings(window, cx);
         let source = if self.show_saved {
             code_pane(
                 "saved-config-pane",
-                "Saved configuration baseline · read only".into(),
+                "Saved config · read only".into(),
                 self.document
                     .as_ref()
                     .map(ConfigDocument::saved_text)
@@ -1717,15 +1737,10 @@ impl Render for PreviewWindow {
                         .flex()
                         .items_center()
                         .gap_2()
-                        .child(
-                            div()
-                                .text_sm()
-                                .flex_1()
-                                .child("Configuration draft · JSONC"),
-                        )
+                        .child(div().text_sm().flex_1().child("JSONC draft"))
                         .child(
                             Button::new("apply-raw")
-                                .label("Apply raw draft")
+                                .label("Apply")
                                 .disabled(!self.raw_dirty || self.field_draft.is_dirty())
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.apply_raw(window, cx);
@@ -1784,14 +1799,7 @@ impl Render for PreviewWindow {
                         .text_color(cx.theme().muted_foreground)
                         .child(preview_title),
                 )
-                .child(
-                    Editor::new(self.preview_editor.as_ref().unwrap())
-                        .h_full()
-                        .readonly(true)
-                        .font_family("monospace")
-                        .text_size(px(13.0))
-                        .aria_label("Formatted built-in language example"),
-                )
+                .child(self.preview_display.render(&self.output, language, cx))
                 .into_any_element()
         };
         let body = match self.page {
@@ -1817,10 +1825,32 @@ impl Render for PreviewWindow {
                                 .border_1()
                                 .border_color(cx.theme().border)
                                 .rounded_lg()
-                                .child(div().flex_1().text_sm().child(format!(
-                                    "{} · built-in example",
-                                    self.source.language().display_name()
-                                )))
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .text_sm()
+                                        .child(self.source.language().display_name()),
+                                )
+                                .child(
+                                    Button::new("copy-preview")
+                                        .label("Copy")
+                                        .tooltip("Copy formatted preview")
+                                        .disabled(
+                                            self.output.is_empty()
+                                                || self.show_config
+                                                || self.show_saved
+                                                || self.diff_mode,
+                                        )
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            cx.write_to_clipboard(ClipboardItem::new_string(
+                                                this.output.clone(),
+                                            ));
+                                            if !this.error {
+                                                this.status = "Preview copied".into();
+                                            }
+                                            cx.notify();
+                                        })),
+                                )
                                 .child(
                                     Button::new("change-language")
                                         .label("Change")
@@ -1857,13 +1887,13 @@ impl Render for PreviewWindow {
         div().relative().size_full().flex().flex_col().gap_2().p_4().bg(cx.theme().background).text_color(cx.theme().foreground)
             .child(div().flex().items_center().gap_2().flex_wrap()
                 .child(div().text_2xl().mr_3().child("CodeStyles"))
-                .child(Button::new("open-config").label("Open config…").disabled(self.dialog_pending || self.project_busy()).on_click(cx.listener(|this, _, window, cx| this.open_config(window, cx))))
+                .child(Button::new("open-config").label("Open…").disabled(self.dialog_pending || self.project_busy()).on_click(cx.listener(|this, _, window, cx| this.open_config(window, cx))))
                 .child(Button::new("save-config").label("Save").disabled(disabled || self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.save(window, cx))))
                 .child(Button::new("save-config-as").label("Save As…").disabled(disabled || self.dialog_pending).on_click(cx.listener(|this, _, window, cx| this.save_as(window, cx))))
                 .child(Button::new("check-disk").label("Check disk").disabled(self.document.as_ref().is_none_or(|doc| doc.path().is_none())).on_click(cx.listener(|this, _, _, cx| this.check_disk(cx))))
-                .child(Button::new("show-config").label(if self.show_config { "Show preview" } else { "Edit JSONC" }).selected(self.show_config).disabled(no_document)
+                .child(Button::new("show-config").label(if self.show_config { "Preview" } else { "Edit JSONC" }).selected(self.show_config).disabled(no_document)
                     .on_click(cx.listener(|this, _, _, cx| { this.show_config = !this.show_config; this.show_saved = false; cx.notify(); })))
-                .child(Button::new("saved-baseline").label(if self.show_saved { "Return to preview" } else { "Review saved baseline" }).selected(self.show_saved).disabled(no_document).on_click(cx.listener(|this, _, _, cx| { this.show_saved = !this.show_saved; cx.notify(); })))
+                .child(Button::new("saved-baseline").label(if self.show_saved { "Preview" } else { "Saved config" }).selected(self.show_saved).disabled(no_document).on_click(cx.listener(|this, _, _, cx| { this.show_saved = !this.show_saved; cx.notify(); })))
                 .child(Button::new("theme").label(if cx.theme().is_dark() { "Light theme" } else { "Dark theme" }).on_click(cx.listener(|_, _, window, cx| {
                     let mode = if cx.theme().is_dark() { ThemeMode::Light } else { ThemeMode::Dark }; Theme::change(mode, Some(window), cx); cx.notify();
                 }))))
@@ -1873,7 +1903,7 @@ impl Render for PreviewWindow {
                 .child(div().flex_1().text_sm().child("Preview paused. Review this config before allowing network resources or process plugins."))
                 .child(Button::new("trust-config").label("Review & trust…").disabled(self.dialog_pending || self.project_busy() || self.raw_dirty).on_click(cx.listener(|this, _, window, cx| this.trust_config(window, cx))))))
             .child(div().flex().gap_2()
-                .children([(Page::Styles, "Style editor"), (Page::Project, "Project"), (Page::Integration, "Editor & CI")].into_iter().enumerate().map(|(index, (page, label))| Button::new(("page", index)).label(label).selected(self.page == page).disabled(self.project_busy() || self.dialog_pending).on_click(cx.listener(move |this, _, _, cx| { this.page = page; if page == Page::Styles { this.request_preview(cx); } cx.notify(); })))))
+                .children([(Page::Styles, "Styles"), (Page::Project, "Project"), (Page::Integration, "Editor & CI")].into_iter().enumerate().map(|(index, (page, label))| Button::new(("page", index)).label(label).selected(self.page == page).disabled(self.project_busy() || self.dialog_pending).on_click(cx.listener(move |this, _, _, cx| { this.page = page; if page == Page::Styles { this.request_preview(cx); } cx.notify(); })))))
             .child(body)
             .child(div().max_h(px(55.0)).id("status").overflow_y_scroll().text_sm().text_color(if self.error { cx.theme().danger } else { cx.theme().muted_foreground }).child(self.status.clone()))
     }
@@ -1889,6 +1919,23 @@ mod tests {
         config::ConfigDocument,
         schema::{PinnedPlugin, SchemaCatalog},
     };
+
+    #[test]
+    fn raw_setting_help_preserves_explicit_value_and_default_distinction() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let field = catalog
+            .schema(PinnedPlugin::Markdown)
+            .field("tags")
+            .unwrap();
+        assert!(!field.kind.is_supported());
+        let value = serde_json::json!(["custom", "café"]);
+        let help = super::field_help(field, Some(&value));
+        assert!(help.contains("Explicit value: [\"custom\",\"café\"]"));
+        assert!(help.contains(&field.name));
+        assert!(help.contains(&field.description));
+        assert!(help.contains("Schema default:"));
+        assert!(super::field_help(field, None).contains("Explicit value: unset"));
+    }
 
     #[test]
     fn enter_selects_unchanged_default_and_preserves_other_pending_input() {
