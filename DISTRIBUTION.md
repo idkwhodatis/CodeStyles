@@ -148,64 +148,49 @@ date, and result. Check the compatibility-goal OS as well as current systems.
   clipboard/IME/portal behavior and actual Debian install/remove on a supported
   distro. A container headless run is not a desktop GPU acceptance test.
 
-## Fixed alpha refresh
+## Fixed alpha release notes finalization
 
-`.github/workflows/release-alpha.yml` refreshes the existing `v0.1.0-alpha.1`
-release (ID `416881817`) in place, retaining its release URL and prerelease status.
-The only permitted source is commit `50d54d8a299eca891167dd251306fc67f1bffac1`
-and native CI run [39200102985](https://github.com/idkwhodatis/CodeStyles/actions/runs/39200102985).
-The only permitted previous source is commit
-`5135f7af5cf1da08b985e19470291f0d1cdcfe85`, run
-[39194115622](https://github.com/idkwhodatis/CodeStyles/actions/runs/39194115622).
-It runs on changes to the release workflow/script on master, or manually from
-master. It does not follow future build completions or publish future versions.
+The native packages in the existing `v0.1.0-alpha.1` release (ID `416881817`)
+were refreshed from commit `50d54d8a299eca891167dd251306fc67f1bffac1` and native
+CI run [39200102985](https://github.com/idkwhodatis/CodeStyles/actions/runs/39200102985).
+All fourteen assets were uploaded before the subsequent tag update was denied.
+The tag remains at `5135f7af5cf1da08b985e19470291f0d1cdcfe85` by the owner's
+explicit decision to leave source handling alone for now. GitHub's automatic
+Source code ZIP/tar.gz therefore still represent that older source. The release
+notes clearly disclose this and link directly to archives of the exact binary
+build commit for anyone who needs matching source.
 
-The read-only preparation job independently verifies both fixed CI runs: six
-successful native jobs, repository/event/commit provenance, and each GitHub
-artifact SHA-256. Only twelve expected native packages are copied from each
-Actions artifact set; contents are never executed. Package bytes, filenames and
-embedded `0.1.0` versions are retained. `PROVENANCE.json` records source artifact
-IDs and digests; `SHA256SUMS` covers the packages and provenance. This is verified
-byte reuse, not a claim of bit-for-bit reproducibility by rebuilding.
+`.github/workflows/release-alpha.yml` now performs **notes-only finalization**.
+Its read-only preparation job verifies the fixed new CI run's six successful
+native jobs, repository/event/commit provenance and artifact SHA-256 values. It
+copies only the twelve expected packages, never executes artifact contents,
+and recreates their `PROVENANCE.json` and `SHA256SUMS`.
 
-Only the publishing job receives ephemeral `contents: write`; no stored
-credential, signing secret, or new persistent grant is required. Before changing
-anything, it validates the existing release and saves a manifest of release/tag
-metadata and asset checksums. That manifest and all original packages are uploaded
-to an `alpha-before-refresh-<attempt>` workflow artifact with 90-day requested
-retention (repository/organization policy may cap this). Failure to save this
-backup blocks the refresh. The prepared new packages are also retained as a
-workflow artifact. The original and new CI runs remain independent recovery
-sources until their artifacts expire.
+The finalization job verifies the exact release ID/repository/tag, old tag SHA,
+prerelease status, and all fourteen new asset digests and uploaded states before
+editing anything. Its sole mutation is a release PATCH containing `body` only.
+It never uploads/deletes assets, moves tags, changes `target_commitish`, changes
+release status, or retries the denied tag operation. A missing, duplicate,
+unexpected or mismatched asset blocks the notes update instead of repairing it.
+The final check repeats tag, asset and body verification. Repeating a completed
+finalization is read-only.
 
-The script refuses any release ID/repository/tag outside this fixed scope, a tag
-at a third commit, non-prerelease/draft/immutable releases, duplicate or unknown
-asset names, or bytes that match neither independently validated source set.
-It rechecks this allowlist before each replacement. Exact new assets are kept;
-verified old assets are deleted individually and immediately replaced, with
-server-side digest checks. This is not atomic: during refresh a download may be
-briefly unavailable, and the public asset set can temporarily contain both builds.
-Do not download the release until the workflow has completed successfully.
-The release itself is never deleted or recreated.
+The existing job-scoped ephemeral `contents: write` permission is retained for
+the notes PATCH; no additional permission, stored credential, or persistent
+access is added. The workflow runs on changes to its release workflow/script on
+master or manually from master, and stays pinned to this exact build. It does
+not automatically publish future builds.
 
-After all fourteen new assets are verified, the approved lightweight tag is
-moved from the old source to the new source using an exact `--force-with-lease`
-check, so a concurrent move to an unexpected commit is not overwritten. Git
-uses the same ephemeral token through a command-local credential helper; no
-credential or persistent helper configuration is saved. Release metadata is updated with
-`make_latest: false`. This deliberately changes the existing alpha tag; it is not
-a new version. Retries accept missing assets and mixtures of exactly the known
-old/new bytes, including interruption after a delete, after uploads, or after the
-tag move. Fully refreshed retries perform no writes. Unexpected or incomplete
-upload states fail closed and require investigation rather than arbitrary
-clobbering. In particular, GitHub can leave an empty `starter` asset after a
-failed upload; recovery requires inspecting that asset and explicit authorization
-to remove it, not an unrestricted automatic deletion. Manually rerun the same workflow to resume a known interrupted refresh.
-Restoration from the backup is a separate, explicitly authorized operation.
+Download links in the release body are ordered Windows, macOS, Linux, with x64
+before ARM64 on each platform. GitHub controls its separate native Assets list.
+Package filenames and embedded `0.1.0` versions are unchanged. macOS packages
+are unsigned and not notarized; Windows installers are unsigned. Existing
+OS/dependency compatibility notes and manual desktop acceptance requirements
+above continue to apply. Successful headless CI does not prove desktop launch.
 
-The release body provides direct downloads in Windows, macOS, Linux order, with
-x64 before ARM64 on each platform. GitHub controls its separate native Assets
-list order; the workflow does not claim to control it.
-
-macOS assets are unsigned and not notarized, and Windows installers are unsigned.
-All existing OS/dependency compatibility notes above continue to apply.
+The earlier refresh workflow retained original packages and a pre-refresh
+manifest in `alpha-before-refresh-1` under run
+[39204651813](https://github.com/idkwhodatis/CodeStyles/actions/runs/39204651813),
+with requested 90-day retention subject to repository policy. This notes-only
+workflow does not replace or delete that backup. Restoring packages or changing
+the tag would require a separate authorized task.

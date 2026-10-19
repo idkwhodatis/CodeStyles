@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Publish exactly one alpha from an already validated, immutable CI run.
+"""Verify the fixed alpha binaries and finalize release notes only.
 
-The preparation path reads artifacts only; it never executes their contents.
-Refresh only the fixed existing alpha, accepting verified old/new bytes on retries.
+No asset uploads/deletions, tag changes, or source archive replacements are allowed.
 """
 import argparse
 import hashlib
@@ -15,7 +14,6 @@ import tempfile
 import zipfile
 
 REPO = 'idkwhodatis/CodeStyles'
-OLD_RUN = 39194115622
 OLD_SHA = '5135f7af5cf1da08b985e19470291f0d1cdcfe85'
 RUN = 39200102985
 SHA = '50d54d8a299eca891167dd251306fc67f1bffac1'
@@ -191,8 +189,17 @@ Experimental; please report issues.
 
 {downloads}
 
-Built from commit {SHA}; all six native distribution jobs passed in
+Native binaries built from commit {SHA}; all six native distribution jobs passed in
 https://github.com/{REPO}/actions/runs/{RUN}.
+
+## Source code notice
+
+The existing `{TAG}` tag remains at commit {OLD_SHA}. GitHub's automatic
+“Source code (zip)” and “Source code (tar.gz)” assets therefore contain that older
+source, not the source used to build the native binaries above.
+For source matching these binaries, use the exact build commit:
+[ZIP](https://github.com/{REPO}/archive/{SHA}.zip) ·
+[tar.gz](https://github.com/{REPO}/archive/{SHA}.tar.gz).
 
 These are the exact CI-built 0.1.0 packages; filenames and embedded versions are
 unchanged. macOS packages are unsigned and not notarized; Windows installers are
@@ -206,11 +213,12 @@ GitHub controls the order of its separate Assets list.
 """
 
 
-def inspect_refresh(expected, previous):
+
+def inspect_release(expected):
     refs = api(f'git/matching-refs/tags/{TAG}')
     refs = [ref for ref in refs if ref['ref'] == f'refs/tags/{TAG}']
     require(len(refs) == 1 and refs[0]['object']['type'] == 'commit' and
-            refs[0]['object']['sha'] in (OLD_SHA, SHA), 'Unexpected alpha tag')
+            refs[0]['object']['sha'] == OLD_SHA, 'Unexpected alpha tag; notes-only finalization refused')
     release = api(f'releases/{RELEASE_ID}')
     require(release['id'] == RELEASE_ID and release['tag_name'] == TAG and
             release['prerelease'] and not release['draft'] and
@@ -218,92 +226,29 @@ def inspect_refresh(expected, previous):
             release['html_url'] == f'https://github.com/{REPO}/releases/tag/{TAG}',
             'Unexpected existing alpha release')
     assets = pages(f'releases/{RELEASE_ID}/assets')
-    require(len({a['name'] for a in assets}) == len(assets), 'Duplicate release asset')
-    for asset in assets:
-        name = asset['name']
-        require(name in expected and asset.get('state') == 'uploaded' and
-                asset.get('digest') in ('sha256:' + expected[name],
-                                        'sha256:' + previous[name]),
-                'Unexpected asset bytes/state; refusing replacement. A failed upload can leave '
-                'an empty starter asset; inspect it and obtain approval for recovery before retrying.')
-    return refs[0]['object']['sha'], release, assets
+    require(len(assets) == len(expected) and
+            all(a.get('state') == 'uploaded' for a in assets) and
+            {a['name']: a.get('digest') for a in assets} ==
+            {n: 'sha256:' + d for n, d in expected.items()},
+            'All fourteen assets must match the validated new build; no asset repair is permitted')
+    return release
 
 
-def snapshot(directory, previous_directory, backup):
+def finalize_notes(directory):
     expected = verify_files(directory)
-    previous = verify_files(previous_directory, OLD_RUN, OLD_SHA)
-    tag, release, assets = inspect_refresh(expected, previous)
-    backup.mkdir(parents=True, exist_ok=False)
-    (backup / 'before-refresh.json').write_text(json.dumps({
-        'repository': REPO, 'tag': TAG, 'tag_commit': tag,
-        'release': release, 'assets': assets,
-        'previous_run': OLD_RUN, 'previous_checksums': previous,
-        'replacement_run': RUN, 'replacement_checksums': expected,
-    }, indent=2) + '\n', encoding='utf-8')
-
-
-
-def move_tag_with_lease():
-    # No saved credentials or persistent git configuration. Fetch the exact
-    # trusted commit even when checkout is shallow and the workflow commit differs.
-    remote = f'https://github.com/{REPO}.git'
-    command = ['git', '-c', 'credential.helper=',
-               '-c', 'credential.helper=!gh auth git-credential']
-    subprocess.run([*command, 'fetch', '--no-tags', remote, SHA], check=True)
-    subprocess.run([*command, 'push', f'--force-with-lease=refs/tags/{TAG}:{OLD_SHA}',
-                    remote, f'{SHA}:refs/tags/{TAG}'], check=True)
-
-
-def publish(directory, previous_directory, backup):
-    expected = verify_files(directory)
-    previous = verify_files(previous_directory, OLD_RUN, OLD_SHA)
-    saved = json.loads((backup / 'before-refresh.json').read_text(encoding='utf-8'))
-    require(saved['repository'] == REPO and saved['tag'] == TAG and
-            saved['release']['id'] == RELEASE_ID and
-            saved['previous_checksums'] == previous and
-            saved['replacement_checksums'] == expected, 'Missing or mismatched backup manifest')
-    tag, release, assets = inspect_refresh(expected, previous)
-    # Both immutable CI sets and the snapshot are retained before this method runs.
-    # Recheck the full remote allowlist before every mutation; never use --clobber.
-    for name in [n for t in TARGETS for n in names(t)] + ['PROVENANCE.json', 'SHA256SUMS']:
-        _, _, current = inspect_refresh(expected, previous)
-        asset = next((a for a in current if a['name'] == name), None)
-        if asset and asset['digest'] == 'sha256:' + expected[name]:
-            continue
-        if asset:
-            api(f'releases/assets/{asset["id"]}', 'DELETE')
-        gh('release', 'upload', TAG, str(directory / name), '--repo', REPO)
-    tag, release, assets = inspect_refresh(expected, previous)
-    require(len(assets) == len(expected) and {a['name']: a.get('digest') for a in assets} ==
-            {n: 'sha256:' + d for n, d in expected.items()}, 'Uploaded asset verification failed')
-    # Move only the explicitly approved old lightweight tag, after verifying all assets.
-    if tag != SHA:
-        move_tag_with_lease()
+    release = inspect_release(expected)
     body = release_body()
-    if release.get('body') != body or release.get('target_commitish') != SHA:
-        api(f'releases/{RELEASE_ID}', 'PATCH', {
-            'body': body, 'target_commitish': SHA, 'prerelease': True, 'make_latest': 'false'})
-    final_tag, final, final_assets = inspect_refresh(expected, previous)
-    require(final_tag == SHA and final.get('body') == body and
-            final.get('target_commitish') == SHA and
-            {a['name']: a['digest'] for a in final_assets} ==
-            {n: 'sha256:' + d for n, d in expected.items()}, 'Refresh verification failed')
+    # Deliberately omit tag_name and target_commitish: this action edits notes only.
+    if release.get('body') != body:
+        api(f'releases/{RELEASE_ID}', 'PATCH', {'body': body})
+    final = inspect_release(expected)
+    require(final.get('body') == body, 'Release notes update was not confirmed')
     print(final['html_url'])
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('prepare', 'prepare-previous', 'snapshot', 'publish'))
+    parser.add_argument('command', choices=('prepare', 'finalize-notes'))
     parser.add_argument('directory', type=Path)
-    parser.add_argument('--previous', type=Path)
-    parser.add_argument('--backup', type=Path)
     args = parser.parse_args()
-    if args.command == 'prepare':
-        prepare(args.directory)
-    elif args.command == 'prepare-previous':
-        prepare(args.directory, OLD_RUN, OLD_SHA)
-    else:
-        parser.error('--previous and --backup are required') if not (
-            args.previous and args.backup) else None
-        {'snapshot': snapshot, 'publish': publish}[args.command](
-            args.directory, args.previous, args.backup)
+    {'prepare': prepare, 'finalize-notes': finalize_notes}[args.command](args.directory)
