@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CodeStyles stable rustfmt configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "edition": {
+      "type": "string",
+      "enum": [
+        "2015",
+        "2018",
+        "2021",
+        "2024"
+      ],
+      "default": "2021",
+      "description": "Rust parser edition. Explicit; not inferred from Cargo.toml."
+    },
+    "style_edition": {
+      "type": "string",
+      "enum": [
+        "2015",
+        "2018",
+        "2021",
+        "2024"
+      ],
+      "default": "2021",
+      "description": "Stable Rust style-guide edition, independent of parser edition."
+    },
+    "max_width": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 100,
+      "description": "Maximum line width for the managed stable rustfmt."
+    },
+    "hard_tabs": {
+      "type": "boolean",
+      "default": false,
+      "description": "Use tabs for indentation and spaces for alignment."
+    },
+    "tab_spaces": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 4,
+      "description": "Number of spaces per tab."
+    },
+    "newline_style": {
+      "type": "string",
+      "enum": [
+        "Auto",
+        "Windows",
+        "Unix",
+        "Native"
+      ],
+      "default": "Auto",
+      "description": "Line-ending style."
+    },
+    "use_small_heuristics": {
+      "type": "string",
+      "enum": [
+        "Off",
+        "Max",
+        "Default"
+      ],
+      "default": "Default",
+      "description": "Use compact layouts for small expressions."
+    },
+    "reorder_imports": {
+      "type": "boolean",
+      "default": true,
+      "description": "Sort import statements as part of stable rustfmt formatting."
+    },
+    "reorder_modules": {
+      "type": "boolean",
+      "default": true,
+      "description": "Sort module declarations; formatting never executes Rust code."
+    },
+    "use_field_init_shorthand": {
+      "type": "boolean",
+      "default": false,
+      "description": "Use field initialization shorthand."
+    },
+    "use_try_shorthand": {
+      "type": "boolean",
+      "default": false,
+      "description": "Use the question-mark shorthand."
+    },
+    "match_block_trailing_comma": {
+      "type": "boolean",
+      "default": false,
+      "description": "Trailing comma after block match arms."
+    }
+  }
+}

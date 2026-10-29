@@ -46,7 +46,7 @@ reported separately from the native application. ABI headers and import names do
 not prove API availability or successful rendering on an older OS.
 
 `--self-test <report.json>` runs the installed application's real formatter path
-without initializing a GUI. It checks all four bundled WASM plugins/eight source
+without initializing a GUI. It checks all five bundled WASM plugins/ten source
 languages. The archive and native-container tests use fresh caches, Unicode/space
 paths, an unrelated working directory and installation-tree content snapshots.
 Windows tests silently install into a disposable per-user directory and uninstall;

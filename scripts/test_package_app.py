@@ -38,7 +38,7 @@ class PackageTests(unittest.TestCase):
             name = 'dprint.exe' if 'windows' in target else 'dprint'
             record = self.resource(f'bin/{target}/{name}', target.encode())
             self.manifest['artifacts'].append({'target': target, 'kind': 'executable-archive', 'executable': record})
-        for plugin in ('typescript', 'json', 'markdown', 'toml'):
+        for plugin in ('typescript', 'json', 'markdown', 'toml', 'ruff'):
             for path, kind, data in ((f'plugins/{plugin}.wasm', 'wasm', b'\0asm fixture'),
                                      (f'schemas/{plugin}.json', 'schema', b'{"type":"object"}'),
                                      (f'licenses/{plugin}.txt', 'license', b'Plugin MIT license\n')):
@@ -69,7 +69,7 @@ class PackageTests(unittest.TestCase):
         for other in package.TARGETS:
             if other != target:
                 self.assertFalse(any(f'/bin/{other}/' in name for name in names))
-        for plugin in ('typescript', 'json', 'markdown', 'toml'):
+        for plugin in ('typescript', 'json', 'markdown', 'toml', 'ruff'):
             for relative in (f'plugins/{plugin}.wasm', f'schemas/{plugin}.json', f'licenses/{plugin}.txt'):
                 self.assertIn(prefix + relative, names)
         for relative in ('manifest.json', 'README.md', 'THIRD_PARTY_NOTICES.md'):

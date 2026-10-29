@@ -59,7 +59,7 @@ action's `working-directory`/`config-path` explicitly when the project needs the
    See [VS Code settings](https://code.visualstudio.com/docs/configure/settings).
 4. Use **Dprint: Restart**, then **Format Document** on a file in the project.
    The generated snippet selects dprint for JavaScript, JSX, TypeScript, TSX,
-   JSON, JSONC, Markdown, and TOML. Format on save is optional: add
+   JSON, JSONC, Markdown, TOML, and Python (including `.pyi`). Format on save is optional: add
    `"editor.formatOnSave": true` in the desired language sections if wanted.
 
 For example, on Linux (replace the path with the one shown by CodeStyles):
@@ -75,7 +75,8 @@ For example, on Linux (replace the path with the one shown by CodeStyles):
   "[json]": { "editor.defaultFormatter": "dprint.dprint" },
   "[jsonc]": { "editor.defaultFormatter": "dprint.dprint" },
   "[markdown]": { "editor.defaultFormatter": "dprint.dprint" },
-  "[toml]": { "editor.defaultFormatter": "dprint.dprint" }
+  "[toml]": { "editor.defaultFormatter": "dprint.dprint" },
+  "[python]": { "editor.defaultFormatter": "dprint.dprint" }
 }
 ```
 
@@ -178,3 +179,11 @@ both standard and custom selected filenames. The Windows branch also tests
 failure reporting and directory restoration. This run was validated on Linux;
 native Windows/PowerShell execution remains a platform CI gate. No interactive
 VS Code verification is claimed.
+
+## Python configuration boundary
+
+Python uses the pinned dprint Ruff WASM adapter 0.11.3 and the `ruff` section
+of dprint JSONC. The standalone Ruff extension/CLI and its `pyproject.toml` or
+`ruff.toml` settings are not automatically synchronized. Select dprint as the
+Python formatter to share the exact CodeStyles configuration. This integration
+does not enable lint fixes, import sorting, or notebooks.

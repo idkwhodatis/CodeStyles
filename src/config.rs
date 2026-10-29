@@ -20,7 +20,7 @@ use tempfile::{NamedTempFile, TempDir};
 
 /// Exported references are portable. Only these exact URLs may be mapped to
 /// verified bundle paths for offline preview, never another version or host.
-const PINNED_PLUGINS: [(&str, &str); 4] = [
+const PINNED_PLUGINS: [(&str, &str); 5] = [
     (
         "typescript-0.96.1.wasm",
         "https://plugins.dprint.dev/typescript-0.96.1.wasm",
@@ -36,6 +36,10 @@ const PINNED_PLUGINS: [(&str, &str); 4] = [
     (
         "toml-0.9.0.wasm",
         "https://plugins.dprint.dev/toml-0.9.0.wasm",
+    ),
+    (
+        "ruff-0.11.3.wasm",
+        "https://plugins.dprint.dev/ruff-0.11.3.wasm",
     ),
 ];
 

@@ -156,13 +156,13 @@ pub const EDITOR_STEPS: [&str; 5] = [
     "Run Dprint: Restart after changing the executable path, then Format Document on a project file. If results differ, check workspace overrides, the saved config, plugin versions and the source path. Move or remove CodeStyles and this path may need updating. Remote editors need a matching executable on their own host.",
 ];
 
-pub const CI_INSTRUCTIONS: &str = "Use dprint 0.63.0 in CI and the same committed configuration and exact plugin versions as the editor. For new CodeStyles configurations those plugins are TypeScript 0.96.1, JSON 0.25.2, Markdown 0.26.0 and TOML 0.9.0. Imported configurations retain their original plugin references.\n\nAfter your existing repository checkout, an official GitHub Actions step is:\n- uses: dprint/check@v2\n  with:\n    dprint-version: \"0.63.0\"\n\nThe action otherwise selects the latest CLI. Pin the action itself according to your repository's policy. For other CI systems, install the matching 0.63.0 release for the runner and run dprint --version followed by dprint check from the project root. A custom CLI config path can be specified with --config, but the editor needs a discoverable config name. Do not copy this machine's absolute dprint.path into CI.";
+pub const CI_INSTRUCTIONS: &str = "Use dprint 0.63.0 in CI and the same committed configuration and exact plugin versions as the editor. For new CodeStyles configurations those plugins are TypeScript 0.96.1, JSON 0.25.2, Markdown 0.26.0, TOML 0.9.0 and Ruff 0.11.3 (Python). Imported configurations retain their original plugin references.\n\nAfter your existing repository checkout, an official GitHub Actions step is:\n- uses: dprint/check@v2\n  with:\n    dprint-version: \"0.63.0\"\n\nThe action otherwise selects the latest CLI. Pin the action itself according to your repository's policy. For other CI systems, install the matching 0.63.0 release for the runner and run dprint --version followed by dprint check from the project root. A custom CLI config path can be specified with --config, but the editor needs a discoverable config name. Do not copy this machine's absolute dprint.path into CI.";
 
 pub const OFFLINE_NOTE: &str = "Selecting the bundled executable does not make editor or CI formatting automatically offline. CodeStyles alone remaps its exact pinned plugin URLs to bundled WASM for preview. VS Code and CI resolve the saved config normally and may download plugins or inherited configs. Only trust configurations and process plugins you intend to run.";
 
 pub const PATH_NOTE: &str = "The settings snippet escapes the path as JSON; Copy path gives the raw path. The extension supports path expansion, so prefer installation paths without expansion syntax such as $HOME or ${HOME}, and check the resolved executable if your path contains it.";
 
-pub const LANGUAGES: [&str; 8] = [
+pub const LANGUAGES: [&str; 9] = [
     "javascript",
     "javascriptreact",
     "typescript",
@@ -171,6 +171,7 @@ pub const LANGUAGES: [&str; 8] = [
     "jsonc",
     "markdown",
     "toml",
+    "python",
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -462,7 +463,7 @@ mod tests {
         let manifest: serde_json::Value =
             serde_json::from_str(include_str!("../resources/manifest.json")).unwrap();
         assert_eq!(manifest["dprint_version"], DPRINT_VERSION);
-        for plugin in ["typescript", "json", "markdown", "toml"] {
+        for plugin in ["typescript", "json", "markdown", "toml", "ruff"] {
             assert!(CI_INSTRUCTIONS.contains(manifest["plugins"][plugin].as_str().unwrap()));
         }
     }

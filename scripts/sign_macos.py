@@ -68,7 +68,7 @@ def sign(app, target, identity, profile, output, keychain=None):
     run('codesign', '--force', '--options', 'runtime', '--timestamp', '--sign', identity, app)
     run('codesign', '--verify', '--deep', '--strict', '--verbose=2', app)
     output.mkdir(parents=True, exist_ok=True)
-    # The signed binary must still format through all four WASM plugins. This
+    # The signed binary must still format through all five WASM plugins. This
     # detects JIT entitlement/runtime trouble before requesting notarization.
     run(sys.executable, ROOT / 'scripts/smoke_package.py', '--directory', app,
         '--report', output / f'{target}-signed-smoke.json')

@@ -4,6 +4,42 @@ Native code-style editor and project formatter using Rust, GPUI Kit **0.7.3**
 and the bundled **dprint 0.63.0** executable. Tune a style against offline built-in
 examples, then inspect and format real project files with the saved configuration.
 
+## Downloadable language support and Rust
+
+Optional native language packs add Rust settings, preview/Diff, `rustfmt.toml`
+export, and an explicit Rust-only project workflow without requiring installed
+Rust. Built-in offline languages, including Python, remain available.
+The Linux x64 candidate is locally verified; GitHub download publication and
+other five platform validations are **pending**, so network installation stays
+disabled. See [language support](LANGUAGE_PACKS.md) for storage, safety, scope and
+current limitations, and [packaging](TOOLCHAIN_PACKAGING.md) for reproducible assets.
+
+## Python formatting
+
+Python `.py` and type-stub `.pyi` files use the bundled, checksummed
+**dprint Ruff adapter 0.11.3** (WASM), through the same dprint 0.63.0 backend.
+No Python interpreter, pip, or separately installed Ruff is needed. Choose
+**Python** or **Python Stub** in the language picker for a highlighted built-in
+example, native formatting settings, live preview, and saved-versus-draft diff.
+Project Check / reviewed Format selected works for Python and mixed-language
+projects with the same cancellation, trust, and stale-review safeguards.
+
+New configurations include the portable pinned reference
+`https://plugins.dprint.dev/ruff-0.11.3.wasm`. Existing configurations are never
+silently upgraded: add that reference to their `plugins` array to enable the
+Python controls. Settings live under the `ruff` object in **dprint JSONC**;
+CodeStyles does not import or edit `pyproject.toml`, `ruff.toml`, or `.ruff.toml`.
+This adapter is not the standalone Ruff CLI, and those tools do not automatically
+share configuration. The raw editor preserves unrelated and unknown settings.
+
+The pinned schema offers quote/indent style, line length/endings, target Python
+version, and docstring formatting options. Complex options fall back to JSONC;
+schema defaults are documentation, not resolved inherited settings. This change
+adds formatting, not lint checks, automatic import sorting, agent rules, or
+Jupyter notebooks. No lint fixes are enabled by CodeStyles; an explicitly imported
+`ruff.fixLintErrors` setting is retained and obeyed by the adapter, not silently
+removed. Preview style remains opt-in. See the [official adapter documentation](https://dprint.dev/plugins/ruff/).
+
 ## Format a project
 
 - Markdown **0.26.0** and TOML **0.9.0** join TypeScript and JSON in the same
@@ -79,7 +115,7 @@ examples, then inspect and format real project files with the saved configuratio
   inheritance disable typed controls. Raw JSONC remains available. Supported
   known-version values are checked before Save; dprint supplies runtime diagnostics.
 - The current-language bar has a Change button opening a grouped language dialog.
-  Each of the eight supported dialects has one compact, immutable syntax tour.
+  Each of the ten supported dialects has one compact, immutable syntax tour.
   Category changes retain that sample. The read-only preview uses GPUI
   Tree-sitter syntax highlighting in a display-only pane: no caret or text cursor.
   Scroll to inspect the code or use Copy to copy the complete formatted example.
@@ -131,7 +167,7 @@ TOML uses the same formatting concerns for its available dprint options.
 
 ## Preview foundation
 
-- Native schema controls for TS/JS/TSX/JSX/JSON/JSONC/Markdown/TOML formatting.
+- Native schema controls for TS/JS/TSX/JSX/JSON/JSONC/Markdown/TOML/Python/Python-stub formatting.
 - Built-in syntax-highlighted formatted example, with optional saved/draft diff.
 - A 150 ms debounce, one background formatter worker, cancellation and revision
   gating. Stale results cannot replace the latest preview. The last successful

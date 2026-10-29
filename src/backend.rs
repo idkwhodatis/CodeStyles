@@ -25,6 +25,7 @@ pub struct Backend {
     executable: PathBuf,
     plugins: Vec<PathBuf>,
     timeout: Duration,
+    rustfmt: crate::rustfmt::RustfmtRuntime,
 }
 
 impl Backend {
@@ -33,10 +34,18 @@ impl Backend {
             executable,
             plugins,
             timeout: Duration::from_secs(30),
+            rustfmt: Default::default(),
         }
     }
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
+        self
+    }
+
+    /// Select an already validated managed-pack location, never an arbitrary
+    /// executable or catalog. Useful for explicit portable installations.
+    pub fn with_toolchain_manager(mut self, manager: crate::toolchains::ToolchainManager) -> Self {
+        self.rustfmt = crate::rustfmt::RustfmtRuntime::with_manager(manager);
         self
     }
 
@@ -62,6 +71,13 @@ impl Backend {
     ) -> Result<String, String> {
         if cancelled.load(Ordering::Acquire) {
             return Err("Formatting cancelled.".into());
+        }
+        if request
+            .source_path
+            .extension()
+            .is_some_and(|extension| extension == "rs")
+        {
+            return self.rustfmt.format(request, cancelled, self.timeout);
         }
         let draft = DraftConfig::for_preview(&request.config, &self.plugins)?;
         let cache = cache_directory(std::env::consts::OS, |key| std::env::var_os(key))?;

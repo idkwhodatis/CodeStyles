@@ -37,7 +37,7 @@ class IntegrityTests(unittest.TestCase):
         manifest = json.loads((bundle.RESOURCES / 'manifest.json').read_text())
         self.assertEqual(manifest['plugins'], {
             'typescript': '0.96.1', 'json': '0.25.2',
-            'markdown': '0.26.0', 'toml': '0.9.0',
+            'markdown': '0.26.0', 'toml': '0.9.0', 'ruff': '0.11.3',
         })
         files = {entry['path']: entry for entry in manifest['files']}
         artifacts = {entry['path']: entry for entry in manifest['artifacts']}
@@ -59,7 +59,7 @@ class IntegrityTests(unittest.TestCase):
             schema = json.loads((bundle.RESOURCES / f'schemas/{name}-{version}.json').read_text())
             self.assertEqual(schema['type'], 'object')
             self.assertTrue(schema['properties'])
-        for name in ('markdown', 'toml'):
+        for name in ('markdown', 'toml', 'ruff'):
             artifact = artifacts[f'licenses/dprint-plugin-{name}.txt']
             bundle.verify(bundle.RESOURCES / artifact['path'], artifact)
             self.assertEqual(artifact['kind'], 'license')

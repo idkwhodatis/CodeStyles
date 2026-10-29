@@ -54,6 +54,7 @@ pub struct ProjectRequest {
     config: ConfigSnapshot,
     action: ProjectAction,
     review: Option<Arc<ReviewSnapshot>>,
+    native_rust: bool,
 }
 impl ProjectRequest {
     /// `trusted` means the user approved this run's saved config, inherited and
@@ -91,6 +92,7 @@ impl ProjectRequest {
             config: document.saved_snapshot(),
             action,
             review: None,
+            native_rust: false,
         };
         request.verify_saved_config()?;
         if let ProjectAction::FormatSelected(paths) = &request.action {
@@ -103,6 +105,39 @@ impl ProjectRequest {
         }
         Ok(request)
     }
+    /// Rust-only project scope. This never implies stock dprint can format Rust.
+    pub fn new_rust(
+        root: PathBuf,
+        document: &ConfigDocument,
+        action: ProjectAction,
+        trusted: bool,
+    ) -> Result<Self, String> {
+        let mut request = Self::new(root, document, action, trusted)?;
+        request.native_rust = true;
+        validate_rust_project_config(request.config.source_text())?;
+        Ok(request)
+    }
+
+    pub fn from_rust_review(
+        root: PathBuf,
+        document: &ConfigDocument,
+        selected_paths: Vec<PathBuf>,
+        report: &ProjectReport,
+        trusted: bool,
+    ) -> Result<Self, String> {
+        Self::new_rust(
+            root,
+            document,
+            ProjectAction::FormatSelected(selected_paths),
+            trusted,
+        )?
+        .attach_review(report)
+    }
+
+    pub fn is_rust(&self) -> bool {
+        self.native_rust
+    }
+
     /// Format only differing files selected from a successful displayed check.
     /// The worker revalidates sources, dependencies and diffs before formatting.
     /// This is not an atomic patch application: trusted plugins are rerun, so
@@ -114,17 +149,25 @@ impl ProjectRequest {
         report: &ProjectReport,
         trusted: bool,
     ) -> Result<Self, String> {
-        let mut request = Self::new(
+        Self::new(
             root,
             document,
             ProjectAction::FormatSelected(selected_paths),
             trusted,
-        )?;
+        )?
+        .attach_review(report)
+    }
+
+    fn attach_review(mut self, report: &ProjectReport) -> Result<Self, String> {
+        let request = &mut self;
         let review = report
             .review
             .as_ref()
             .ok_or("Run Check project before applying reviewed changes.")?;
-        if review.root != request.root || review.config_path != request.config_path() {
+        if review.root != request.root
+            || review.config_path != request.config_path()
+            || review.native_rust != request.native_rust
+        {
             return Err(
                 "The review belongs to a different project configuration. Check again.".into(),
             );
@@ -137,7 +180,7 @@ impl ProjectRequest {
             }
         }
         request.review = Some(review.clone());
-        Ok(request)
+        Ok(self)
     }
 
     fn verify_review(&self, discovered: &BTreeSet<PathBuf>) -> Result<(), String> {
@@ -231,6 +274,7 @@ struct ReviewSnapshot {
     configs: BTreeMap<PathBuf, Vec<u8>>,
     sources: BTreeMap<PathBuf, SourceFingerprint>,
     diffs: BTreeMap<PathBuf, String>,
+    native_rust: bool,
 }
 
 impl Backend {
@@ -240,7 +284,11 @@ impl Backend {
         cancelled: Arc<AtomicBool>,
     ) -> Result<ProjectReport, String> {
         let mut writes_started = false;
-        let result = self.execute_project_inner(request, &cancelled, &mut writes_started);
+        let result = if request.native_rust {
+            self.execute_rust_project(request, &cancelled, &mut writes_started)
+        } else {
+            self.execute_project_inner(request, &cancelled, &mut writes_started)
+        };
         result.map_err(|error| {
             if writes_started {
                 format!("{error}\nFormatting is not transactional; files may already have been changed. Run Check project to inspect the current state.")
@@ -460,6 +508,7 @@ impl Backend {
                 config: request.config.clone(),
                 action: ProjectAction::Check,
                 review: None,
+                native_rust: false,
             };
             let mut verification = self
                 .execute_project_inner(&verification_request, cancelled, writes_started)
@@ -496,6 +545,7 @@ impl Backend {
             config_path: request.config_path().to_owned(),
             discovered: all_files,
             configs,
+            native_rust: false,
             diffs: report
                 .files
                 .iter()
@@ -509,6 +559,204 @@ impl Backend {
         }));
         report.diagnostics = diagnostics;
         Ok(report)
+    }
+
+    fn execute_rust_project(
+        &self,
+        request: &ProjectRequest,
+        cancelled: &Arc<AtomicBool>,
+        writes_started: &mut bool,
+    ) -> Result<ProjectReport, String> {
+        request.verify_saved_config()?;
+        validate_rust_project_config(request.config.source_text())?;
+        if cancelled.load(Ordering::Acquire) {
+            return Err("Rust project operation cancelled.".into());
+        }
+        if request.action == ProjectAction::PreparePlugins {
+            return Err("Use Language support → Install Rust support. Rust project checks never download or install tools implicitly.".into());
+        }
+        let (all_files, configs) = rust_scope(request, cancelled)?;
+        let protected = configs
+            .keys()
+            .map(same_file::Handle::from_path)
+            .collect::<Result<std::collections::HashSet<_>, _>>()
+            .map_err(|e| format!("Cannot identify protected Rust configuration files: {e}"))?;
+        let mut candidates = BTreeSet::new();
+        for path in &all_files {
+            let identity = same_file::Handle::from_path(path).map_err(|e| e.to_string())?;
+            if !protected.contains(&identity) {
+                candidates.insert(path.clone());
+            }
+        }
+        if let Some(review) = &request.review {
+            if !review.native_rust || review.discovered != all_files || review.configs != configs {
+                return Err("Rust project scope or configuration changed since review. Check again before applying.".into());
+            }
+            verify_configs(&review.configs)?;
+        }
+        let targets = match &request.action {
+            ProjectAction::FormatSelected(selected) => selected.iter().map(|path| {
+                let path = request.safe_file(path)?;
+                if !candidates.contains(&path) { return Err("Selected Rust file is excluded, protected, or outside the reviewed Rust scope.".into()); }
+                Ok(path)
+            }).collect::<Result<BTreeSet<_>, String>>()?,
+            _ => candidates.clone(),
+        };
+        let mut outputs = BTreeMap::new();
+        let mut sources = BTreeMap::new();
+        let mut differences = Vec::new();
+        for path in &targets {
+            if cancelled.load(Ordering::Acquire) {
+                return Err("Rust project operation cancelled.".into());
+            }
+            let fingerprint = rust_source(path, cancelled)?.1;
+            if fingerprint.bytes > OUTPUT_LIMIT as u64 {
+                return Err("Rust source exceeds the 32 MiB safety limit.".into());
+            }
+            if let Some(review) = &request.review {
+                let expected = review
+                    .sources
+                    .get(path)
+                    .ok_or("Rust source is not in the reviewed changes.")?;
+                verify_rust_source(path, expected, cancelled)?;
+            }
+            let source = String::from_utf8(rust_source(path, cancelled)?.0)
+                .map_err(|_| "Rust source is not valid UTF-8.")?;
+            verify_rust_source(path, &fingerprint, cancelled)?;
+            let output = self.format(
+                &crate::backend::FormatRequest {
+                    source: source.clone(),
+                    source_path: path.clone(),
+                    config: request.config.clone(),
+                },
+                cancelled.clone(),
+            )?;
+            verify_rust_source(path, &fingerprint, cancelled)?;
+            if output != source {
+                differences.push(ProjectFile {
+                    path: path.clone(),
+                    diff: rust_diff(path, &source, &output),
+                });
+                outputs.insert(path.clone(), output);
+            }
+            sources.insert(path.clone(), fingerprint);
+        }
+        verify_configs(&configs)?;
+        if rust_scope(request, cancelled)? != (all_files.clone(), configs.clone()) {
+            return Err(
+                "Rust project scope or ignore rules changed during check. Check again.".into(),
+            );
+        }
+        if let Some(review) = &request.review {
+            let actual: BTreeMap<_, _> = differences
+                .iter()
+                .map(|file| (file.path.clone(), file.diff.clone()))
+                .collect();
+            let expected: BTreeMap<_, _> = targets
+                .iter()
+                .map(|path| (path.clone(), review.diffs[path].clone()))
+                .collect();
+            if actual != expected {
+                return Err(
+                    "Rust formatting differences changed since review. Check again.".into(),
+                );
+            }
+        }
+        if request.action.writes_sources() {
+            request.verify_saved_config()?;
+            for path in &targets {
+                verify_rust_source(path, &sources[path], cancelled)?;
+            }
+            for (path, output) in outputs {
+                if cancelled.load(Ordering::Acquire) {
+                    return Err("Rust project operation cancelled.".into());
+                }
+                verify_configs(&configs)?;
+                verify_rust_source(&path, &sources[&path], cancelled)?;
+                if request.safe_file(&path)? != path {
+                    return Err("Rust source path changed before write.".into());
+                }
+                let identity = same_file::Handle::from_path(&path).map_err(|e| e.to_string())?;
+                let current_protected = configs
+                    .keys()
+                    .map(same_file::Handle::from_path)
+                    .collect::<Result<std::collections::HashSet<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                if current_protected.contains(&identity) {
+                    return Err("Rust source aliases a protected configuration.".into());
+                }
+                // Replace only the explicitly selected path. rustfmt never sees a
+                // source filename, so out-of-line modules cannot be rewritten.
+                let mut temporary =
+                    tempfile::NamedTempFile::new_in(path.parent().expect("file parent"))
+                        .map_err(|e| format!("Cannot stage Rust formatting: {e}"))?;
+                temporary
+                    .as_file()
+                    .set_permissions(
+                        fs::metadata(&path)
+                            .map_err(|e| e.to_string())?
+                            .permissions(),
+                    )
+                    .map_err(|e| e.to_string())?;
+                temporary
+                    .write_all(output.as_bytes())
+                    .map_err(|e| e.to_string())?;
+                temporary.as_file().sync_all().map_err(|e| e.to_string())?;
+                verify_rust_source(&path, &sources[&path], cancelled)?;
+                verify_configs(&configs)?;
+                if cancelled.load(Ordering::Acquire) {
+                    return Err("Rust project operation cancelled.".into());
+                }
+                *writes_started = true;
+                temporary
+                    .persist(&path)
+                    .map_err(|e| format!("Cannot replace Rust source: {}", e.error))?;
+            }
+            let verification = ProjectRequest {
+                root: request.root.clone(),
+                config: request.config.clone(),
+                action: ProjectAction::Check,
+                review: None,
+                native_rust: true,
+            };
+            let mut report = self
+                .execute_rust_project(&verification, cancelled, writes_started)
+                .map_err(|e| {
+                    format!("Rust formatting ran but automatic verification failed: {e}")
+                })?;
+            report.action = request.action.clone();
+            report.summary = format!(
+                "Formatted {} selected Rust files; verified {} Rust files, {} still differ. Other languages were not changed.",
+                targets.len(),
+                report.checked_files,
+                report.files.len()
+            );
+            return Ok(report);
+        }
+        request.verify_saved_config()?;
+        let review = Arc::new(ReviewSnapshot {
+            root: request.root.clone(),
+            config_path: request.config_path().to_path_buf(),
+            discovered: all_files,
+            configs: configs.clone(),
+            native_rust: true,
+            diffs: differences
+                .iter()
+                .map(|file| (file.path.clone(), file.diff.clone()))
+                .collect(),
+            sources: differences
+                .iter()
+                .map(|file| (file.path.clone(), sources[&file.path]))
+                .collect(),
+        });
+        Ok(ProjectReport {
+            action: request.action.clone(), cli_version: "Managed stable rustfmt".into(),
+            checked_files: candidates.len(), protected_configs: configs.len(),
+            summary: format!("{} of {} Rust files need formatting. Rust-only scope; no source files changed.", differences.len(), candidates.len()),
+            files: differences,
+            diagnostics: "Rust-only project mode respects local .gitignore/.ignore, skips target/.git and symlinks. It uses the explicit rustfmt section, not Cargo.toml or rustfmt.toml discovery. Other languages use the dprint project mode.".into(),
+            review: Some(review),
+        })
     }
 
     fn project_process(
@@ -893,6 +1141,142 @@ fn parse_check_json(
         .collect())
 }
 
+fn validate_rust_project_config(text: &str) -> Result<(), String> {
+    crate::rustfmt::options(text)?;
+    let value = jsonc_parser::parse_to_serde_value(text, &jsonc_parser::ParseOptions::default())
+        .map_err(|e| e.to_string())?
+        .ok_or("Empty project configuration.")?;
+    for key in ["includes", "excludes", "incremental"] {
+        if value.get(key).is_some() {
+            return Err(format!(
+                "Rust-only project mode does not interpret dprint {key}. Use a separate explicit configuration without dprint discovery overrides; local .gitignore/.ignore defines the Rust scope."
+            ));
+        }
+    }
+    Ok(())
+}
+
+type RustScope = (BTreeSet<PathBuf>, BTreeMap<PathBuf, Vec<u8>>);
+
+/// Exact local Rust-only scope and all files which influence that scope. Avoid
+/// parent/global ignore rules so the review is independent of ambient user state.
+fn rust_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<RustScope, String> {
+    let mut files = BTreeSet::new();
+    let mut configs = BTreeMap::new();
+    configs.insert(
+        request.config_path().to_path_buf(),
+        fs::read(request.config_path()).map_err(|e| e.to_string())?,
+    );
+    let walker = ignore::WalkBuilder::new(&request.root)
+        .hidden(false)
+        .parents(false)
+        .git_global(false)
+        .git_exclude(false)
+        .require_git(false)
+        .follow_links(false)
+        .max_depth(Some(128))
+        .filter_entry(|entry| {
+            entry.depth() == 0 || !matches!(entry.file_name().to_str(), Some("target" | ".git"))
+        })
+        .build();
+    let mut count = 0;
+    for entry in walker {
+        if cancelled.load(Ordering::Acquire) {
+            return Err("Rust project operation cancelled.".into());
+        }
+        let entry = entry.map_err(|e| format!("Cannot discover Rust files: {e}"))?;
+        if let Some(error) = entry.error() {
+            return Err(format!("Cannot interpret Rust ignore rules: {error}"));
+        }
+        count += 1;
+        if count > 100_000 {
+            return Err(
+                "Rust project discovery exceeded the 100,000-entry limit; choose a smaller root."
+                    .into(),
+            );
+        }
+        let path = entry.path();
+        let kind = entry.file_type();
+        if kind.is_some_and(|kind| kind.is_symlink()) {
+            continue;
+        }
+        if kind.is_some_and(|kind| kind.is_dir()) {
+            if entry.depth() == 128 {
+                return Err("Rust project discovery exceeded the directory-depth limit; choose a smaller root.".into());
+            }
+            for name in CONFIG_NAMES {
+                let config = path.join(name);
+                if config.is_file()
+                    && fs::canonicalize(&config).ok().as_deref() != Some(request.config_path())
+                {
+                    return Err(format!(
+                        "Rust-only project mode does not resolve nested or competing dprint configuration {}. Choose that directory/configuration as a separate project.",
+                        config.display()
+                    ));
+                }
+            }
+            for name in [
+                ".gitignore",
+                ".ignore",
+                "Cargo.toml",
+                "Cargo.lock",
+                "rustfmt.toml",
+                ".rustfmt.toml",
+                "rust-toolchain.toml",
+                "rust-toolchain",
+            ] {
+                let config = path.join(name);
+                match fs::symlink_metadata(&config) {
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                    Err(e) => return Err(format!("Cannot inspect Rust scope metadata: {e}")),
+                    Ok(metadata) => {
+                        if !metadata.is_file() || metadata.file_type().is_symlink() {
+                            return Err(format!(
+                                "Rust project configuration must be a regular non-symlink file: {}",
+                                config.display()
+                            ));
+                        }
+                        if metadata.len() > 4 * 1024 * 1024 {
+                            return Err(
+                                "Rust project metadata exceeds the 4 MiB safety limit.".into()
+                            );
+                        }
+                        configs.insert(
+                            fs::canonicalize(&config).map_err(|e| e.to_string())?,
+                            fs::read(&config).map_err(|e| e.to_string())?,
+                        );
+                        if configs.len() > 4096 {
+                            return Err("Rust project configuration limit exceeded.".into());
+                        }
+                    }
+                }
+            }
+        } else if kind.is_some_and(|kind| kind.is_file())
+            && path.extension().is_some_and(|extension| extension == "rs")
+        {
+            files.insert(request.safe_file(path)?);
+        }
+    }
+    Ok((files, configs))
+}
+
+fn rust_diff(path: &Path, source: &str, formatted: &str) -> String {
+    use crate::comparison::{DiffKind, line_diff};
+    let mut output = format!("--- {}\n+++ {} (rustfmt)\n", path.display(), path.display());
+    for line in line_diff(source, formatted) {
+        output.push(match line.kind {
+            DiffKind::Unchanged => ' ',
+            DiffKind::Removed => '-',
+            DiffKind::Added => '+',
+        });
+        output.push_str(&line.text);
+        if !line.text.ends_with('\n') {
+            output.push_str("\n\\ No newline at end of file\n");
+        }
+    }
+    output
+}
+
 fn protected_configs(
     request: &ProjectRequest,
     files: &BTreeSet<PathBuf>,
@@ -1057,6 +1441,56 @@ fn local_dependency_path(directory: &Path, reference: &str) -> PathBuf {
 struct SourceFingerprint {
     bytes: u64,
     sha256: [u8; 32],
+}
+fn rust_source(
+    path: &Path,
+    cancelled: &AtomicBool,
+) -> Result<(Vec<u8>, SourceFingerprint), String> {
+    let metadata = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() > OUTPUT_LIMIT as u64
+    {
+        return Err(
+            "Rust source must be a regular non-symlink file within the 32 MiB safety limit.".into(),
+        );
+    }
+    let mut file = fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut data = Vec::new();
+    let mut buffer = [0; 64 * 1024];
+    loop {
+        if cancelled.load(Ordering::Acquire) {
+            return Err("Rust project operation cancelled.".into());
+        }
+        let count = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        if count == 0 {
+            break;
+        }
+        if data.len() + count > OUTPUT_LIMIT {
+            return Err("Rust source exceeds the 32 MiB safety limit.".into());
+        }
+        data.extend_from_slice(&buffer[..count]);
+    }
+    let fingerprint = SourceFingerprint {
+        bytes: data.len() as u64,
+        sha256: Sha256::digest(&data).into(),
+    };
+    Ok((data, fingerprint))
+}
+fn verify_rust_source(
+    path: &Path,
+    expected: &SourceFingerprint,
+    cancelled: &AtomicBool,
+) -> Result<(), String> {
+    if rust_source(path, cancelled)?.1 != *expected
+        || fs::canonicalize(path).ok().as_deref() != Some(path)
+    {
+        return Err(format!(
+            "Source changed since review or during check: {}. Run Check project again before applying.",
+            path.display()
+        ));
+    }
+    Ok(())
 }
 fn source_fingerprint(path: &Path) -> Result<SourceFingerprint, String> {
     let mut file =
