@@ -5,7 +5,8 @@
     "typescript": "0.96.1",
     "json": "0.25.2",
     "markdown": "0.26.0",
-    "toml": "0.9.0"
+    "toml": "0.9.0",
+    "ruff": "0.11.3"
   },
   "artifacts": [
     {
@@ -203,6 +204,36 @@
       "sha256": "cca6ac7ebae91401de7520120a57225886f308456123f29d0728e50ff2f3b494",
       "bytes": 1085,
       "release_url": "https://github.com/dprint/dprint-plugin-toml/releases/tag/0.9.0"
+    },
+    {
+      "path": "plugins/ruff-0.11.3.wasm",
+      "kind": "wasm",
+      "repository": "dprint/dprint-plugin-ruff",
+      "version": "0.11.3",
+      "url": "https://github.com/dprint/dprint-plugin-ruff/releases/download/0.11.3/plugin.wasm",
+      "sha256": "e828d4a046b6eb1f7461e0d1a1277d4c5d31b097607cae9b32c0d37d5e5a285c",
+      "bytes": 12064583,
+      "release_url": "https://github.com/dprint/dprint-plugin-ruff/releases/tag/0.11.3"
+    },
+    {
+      "path": "schemas/ruff-0.11.3.json",
+      "kind": "schema",
+      "repository": "dprint/dprint-plugin-ruff",
+      "version": "0.11.3",
+      "url": "https://github.com/dprint/dprint-plugin-ruff/releases/download/0.11.3/schema.json",
+      "sha256": "29db5b6e5b23b2f36bb821d6e710c1599d561a94f659da335af4dd62c195a197",
+      "bytes": 4349,
+      "release_url": "https://github.com/dprint/dprint-plugin-ruff/releases/tag/0.11.3"
+    },
+    {
+      "path": "licenses/dprint-plugin-ruff.txt",
+      "kind": "license",
+      "repository": "dprint/dprint-plugin-ruff",
+      "version": "0.11.3",
+      "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-ruff/0.11.3/LICENSE",
+      "sha256": "f1dbd53ab0ade604131bf53d6d756299e4555272ed66253ffd9b8e7d5eabb635",
+      "bytes": 1126,
+      "release_url": "https://github.com/dprint/dprint-plugin-ruff/releases/tag/0.11.3"
     }
   ],
   "files": [
@@ -323,6 +354,27 @@
       "bytes": 1085,
       "kind": "license",
       "version": "0.9.0"
+    },
+    {
+      "path": "plugins/ruff-0.11.3.wasm",
+      "sha256": "e828d4a046b6eb1f7461e0d1a1277d4c5d31b097607cae9b32c0d37d5e5a285c",
+      "bytes": 12064583,
+      "kind": "wasm",
+      "version": "0.11.3"
+    },
+    {
+      "path": "schemas/ruff-0.11.3.json",
+      "sha256": "29db5b6e5b23b2f36bb821d6e710c1599d561a94f659da335af4dd62c195a197",
+      "bytes": 4349,
+      "kind": "schema",
+      "version": "0.11.3"
+    },
+    {
+      "path": "licenses/dprint-plugin-ruff.txt",
+      "sha256": "f1dbd53ab0ade604131bf53d6d756299e4555272ed66253ffd9b8e7d5eabb635",
+      "bytes": 1126,
+      "kind": "license",
+      "version": "0.11.3"
     }
   ]
 }

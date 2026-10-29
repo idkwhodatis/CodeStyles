@@ -222,7 +222,7 @@ class SmokeTests(unittest.TestCase):
                               "cache_directory": reported_cache, "checks": []}
                     # Reaching language validation proves both containment and
                     # the differently prefixed cache paths were accepted.
-                    with self.assertRaisesRegex(ValueError, "eight languages"):
+                    with self.assertRaisesRegex(ValueError, "ten language variants"):
                         smoke.validate_backend_report(report, install, cache)
                     report["cache_directory"] += " sibling"
                     with self.assertRaisesRegex(ValueError, "fresh external cache"):
@@ -249,7 +249,33 @@ class SmokeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "not discovered"):
                 smoke.validate_backend_report(report, root, cache)
             report["resources"]["discovery"] = "beside_executable"
-            with self.assertRaisesRegex(ValueError, "eight languages"):
+            with self.assertRaisesRegex(ValueError, "ten language variants"):
+                smoke.validate_backend_report(report, root, cache)
+
+    def test_validation_requires_both_python_variants_and_ruff_plugin(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            cache = root / "cache"
+            report = {"status": "passed", "mode": "headless_standalone_preview",
+                      "resources": {"root": str(root / "resources"),
+                                    "discovery": "beside_executable", "checksums_verified": True},
+                      "dprint_executable": str(root / "resources/bin/dprint"),
+                      "cache_directory": str(cache), "checks": []}
+            mapping = {"ts": "typescript", "js": "typescript", "tsx": "typescript", "jsx": "typescript",
+                       "json": "json", "jsonc": "json", "md": "markdown", "toml": "toml",
+                       "py": "ruff", "pyi": "ruff"}
+            checks = [{"extension": ext, "plugin": plugin, "status": "passed",
+                       "evidence": {"changed": True, "idempotent": True}}
+                      for ext, plugin in mapping.items()]
+            report["checks"] = checks
+            smoke.validate_backend_report(report, root, cache)
+            for missing in ("py", "pyi"):
+                report["checks"] = [item for item in checks if item["extension"] != missing]
+                with self.assertRaisesRegex(ValueError, "ten language variants"):
+                    smoke.validate_backend_report(report, root, cache)
+            report["checks"] = [dict(item, plugin="typescript") if item["plugin"] == "ruff" else item
+                                for item in checks]
+            with self.assertRaisesRegex(ValueError, "five WASM plugins"):
                 smoke.validate_backend_report(report, root, cache)
 
     @unittest.skipIf(os.name == "nt", "POSIX fake executable fixture")
@@ -271,7 +297,7 @@ assert pathlib.Path.cwd() != root
 cache.mkdir()
 (cache / 'compiled-test-fixture').write_text('fixture')
 checks = []
-for ext, plugin in [('ts','typescript'), ('js','typescript'), ('tsx','typescript'), ('jsx','typescript'), ('json','json'), ('jsonc','json'), ('md','markdown'), ('toml','toml')]:
+for ext, plugin in [('ts','typescript'), ('js','typescript'), ('tsx','typescript'), ('jsx','typescript'), ('json','json'), ('jsonc','json'), ('md','markdown'), ('toml','toml'), ('py','ruff'), ('pyi','ruff')]:
     checks.append({'extension': ext, 'plugin': plugin, 'status': 'passed', 'evidence': {'changed': True, 'idempotent': True}})
 pathlib.Path(sys.argv[2]).write_text(json.dumps({'status': 'passed', 'mode': 'headless_standalone_preview', 'resources': {'root': str(root / 'resources'), 'discovery': 'beside_executable', 'checksums_verified': True}, 'dprint_executable': str(root / 'resources/bin/dprint'), 'cache_directory': str(cache), 'checks': checks}))
 ''', encoding="utf-8")

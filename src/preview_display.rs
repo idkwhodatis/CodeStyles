@@ -79,6 +79,8 @@ fn highlight_language(language: SourceLanguage) -> &'static str {
         SourceLanguage::Json | SourceLanguage::Jsonc => "json",
         SourceLanguage::Markdown => "markdown",
         SourceLanguage::Toml => "toml",
+        SourceLanguage::Rust => "rust",
+        SourceLanguage::Python | SourceLanguage::PythonStub => "python",
     }
 }
 

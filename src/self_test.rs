@@ -85,7 +85,10 @@ fn run_checks(report: &mut Value) -> Result<(), String> {
         .tempdir()
         .map_err(|e| format!("Cannot create self-test workspace: {e}"))?;
     let mut failures = Vec::new();
-    for language in SourceLanguage::ALL {
+    for language in SourceLanguage::ALL
+        .into_iter()
+        .filter(|language| language.is_bundled())
+    {
         let mut check = json!({
             "language": language.label(), "extension": language.extension(),
             "plugin": language.plugin().section(), "status": "failed"
@@ -168,11 +171,14 @@ mod tests {
     }
 
     #[test]
-    fn real_bundled_backend_formats_all_eight_self_test_samples() {
+    fn real_bundled_backend_formats_all_ten_self_test_samples() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
         let backend = resources::backend_from_root(&root).unwrap();
         let workspace = tempfile::tempdir().unwrap();
-        for language in SourceLanguage::ALL {
+        for language in SourceLanguage::ALL
+            .into_iter()
+            .filter(|language| language.is_bundled())
+        {
             let evidence = check_language(&backend, language, workspace.path())
                 .unwrap_or_else(|error| panic!("{}: {error}", language.label()));
             assert_eq!(evidence["changed"], true);
@@ -181,18 +187,23 @@ mod tests {
     }
 
     #[test]
-    fn bundled_self_test_samples_cover_all_four_plugins_and_eight_extensions() {
+    fn bundled_self_test_samples_cover_all_five_plugins_and_ten_extensions() {
         let extensions: std::collections::HashSet<_> = SourceLanguage::ALL
             .into_iter()
+            .filter(|language| language.is_bundled())
             .map(|language| language.extension())
             .collect();
         let plugins: std::collections::HashSet<_> = SourceLanguage::ALL
             .into_iter()
+            .filter(|language| language.is_bundled())
             .map(|language| language.plugin())
             .collect();
-        assert_eq!(extensions.len(), 8);
-        assert_eq!(plugins.len(), 4);
-        for language in SourceLanguage::ALL {
+        assert_eq!(extensions.len(), 10);
+        assert_eq!(plugins.len(), 5);
+        for language in SourceLanguage::ALL
+            .into_iter()
+            .filter(|language| language.is_bundled())
+        {
             assert!(!BuiltinSample::Overview.source(language).is_empty());
         }
     }

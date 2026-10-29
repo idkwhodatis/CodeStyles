@@ -15,10 +15,13 @@ pub enum SourceLanguage {
     Jsonc,
     Markdown,
     Toml,
+    Python,
+    PythonStub,
+    Rust,
 }
 
 impl SourceLanguage {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 11] = [
         Self::TypeScript,
         Self::JavaScript,
         Self::Tsx,
@@ -27,6 +30,9 @@ impl SourceLanguage {
         Self::Jsonc,
         Self::Markdown,
         Self::Toml,
+        Self::Python,
+        Self::PythonStub,
+        Self::Rust,
     ];
 
     pub fn label(self) -> &'static str {
@@ -39,6 +45,9 @@ impl SourceLanguage {
             Self::Jsonc => "JSONC",
             Self::Markdown => "Markdown",
             Self::Toml => "TOML",
+            Self::Python => "Python",
+            Self::PythonStub => "Python Stub",
+            Self::Rust => "Rust",
         }
     }
 
@@ -53,6 +62,9 @@ impl SourceLanguage {
             Self::Jsonc => "JSON with Comments",
             Self::Markdown => "Markdown",
             Self::Toml => "TOML",
+            Self::Python => "Python",
+            Self::PythonStub => "Python Stub",
+            Self::Rust => "Rust",
         }
     }
 
@@ -61,6 +73,9 @@ impl SourceLanguage {
             Self::TypeScript | Self::JavaScript | Self::Tsx | Self::Jsx => "Code",
             Self::Json | Self::Jsonc | Self::Toml => "Data",
             Self::Markdown => "Documentation",
+            Self::Python => "Code",
+            Self::PythonStub => "Code",
+            Self::Rust => "Code",
         }
     }
 
@@ -76,6 +91,9 @@ impl SourceLanguage {
             Self::Jsonc => include_str!("../resources/samples/sample.jsonc"),
             Self::Markdown => include_str!("../resources/samples/sample.md"),
             Self::Toml => include_str!("../resources/samples/sample.toml"),
+            Self::Python => include_str!("../resources/samples/sample.py"),
+            Self::PythonStub => include_str!("../resources/samples/sample.pyi"),
+            Self::Rust => include_str!("../resources/samples/sample.rs"),
         }
     }
 
@@ -89,6 +107,9 @@ impl SourceLanguage {
             Self::Jsonc => "jsonc",
             Self::Markdown => "md",
             Self::Toml => "toml",
+            Self::Python => "py",
+            Self::PythonStub => "pyi",
+            Self::Rust => "rs",
         }
     }
 
@@ -98,7 +119,15 @@ impl SourceLanguage {
             Self::Json | Self::Jsonc => PinnedPlugin::Json,
             Self::Markdown => PinnedPlugin::Markdown,
             Self::Toml => PinnedPlugin::Toml,
+            Self::Python => PinnedPlugin::Ruff,
+            Self::PythonStub => PinnedPlugin::Ruff,
+            Self::Rust => PinnedPlugin::Rustfmt,
         }
+    }
+
+    /// Optional downloaded engines must not be required by the offline bundle self-test.
+    pub fn is_bundled(self) -> bool {
+        self != Self::Rust
     }
 
     pub fn is_json(self) -> bool {
@@ -115,6 +144,9 @@ impl SourceLanguage {
             (Self::Jsonc, false) => "sample.jsonc",
             (Self::Markdown, false) => "sample.md",
             (Self::Toml, false) => "sample.toml",
+            (Self::Python, false) => "sample.py",
+            (Self::PythonStub, false) => "sample.pyi",
+            (Self::Rust, false) => "sample.rs",
             (Self::TypeScript, true) => "custom.ts",
             (Self::JavaScript, true) => "custom.js",
             (Self::Tsx, true) => "custom.tsx",
@@ -123,6 +155,9 @@ impl SourceLanguage {
             (Self::Jsonc, true) => "custom.jsonc",
             (Self::Markdown, true) => "custom.md",
             (Self::Toml, true) => "custom.toml",
+            (Self::Python, true) => "custom.py",
+            (Self::PythonStub, true) => "custom.pyi",
+            (Self::Rust, true) => "custom.rs",
         }
     }
 }
@@ -176,6 +211,9 @@ impl BuiltinSample {
             (SourceLanguage::Markdown, Self::Comments) => MARKDOWN_COMMENTS,
             (SourceLanguage::Toml, Self::Collections) => TOML_COLLECTIONS,
             (SourceLanguage::Toml, Self::Comments) => TOML_COMMENTS,
+            (SourceLanguage::Python, _) => SourceLanguage::Python.builtin_source(),
+            (SourceLanguage::PythonStub, _) => SourceLanguage::PythonStub.builtin_source(),
+            (SourceLanguage::Rust, _) => SourceLanguage::Rust.builtin_source(),
             (SourceLanguage::Json, Self::Collections) => JSON_COLLECTIONS,
             (SourceLanguage::Json, Self::Comments) => JSON_DESCRIPTIONS,
             (SourceLanguage::Jsonc, Self::Collections) => JSONC_COLLECTIONS,
@@ -494,6 +532,9 @@ mod tests {
                 SourceLanguage::Json | SourceLanguage::Jsonc => PinnedPlugin::Json,
                 SourceLanguage::Markdown => PinnedPlugin::Markdown,
                 SourceLanguage::Toml => PinnedPlugin::Toml,
+                SourceLanguage::Python => PinnedPlugin::Ruff,
+                SourceLanguage::PythonStub => PinnedPlugin::Ruff,
+                SourceLanguage::Rust => PinnedPlugin::Rustfmt,
             };
             assert_eq!(language.plugin(), expected);
             let mut source = SourceState::default();
@@ -722,7 +763,24 @@ mod tests {
                 ],
             ),
         ];
-        assert_eq!(coverage.len(), SourceLanguage::ALL.len());
+        assert_eq!(coverage.len() + 3, SourceLanguage::ALL.len());
+        for (language, tokens) in [
+            (
+                SourceLanguage::Python,
+                &["def ", "class ", "#", "return", "async def", "with "][..],
+            ),
+            (
+                SourceLanguage::PythonStub,
+                &["Protocol", "@overload", "class ", "def ", "...", "->"][..],
+            ),
+        ] {
+            for token in tokens {
+                assert!(
+                    language.builtin_source().contains(token),
+                    "{language:?}: {token}"
+                );
+            }
+        }
         for &(language, syntax) in coverage {
             for token in syntax {
                 assert!(

@@ -101,7 +101,7 @@ fn request(
 }
 
 #[test]
-fn all_eight_languages_match_saved_configuration_byte_for_byte() {
+fn all_ten_languages_match_saved_configuration_byte_for_byte() {
     let (exe, plugins) = assets();
     let backend = Backend::new(exe.clone(), plugins.clone());
     let dir = tempfile::tempdir().unwrap();
@@ -629,7 +629,10 @@ fn every_builtin_syntax_tour_formats_and_is_idempotent_with_both_styles() {
     let (exe, plugins) = assets();
     let backend = Backend::new(exe, plugins);
     let mut state = SourceState::default();
-    for language in SourceLanguage::ALL {
+    for language in SourceLanguage::ALL
+        .into_iter()
+        .filter(|language| language.is_bundled())
+    {
         state.select_language(language);
         let source = language.builtin_source();
         assert_eq!(state.source(), source);

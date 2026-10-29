@@ -6,11 +6,12 @@
 
 - dprint Markdown plugin 0.26.0: https://github.com/dprint/dprint-plugin-markdown/releases/tag/0.26.0
 - dprint TOML plugin 0.9.0: https://github.com/dprint/dprint-plugin-toml/releases/tag/0.9.0
+- dprint Ruff plugin 0.11.3 (including Ruff): https://github.com/dprint/dprint-plugin-ruff/releases/tag/0.11.3
 
 These projects are distributed under the MIT License. Exact upstream license
 texts from their pinned release tags are in `licenses/`. Their original
 copyright and permission notices are retained. SHA-256 values in the manifest
 for downloaded archives, WASM and schemas match the official GitHub release
 asset digests; executable digests were computed after verified extraction.
-Markdown and TOML license digests are computed from the exact tagged upstream
+Markdown, TOML and Ruff license digests are computed from the exact tagged upstream
 LICENSE files, whose source URLs are also retained in the manifest.

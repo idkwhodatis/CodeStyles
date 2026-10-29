@@ -1,0 +1,161 @@
+{
+  "format_version": 1,
+  "toolchains": {
+    "rustfmt": {
+      "version": "1.99.1",
+      "distribution": "GitHub release bundles only; no runtime fallback to upstream component downloads.",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished local build candidate; GitHub release approval required.",
+          "executable": "bin/rustfmt",
+          "environment": {},
+          "max_installed_bytes": 387615675,
+          "validation": {
+            "archive_and_members": "verified",
+            "native_execution": "passed-linux-x64-clean-environment-stdin-format",
+            "rustfmt_version": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
+            "abi_max_glibc": "2.16",
+            "minimum_os_execution": "not-tested"
+          },
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-rustfmt-1.99.1-x86_64-unknown-linux-gnu.tar.gz",
+              "sha256": "8487489db6b6021ee9bc531d932acf9ff5d9856d701d8b528d99ccd14500631b",
+              "bytes": 131313370,
+              "max_download_bytes": 131313370,
+              "max_expanded_bytes": 387638203,
+              "members": [
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "sha256": "092c8e82c47fb859d7385253c1b04052dbd65a8bcf0bbd8b6f7dba58a9e8753d",
+                  "bytes": 10852,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "sha256": "ae0f1f791e3b4faccf981c0b530199235a8b8a021c7ef0c3c85c6c676ea4d27f",
+                  "bytes": 1076,
+                  "executable": false
+                },
+                {
+                  "archive_path": "bin/rustfmt",
+                  "path": "bin/rustfmt",
+                  "sha256": "68cb47a2a38daa8ff2ec6d623a2374b0a165d77ec74f1f654216665018c04598",
+                  "bytes": 5256344,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-APACHE",
+                  "path": "licenses/rustc/LICENSE-APACHE",
+                  "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+                  "bytes": 9723,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT",
+                  "path": "licenses/rustc/COPYRIGHT",
+                  "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af",
+                  "bytes": 1571,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-MIT",
+                  "path": "licenses/rustc/LICENSE-MIT",
+                  "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+                  "bytes": 1068,
+                  "executable": false
+                },
+                {
+                  "archive_path": "lib/libLLVM.so.23.1-rust-1.99.1-stable",
+                  "path": "lib/libLLVM.so.23.1-rust-1.99.1-stable",
+                  "sha256": "1cfbe1392a767227b88b33ab6187283e281c63f80f9b1ca9010d9cee5fdf9131",
+                  "bytes": 208167760,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT.html",
+                  "path": "licenses/rustc/COPYRIGHT.html",
+                  "sha256": "d518ae2d76bc7a1f0cbf0069b8deafb56efc39c2614cab74a859ef0b467f8373",
+                  "bytes": 14423589,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT-library.html",
+                  "path": "licenses/rustc/COPYRIGHT-library.html",
+                  "sha256": "5647be074c8edf7339fd863055923a8fc80bc5610a8d4661ec3b767b9d392c27",
+                  "bytes": 1499465,
+                  "executable": false
+                },
+                {
+                  "archive_path": "lib/librustc_driver-7ed0375ae352bd75.so",
+                  "path": "lib/librustc_driver-7ed0375ae352bd75.so",
+                  "sha256": "5a2cd52edba7d15f8d898b92a912638f5b73a089c7c1bfde5604ab45665602c7",
+                  "bytes": 158240640,
+                  "executable": true
+                },
+                {
+                  "archive_path": "lib/libLLVM-23-rust-1.99.1-stable.so",
+                  "path": "lib/libLLVM-23-rust-1.99.1-stable.so",
+                  "sha256": "ed06fbed8d297efa92979aeb227a4ce5b87b1a462d0aeac66d093300fad74824",
+                  "bytes": 42,
+                  "executable": true
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3545,
+                  "sha256": "5b8e1d33bec840fdd70140a27a383ccbeeab81eb0958549d15eb5afa7e8bac1b",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "executable": "bin/rustfmt",
+          "environment": {},
+          "archives": [],
+          "max_installed_bytes": 0
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "executable": "bin/rustfmt",
+          "environment": {},
+          "archives": [],
+          "max_installed_bytes": 0
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "executable": "bin/rustfmt",
+          "environment": {},
+          "archives": [],
+          "max_installed_bytes": 0
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "executable": "bin/rustfmt.exe",
+          "environment": {},
+          "archives": [],
+          "max_installed_bytes": 0
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "executable": "bin/rustfmt.exe",
+          "environment": {},
+          "archives": [],
+          "max_installed_bytes": 0
+        }
+      }
+    }
+  }
+}

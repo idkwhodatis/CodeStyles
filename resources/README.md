@@ -1,7 +1,7 @@
 # Pinned offline formatter resources
 
 Engine: **dprint 0.63.0**. Plugins: **TypeScript 0.96.1**, **JSON 0.25.2**,
-**Markdown 0.26.0**, **TOML 0.9.0**.
+**Markdown 0.26.0**, **TOML 0.9.0**, **Ruff (Python) 0.11.3**.
 
 `manifest.json` pins official GitHub release URLs, published SHA-256 digests,
 archive sizes, and verified extracted executable digests. New plugin licenses
@@ -32,13 +32,23 @@ verified official release artifacts, not claimed as runtime-tested.
 
 ## Built-in syntax tours
 
-`samples/sample.{ts,js,tsx,jsx,json,jsonc,md,toml}` are the compact, immutable
+`samples/sample.{ts,js,tsx,jsx,json,jsonc,md,toml,py,pyi}` are the compact, immutable
 preview inputs embedded into the application at compile time. Each dialect has
 its own source file; they are formatting examples, not programs to execute.
 Imports illustrate syntax and do not require the referenced packages or files.
 Keep these sources deliberately compact and unformatted so setting changes are
 visible. The preview only displays these inputs and never writes into them.
 
-The parity suite formats all eight samples with default and changed styles,
+The parity suite formats all ten samples with default and changed styles,
 reformats the outputs to check parsing and idempotence, and checks strict JSON
 value preservation. The sample files do not need separate runtime packaging.
+
+## Python resource boundary
+
+The pinned [official dprint Ruff wrapper](https://github.com/dprint/dprint-plugin-ruff/releases/tag/0.11.3)
+is a WebAssembly plugin for `.py` and `.pyi`, not a system Ruff executable.
+It runs inside the same bundled dprint on all six targets, without requiring
+Python, pip, Ruff installation or runtime downloads for standalone previews.
+The plugin and its exact upstream schema add approximately 12.1 MB before
+package compression. Its formatter configuration lives in the `ruff` section of
+dprint JSONC; it does not import a project's `pyproject.toml`/`ruff.toml` configuration.

@@ -13,10 +13,19 @@ pub enum PinnedPlugin {
     Json,
     Markdown,
     Toml,
+    Ruff,
+    /// Managed native formatter; not a dprint WASM plugin.
+    Rustfmt,
 }
 
 impl PinnedPlugin {
-    pub const ALL: [Self; 4] = [Self::TypeScript, Self::Json, Self::Markdown, Self::Toml];
+    pub const ALL: [Self; 5] = [
+        Self::TypeScript,
+        Self::Json,
+        Self::Markdown,
+        Self::Toml,
+        Self::Ruff,
+    ];
 
     pub fn section(self) -> &'static str {
         match self {
@@ -24,6 +33,8 @@ impl PinnedPlugin {
             Self::Json => "json",
             Self::Markdown => "markdown",
             Self::Toml => "toml",
+            Self::Ruff => "ruff",
+            Self::Rustfmt => "rustfmt",
         }
     }
     pub fn title(self) -> &'static str {
@@ -32,6 +43,8 @@ impl PinnedPlugin {
             Self::Json => "JSON",
             Self::Markdown => "Markdown",
             Self::Toml => "TOML",
+            Self::Ruff => "Python (Ruff)",
+            Self::Rustfmt => "Rust (managed rustfmt)",
         }
     }
     pub fn version(self) -> &'static str {
@@ -40,6 +53,8 @@ impl PinnedPlugin {
             Self::Json => "0.25.2",
             Self::Markdown => "0.26.0",
             Self::Toml => "0.9.0",
+            Self::Ruff => "0.11.3",
+            Self::Rustfmt => "1.99.1",
         }
     }
     pub fn url(self) -> &'static str {
@@ -48,6 +63,8 @@ impl PinnedPlugin {
             Self::Json => "https://plugins.dprint.dev/json-0.25.2.wasm",
             Self::Markdown => "https://plugins.dprint.dev/markdown-0.26.0.wasm",
             Self::Toml => "https://plugins.dprint.dev/toml-0.9.0.wasm",
+            Self::Ruff => "https://plugins.dprint.dev/ruff-0.11.3.wasm",
+            Self::Rustfmt => "", // Native pack: never exported as a dprint plugin URL.
         }
     }
 
@@ -58,12 +75,25 @@ impl PinnedPlugin {
             Self::Json => "json-0.25.2.wasm",
             Self::Markdown => "markdown-0.26.0.wasm",
             Self::Toml => "toml-0.9.0.wasm",
+            Self::Ruff => "ruff-0.11.3.wasm",
+            Self::Rustfmt => "", // Not present in the bundled WASM resource catalog.
         }
     }
 
     /// Identity must be unambiguous. Inherited configuration and unfamiliar
     /// plugins can replace a namespace, so we never guess from a filename.
     pub fn ensure_available(self, document: &ConfigDocument) -> Result<(), String> {
+        if self == Self::Rustfmt {
+            if document.value(&["extends"])?.is_some()
+                || document
+                    .value(&["inherit"])?
+                    .is_some_and(|v| v != Value::Bool(false))
+                || document.value(&["overrides"])?.is_some()
+            {
+                return Err("Native Rust settings do not resolve dprint inheritance or overrides. Use a separate explicit Rust configuration.".into());
+            }
+            return Ok(());
+        }
         if document.value(&["extends"])?.is_some()
             || document
                 .value(&["inherit"])?
@@ -92,9 +122,10 @@ impl PinnedPlugin {
             .any(|value| value.as_str() == Some(self.url()))
         {
             return Err(format!(
-                "{} {} is not explicitly configured. Use the raw JSONC editor.",
+                "{} {} is not explicitly configured. In Edit JSONC, add \"{}\" to the plugins array to enable these controls. Existing plugin references are not changed automatically.",
                 self.title(),
-                self.version()
+                self.version(),
+                self.url()
             ));
         }
         Ok(())
@@ -120,6 +151,8 @@ impl EnumChoice {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NumberConstraints {
     pub integer: bool,
+    /// Some formatter wire formats reject `1.0` even though JSON Schema calls it an integer.
+    pub unsigned_integer_encoding: bool,
     pub minimum: Option<f64>,
     pub maximum: Option<f64>,
     pub exclusive_minimum: Option<f64>,
@@ -129,6 +162,9 @@ pub struct NumberConstraints {
 
 impl NumberConstraints {
     pub fn validate(&self, value: &Value) -> Result<(), String> {
+        if self.unsigned_integer_encoding && value.as_u64().is_none() {
+            return Err("Expected an unsigned integer without a decimal point or exponent.".into());
+        }
         let number = value
             .as_f64()
             .filter(|value| value.is_finite())
@@ -271,7 +307,13 @@ impl SchemaField {
             .split_once('.')
             .map_or(self.name.as_str(), |(_, option)| option)
             .to_ascii_lowercase();
-        if option.contains("sort") {
+        if option == "reorder_imports" {
+            "Imports"
+        } else if option == "reorder_modules" {
+            "Arrangement"
+        } else if matches!(option.as_str(), "edition" | "style_edition") {
+            "Other"
+        } else if option.contains("sort") {
             if name.contains("import") || name.contains("export") {
                 "Imports"
             } else {
@@ -288,7 +330,9 @@ impl SchemaField {
             .any(|part| option.contains(part))
         {
             "Other"
-        } else if option.contains("indent") || option == "usetabs" {
+        } else if option.contains("indent")
+            || matches!(option.as_str(), "usetabs" | "hard_tabs" | "tab_spaces")
+        {
             "Tabs and Indents"
         } else if option.contains("blankline") {
             "Blank Lines"
@@ -495,6 +539,33 @@ impl PluginSchema {
                     default,
                     kind,
                 };
+                // The pinned Ruff schema declares these as unconstrained numbers,
+                // but the 0.11.3 adapter parses line_length as u16 and indent_width
+                // as u8. Supplement the UI contract without altering upstream bytes:
+                // https://github.com/dprint/dprint-plugin-ruff/blob/0.11.3/src/configuration/configuration.rs
+                // Zero is accepted by the adapter; decimal JSON syntax is not.
+                if plugin == PinnedPlugin::Ruff {
+                    let maximum = match name.as_str() {
+                        "indentWidth" => Some(u8::MAX as f64),
+                        "lineLength" => Some(u16::MAX as f64),
+                        _ => None,
+                    };
+                    if let Some(maximum) = maximum {
+                        field.kind = FieldKind::Number(NumberConstraints {
+                            integer: true,
+                            unsigned_integer_encoding: true,
+                            minimum: Some(0.0),
+                            maximum: Some(maximum),
+                            ..Default::default()
+                        });
+                    }
+                }
+                if plugin == PinnedPlugin::Rustfmt
+                    && matches!(name.as_str(), "max_width" | "tab_spaces")
+                    && let FieldKind::Number(constraints) = &mut field.kind
+                {
+                    constraints.unsigned_integer_encoding = true;
+                }
                 if field.kind.is_supported()
                     && let Some(default) = &field.default
                     && let Err(error) = field.validate(default)
@@ -536,7 +607,7 @@ impl PluginSchema {
 
 #[derive(Clone, Debug)]
 pub struct SchemaCatalog {
-    schemas: [PluginSchema; 4],
+    schemas: [PluginSchema; 6],
 }
 
 impl SchemaCatalog {
@@ -553,12 +624,19 @@ impl SchemaCatalog {
                 .map_err(|error| format!("Invalid bundled Markdown schema: {error}"))?;
         let toml = serde_json::from_str(include_str!("../resources/schemas/toml-0.9.0.json"))
             .map_err(|error| format!("Invalid bundled TOML schema: {error}"))?;
+        let ruff = serde_json::from_str(include_str!("../resources/schemas/ruff-0.11.3.json"))
+            .map_err(|error| format!("Invalid bundled Ruff schema: {error}"))?;
+        let rustfmt =
+            serde_json::from_str(include_str!("../resources/schemas/rustfmt-stable.json"))
+                .map_err(|error| format!("Invalid native Rust schema: {error}"))?;
         Ok(Self {
             schemas: [
                 PluginSchema::from_json(PinnedPlugin::TypeScript, &typescript)?,
                 PluginSchema::from_json(PinnedPlugin::Json, &json)?,
                 PluginSchema::from_json(PinnedPlugin::Markdown, &markdown)?,
                 PluginSchema::from_json(PinnedPlugin::Toml, &toml)?,
+                PluginSchema::from_json(PinnedPlugin::Ruff, &ruff)?,
+                PluginSchema::from_json(PinnedPlugin::Rustfmt, &rustfmt)?,
             ],
         })
     }
@@ -569,6 +647,8 @@ impl SchemaCatalog {
             PinnedPlugin::Json => 1,
             PinnedPlugin::Markdown => 2,
             PinnedPlugin::Toml => 3,
+            PinnedPlugin::Ruff => 4,
+            PinnedPlugin::Rustfmt => 5,
         }]
     }
 
@@ -583,7 +663,7 @@ impl SchemaCatalog {
     /// Validate only known, supported values under a provable pinned identity.
     /// Unknown keys/complex fields stay raw-editable and are left to dprint.
     pub fn validate_document(&self, document: &ConfigDocument) -> Result<(), String> {
-        for plugin in PinnedPlugin::ALL {
+        for plugin in PinnedPlugin::ALL.into_iter().chain([PinnedPlugin::Rustfmt]) {
             if self.available(document, plugin).is_err() {
                 continue;
             }
@@ -591,6 +671,17 @@ impl SchemaCatalog {
                 && !section.is_object()
             {
                 return Err(format!("{} must be an object.", plugin.section()));
+            }
+            if plugin == PinnedPlugin::Rustfmt
+                && let Some(Value::Object(options)) = document.value(&["rustfmt"])?
+            {
+                for key in options.keys() {
+                    if self.schema(plugin).field(key).is_none() {
+                        return Err(format!(
+                            "Unsupported stable Rust setting: rustfmt.{key}. Nightly/arbitrary rustfmt options are not enabled."
+                        ));
+                    }
+                }
             }
             for field in self.fields(plugin) {
                 if !field.kind.is_supported() {
@@ -822,6 +913,7 @@ fn number_constraints(
     };
     let constraints = NumberConstraints {
         integer,
+        unsigned_integer_encoding: false,
         minimum: number("minimum")?,
         maximum: number("maximum")?,
         exclusive_minimum: number("exclusiveMinimum")?,
@@ -911,9 +1003,98 @@ mod tests {
     }
 
     #[test]
-    fn broad_categories_cover_every_field_for_all_eight_dialects() {
+    fn existing_four_plugin_configuration_explains_python_opt_in_without_mutation() {
+        let old_plugins = [
+            PinnedPlugin::TypeScript,
+            PinnedPlugin::Json,
+            PinnedPlugin::Markdown,
+            PinnedPlugin::Toml,
+        ];
+        let document = document(json!({"plugins": old_plugins.map(PinnedPlugin::url)}));
+        let before = document.draft_text().to_owned();
         let catalog = SchemaCatalog::bundled().unwrap();
-        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 8);
+        let error = catalog
+            .available(&document, PinnedPlugin::Ruff)
+            .unwrap_err();
+        assert!(error.contains("Edit JSONC"), "{error}");
+        assert!(error.contains("plugins array"), "{error}");
+        assert!(error.contains(PinnedPlugin::Ruff.url()), "{error}");
+        assert!(error.contains("not changed automatically"), "{error}");
+        for plugin in old_plugins {
+            assert!(catalog.available(&document, plugin).is_ok());
+        }
+        assert_eq!(document.draft_text(), before);
+        assert!(!document.is_dirty());
+    }
+
+    #[test]
+    fn ruff_widths_obey_pinned_adapter_integer_wire_contract() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let schema = catalog.schema(PinnedPlugin::Ruff);
+        for (name, maximum) in [("indentWidth", 255), ("lineLength", 65535)] {
+            let field = schema.field(name).unwrap();
+            for value in ["0".to_owned(), "1".to_owned(), maximum.to_string()] {
+                assert!(field.parse_input(&value).is_ok(), "{name}: {value}");
+            }
+            for value in [
+                "-1".to_owned(),
+                "1.5".to_owned(),
+                "1.0".to_owned(),
+                "1e1".to_owned(),
+                (maximum + 1).to_string(),
+            ] {
+                assert!(field.parse_input(&value).is_err(), "{name}: {value}");
+                let document = document(json!({
+                    "plugins": [PinnedPlugin::Ruff.url()],
+                    "ruff": {name: serde_json::from_str::<Value>(&value).unwrap()}
+                }));
+                let error = catalog.validate_document(&document).unwrap_err();
+                assert!(error.contains(&format!("ruff.{name}")), "{error}");
+            }
+        }
+        // Do not change the generic JSON Schema integer interpretation.
+        let ordinary = PluginSchema::from_json(
+            PinnedPlugin::Json,
+            &json!({
+                "type": "object", "properties": {"width": {"type": "integer"}}
+            }),
+        )
+        .unwrap();
+        assert!(ordinary.field("width").unwrap().parse_input("1.0").is_ok());
+    }
+
+    #[test]
+    fn native_rust_settings_are_explicit_stable_and_do_not_require_a_wasm_url() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let doc = document(json!({"plugins": PinnedPlugin::ALL.map(PinnedPlugin::url)}));
+        assert!(catalog.available(&doc, PinnedPlugin::Rustfmt).is_ok());
+        assert!(catalog.validate_document(&doc).is_ok());
+        for value in [
+            json!({"edition":"2027"}),
+            json!({"unstable_features":true}),
+            json!({"max_width":0}),
+            json!({"max_width":1.0}),
+            json!({"tab_spaces":17}),
+        ] {
+            let doc = document(json!({"rustfmt":value}));
+            assert!(catalog.validate_document(&doc).is_err());
+        }
+        let doc =
+            document(json!({"rustfmt":{"edition":"2024","style_edition":"2021","max_width":100}}));
+        assert!(catalog.validate_document(&doc).is_ok());
+        let inherited = document(json!({"extends":"./base.json","rustfmt":{"edition":"2021"}}));
+        assert!(
+            catalog
+                .available(&inherited, PinnedPlugin::Rustfmt)
+                .is_err()
+        );
+        assert!(!PinnedPlugin::ALL.contains(&PinnedPlugin::Rustfmt));
+    }
+
+    #[test]
+    fn broad_categories_cover_every_field_for_all_languages() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 11);
         for language in crate::comparison::SourceLanguage::ALL {
             let fields = catalog.fields(language.plugin());
             let mut seen = std::collections::HashSet::new();
@@ -1042,6 +1223,7 @@ mod tests {
         assert_eq!(catalog.fields(PinnedPlugin::Json).len(), 16);
         assert_eq!(catalog.fields(PinnedPlugin::Markdown).len(), 37);
         assert_eq!(catalog.fields(PinnedPlugin::Toml).len(), 20);
+        assert_eq!(catalog.fields(PinnedPlugin::Ruff).len(), 12);
         assert!(
             catalog
                 .fields(PinnedPlugin::TypeScript)
@@ -1062,6 +1244,23 @@ mod tests {
         ));
         for plugin in PinnedPlugin::ALL {
             let schema = catalog.schema(plugin);
+            if plugin == PinnedPlugin::Ruff {
+                assert_eq!(schema.field("indentWidth").unwrap().default, Some(json!(4)));
+                assert_eq!(schema.field("lineLength").unwrap().default, Some(json!(88)));
+                assert_eq!(
+                    schema.field("quoteStyle").unwrap().default,
+                    Some(json!("double"))
+                );
+                assert!(matches!(
+                    schema.field("fixLintErrors").unwrap().kind,
+                    FieldKind::Raw { .. }
+                ));
+                assert!(matches!(
+                    schema.field("docstringCodeLineWidth").unwrap().kind,
+                    FieldKind::Raw { .. }
+                ));
+                continue;
+            }
             assert_eq!(schema.field("locked").unwrap().default, None);
             if plugin == PinnedPlugin::Markdown {
                 assert_eq!(schema.field("lineWidth").unwrap().default, Some(json!(80)));
@@ -1495,7 +1694,7 @@ mod tests {
                 supported_count += 1;
             }
         }
-        assert_eq!(supported_count, 253);
+        assert_eq!(supported_count, 263);
         assert!(document.draft_text().contains("// preserve this comment"));
         assert_eq!(
             document.value(&["typescript", "futureOption"]).unwrap(),

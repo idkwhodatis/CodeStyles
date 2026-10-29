@@ -20,8 +20,8 @@ import tempfile
 import traceback
 import zipfile
 
-EXPECTED_EXTENSIONS = {"ts", "js", "tsx", "jsx", "json", "jsonc", "md", "toml"}
-EXPECTED_PLUGINS = {"typescript", "json", "markdown", "toml"}
+EXPECTED_EXTENSIONS = {"ts", "js", "tsx", "jsx", "json", "jsonc", "md", "toml", "py", "pyi"}
+EXPECTED_PLUGINS = {"typescript", "json", "markdown", "toml", "ruff"}
 
 
 def safe_member(root, name):
@@ -255,10 +255,10 @@ def validate_backend_report(report, install, cache):
     if resolved_comparison_path(report.get("cache_directory", "")) != resolved_comparison_path(cache):
         raise ValueError("Self-test did not use the fresh external cache")
     checks = report.get("checks", [])
-    if len(checks) != 8 or {item.get("extension") for item in checks} != EXPECTED_EXTENSIONS:
-        raise ValueError("Self-test did not cover all eight languages")
+    if len(checks) != len(EXPECTED_EXTENSIONS) or {item.get("extension") for item in checks} != EXPECTED_EXTENSIONS:
+        raise ValueError("Self-test did not cover all ten language variants")
     if {item.get("plugin") for item in checks} != EXPECTED_PLUGINS:
-        raise ValueError("Self-test did not cover all four WASM plugins")
+        raise ValueError("Self-test did not cover all five WASM plugins")
     for item in checks:
         evidence = item.get("evidence", {})
         if item.get("status") != "passed" or not evidence.get("changed") or not evidence.get("idempotent"):
