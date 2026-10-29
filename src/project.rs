@@ -676,41 +676,14 @@ impl Backend {
                 if request.safe_file(&path)? != path {
                     return Err("Rust source path changed before write.".into());
                 }
-                let identity = same_file::Handle::from_path(&path).map_err(|e| e.to_string())?;
-                let current_protected = configs
-                    .keys()
-                    .map(same_file::Handle::from_path)
-                    .collect::<Result<std::collections::HashSet<_>, _>>()
-                    .map_err(|e| e.to_string())?;
-                if current_protected.contains(&identity) {
-                    return Err("Rust source aliases a protected configuration.".into());
-                }
-                // Replace only the explicitly selected path. rustfmt never sees a
-                // source filename, so out-of-line modules cannot be rewritten.
-                let mut temporary =
-                    tempfile::NamedTempFile::new_in(path.parent().expect("file parent"))
-                        .map_err(|e| format!("Cannot stage Rust formatting: {e}"))?;
-                temporary
-                    .as_file()
-                    .set_permissions(
-                        fs::metadata(&path)
-                            .map_err(|e| e.to_string())?
-                            .permissions(),
-                    )
-                    .map_err(|e| e.to_string())?;
-                temporary
-                    .write_all(output.as_bytes())
-                    .map_err(|e| e.to_string())?;
-                temporary.as_file().sync_all().map_err(|e| e.to_string())?;
-                verify_rust_source(&path, &sources[&path], cancelled)?;
-                verify_configs(&configs)?;
-                if cancelled.load(Ordering::Acquire) {
-                    return Err("Rust project operation cancelled.".into());
-                }
-                *writes_started = true;
-                temporary
-                    .persist(&path)
-                    .map_err(|e| format!("Cannot replace Rust source: {}", e.error))?;
+                replace_rust_source(
+                    &path,
+                    &output,
+                    &sources[&path],
+                    &configs,
+                    cancelled,
+                    writes_started,
+                )?;
             }
             let verification = ProjectRequest {
                 root: request.root.clone(),
@@ -1260,6 +1233,65 @@ fn rust_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<RustSc
     Ok((files, configs))
 }
 
+/// Stage beside the destination and atomically replace it, never unlinking the
+/// original first. All identity and staging handles are closed before commit:
+/// Windows replacement must not depend on open-handle sharing semantics.
+fn replace_rust_source(
+    path: &Path,
+    output: &str,
+    expected: &SourceFingerprint,
+    configs: &BTreeMap<PathBuf, Vec<u8>>,
+    cancelled: &AtomicBool,
+    writes_started: &mut bool,
+) -> Result<(), String> {
+    {
+        let identity = same_file::Handle::from_path(path).map_err(|e| e.to_string())?;
+        let protected = configs
+            .keys()
+            .map(same_file::Handle::from_path)
+            .collect::<Result<std::collections::HashSet<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        if protected.contains(&identity) {
+            return Err("Rust source aliases a protected configuration.".into());
+        }
+    }
+    let permissions = fs::metadata(path).map_err(|e| e.to_string())?.permissions();
+    if permissions.readonly() {
+        return Err("Cannot replace read-only Rust source.".into());
+    }
+    let mut temporary =
+        tempfile::NamedTempFile::new_in(path.parent().ok_or("Rust source has no parent.")?)
+            .map_err(|e| format!("Cannot stage Rust formatting: {e}"))?;
+    temporary
+        .write_all(output.as_bytes())
+        .map_err(|e| e.to_string())?;
+    temporary
+        .as_file()
+        .set_permissions(permissions)
+        .map_err(|e| e.to_string())?;
+    temporary.as_file().sync_all().map_err(|e| e.to_string())?;
+    // into_temp_path closes the writable handle but retains RAII cleanup if any
+    // final guard or the atomic rename fails. No delete-before-rename fallback.
+    let temporary = temporary.into_temp_path();
+    verify_rust_source(path, expected, cancelled)?;
+    verify_configs(configs)?;
+    if fs::metadata(path)
+        .map_err(|e| e.to_string())?
+        .permissions()
+        .readonly()
+    {
+        return Err("Cannot replace read-only Rust source.".into());
+    }
+    if cancelled.load(Ordering::Acquire) {
+        return Err("Rust project operation cancelled.".into());
+    }
+    temporary
+        .persist(path)
+        .map_err(|e| format!("Cannot replace Rust source: {}", e.error))?;
+    *writes_started = true;
+    Ok(())
+}
+
 fn rust_diff(path: &Path, source: &str, formatted: &str) -> String {
     use crate::comparison::{DiffKind, line_diff};
     let mut output = format!("--- {}\n+++ {} (rustfmt)\n", path.display(), path.display());
@@ -1542,6 +1574,75 @@ fn verify_configs(configs: &BTreeMap<PathBuf, Vec<u8>>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rust_source_atomic_replace_existing_preserves_permissions_and_siblings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = fs::canonicalize(dir.path()).unwrap().join("source.rs");
+        fs::write(&path, "fn main( ){}\n").unwrap();
+        let sibling = path.with_file_name("sibling.rs");
+        fs::write(&sibling, "untouched").unwrap();
+        let permissions = fs::metadata(&path).unwrap().permissions();
+        let cancelled = AtomicBool::new(false);
+        let expected = rust_source(&path, &cancelled).unwrap().1;
+        let mut written = false;
+        replace_rust_source(
+            &path,
+            "fn main() {}\n",
+            &expected,
+            &BTreeMap::new(),
+            &cancelled,
+            &mut written,
+        )
+        .unwrap();
+        assert!(written);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "fn main() {}\n");
+        assert_eq!(fs::metadata(&path).unwrap().permissions(), permissions);
+        assert_eq!(fs::read_to_string(sibling).unwrap(), "untouched");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn rust_source_atomic_replace_readonly_and_stale_fail_without_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = fs::canonicalize(dir.path()).unwrap().join("source.rs");
+        fs::write(&path, "original").unwrap();
+        let cancelled = AtomicBool::new(false);
+        let expected = rust_source(&path, &cancelled).unwrap().1;
+        let original_permissions = fs::metadata(&path).unwrap().permissions();
+        let mut readonly = original_permissions.clone();
+        readonly.set_readonly(true);
+        fs::set_permissions(&path, readonly).unwrap();
+        let mut written = false;
+        let error = replace_rust_source(
+            &path,
+            "changed",
+            &expected,
+            &BTreeMap::new(),
+            &cancelled,
+            &mut written,
+        )
+        .unwrap_err();
+        assert!(error.contains("read-only"), "{error}");
+        assert!(!written);
+        assert_eq!(fs::read(&path).unwrap(), b"original");
+        fs::set_permissions(&path, original_permissions).unwrap();
+        fs::write(&path, "external edit").unwrap();
+        assert!(
+            replace_rust_source(
+                &path,
+                "changed",
+                &expected,
+                &BTreeMap::new(),
+                &cancelled,
+                &mut written
+            )
+            .is_err()
+        );
+        assert!(!written);
+        assert_eq!(fs::read(&path).unwrap(), b"external edit");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
 
     #[test]
     fn unresolved_dependency_graphs_are_read_only() {
