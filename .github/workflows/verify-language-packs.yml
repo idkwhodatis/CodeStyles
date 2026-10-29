@@ -1,4 +1,4 @@
-name: Verify unpublished native language packs
+name: Verify native language pack candidates
 
 # Deliberate manual validation, never a release or an automatic source download.
 on:
@@ -45,9 +45,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.99.1-${{ matrix.target }}
-      - name: Verify native host and unpublished production catalog
+      - name: Verify native host and clean tracked checkout
         run: |
-          python -c "import json,subprocess; host=subprocess.check_output(['rustc','-vV'],text=True); print(host); assert 'host: ${{ matrix.target }}' in host; c=json.load(open('resources/toolchains.json')); assert all(t['available'] is False for t in c['toolchains']['rustfmt']['targets'].values())"
+          python -c "import subprocess; host=subprocess.check_output(['rustc','-vV'],text=True); print(host); assert 'host: ${{ matrix.target }}' in host.splitlines()"
+          git diff HEAD --exit-code
       - name: Validate maintainer scripts
         run: python -m unittest discover -s scripts -p 'test_*.py'
       - name: Prepare existing offline backend resources
@@ -58,11 +59,10 @@ jobs:
           --target ${{ matrix.target }}
           --work-dir "${{ runner.temp }}/codestyles-native-pack"
           --report-dir "${{ github.workspace }}/language-pack-reports"
-      - name: Ensure production catalog was restored and downloads remain disabled
+      - name: Ensure original tracked production catalog was restored
         if: always()
         run: |
-          git diff --exit-code -- resources/toolchains.json
-          python -c "import json; c=json.load(open('resources/toolchains.json')); assert all(t['available'] is False for t in c['toolchains']['rustfmt']['targets'].values())"
+          git diff HEAD --exit-code
       - uses: actions/upload-artifact@v4
         if: always()
         with:

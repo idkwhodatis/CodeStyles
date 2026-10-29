@@ -10,6 +10,18 @@ import build_language_pack as pack
 
 
 class LanguagePackBuildTests(unittest.TestCase):
+    def test_provenance_newlines_depend_on_target_not_host(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'PROVENANCE.json'
+            for target in ('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc',
+                           'x86_64-apple-darwin', 'aarch64-unknown-linux-gnu'):
+                pack.write_provenance(output, {'version': '1.99.1'}, target)
+                expected = b'{\n  "version": "1.99.1"\n}\n'
+                if 'windows' in target:
+                    expected = expected.replace(b'\n', b'\r\n')
+                self.assertEqual(output.read_bytes(), expected)
+
+
     def test_reproducible_single_gzip_and_metadata(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

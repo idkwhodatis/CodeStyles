@@ -87,6 +87,15 @@ def write_bundle(stage, output, members):
         temporary.unlink(missing_ok=True)
 
 
+def write_provenance(path, receipt, target):
+    # Preserve the already native-tested target bytes independent of build host.
+    # Windows candidates were verified with CRLF; Unix candidates with LF.
+    value = json.dumps(receipt, indent=2, sort_keys=True) + '\n'
+    if target.endswith('-pc-windows-msvc'):
+        value = value.replace('\n', '\r\n')
+    path.write_bytes(value.encode('utf-8'))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sources', type=Path, default=ROOT / 'resources/toolchain-sources.json')
@@ -129,7 +138,7 @@ def main():
                    'source_archives': [{'url': a['url'], 'sha256': a['sha256']} for a in target['archives']],
                    'files': members}
         receipt_path = stage / 'PROVENANCE.json'
-        receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
+        write_provenance(receipt_path, receipt, args.target)
         members.append({'path': 'PROVENANCE.json', 'archive_path': 'PROVENANCE.json', 'bytes': receipt_path.stat().st_size,
                         'sha256': digest_file(receipt_path), 'executable': False})
         installed = sum(m['bytes'] for m in members)

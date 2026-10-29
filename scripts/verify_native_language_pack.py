@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """CI-only native candidate validation. Never publishes/enables a download.
 
-Requires a clean catalog checkout and a native Rust host. Temporarily recompiles
+Requires a clean tracked checkout (published or unpublished catalog) and a native
+Rust host. Temporarily recompiles
 with one locally pinned unpublished candidate, then restores exact catalog bytes.
 """
 import argparse
@@ -172,7 +173,7 @@ def verify(target, work_dir, report_dir, root=ROOT, runner=run, disk_usage=shuti
               'catalog_sha256': hashlib.sha256(original).hexdigest()}
     temporary = None
     try:
-        runner(['git', 'diff', '--exit-code'], root, env, report_dir / 'catalog-before.log')
+        runner(['git', 'diff', 'HEAD', '--exit-code'], root, env, report_dir / 'catalog-before.log')
         host = runner(['rustc', '-vV'], root, env, report_dir / 'host.log')
         report['rustc_host_version'] = host
         if f'host: {target}' not in host.splitlines():
@@ -204,15 +205,20 @@ def verify(target, work_dir, report_dir, root=ROOT, runner=run, disk_usage=shuti
                 raise RuntimeError('Exact native E2E did not report one executed passing test')
             report['native_execution'] = 'passed'
     finally:
-        catalog_path.write_bytes(original)
-        report['catalog_restored'] = catalog_path.read_bytes() == original
-        report['own_temporary_removed'] = temporary is None or not Path(temporary).exists()
-        (report_dir / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-        if source_path.read_bytes() != source_bytes or not report['catalog_restored']:
-            raise RuntimeError('Tracked manifests changed during native verification')
-        env[DEADLINE_ENV] = str(started + 25 * 60)  # reserve final minute for restoration checks
-        runner(['git', 'diff', '--exit-code'],
-               root, env, report_dir / 'catalog-after.log')
+        try:
+            catalog_path.write_bytes(original)
+            report['catalog_restored'] = catalog_path.read_bytes() == original
+            if source_path.read_bytes() != source_bytes or not report['catalog_restored']:
+                raise RuntimeError('Tracked manifests changed during native verification')
+            env[DEADLINE_ENV] = str(started + 25 * 60)  # reserve final minute for restoration checks
+            runner(['git', 'diff', 'HEAD', '--exit-code'],
+                   root, env, report_dir / 'catalog-after.log')
+        except BaseException:
+            report['native_execution'] = 'failed'
+            raise
+        finally:
+            report['own_temporary_removed'] = temporary is None or not Path(temporary).exists()
+            (report_dir / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     return report
 
 

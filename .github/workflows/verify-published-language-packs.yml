@@ -1,0 +1,74 @@
+name: Verify published language pack downloads
+
+# Two full bundle downloads plus one cancelled partial per target; no publication.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: published-language-pack-downloads
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Published rustfmt download (${{ matrix.target }})
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_BUILD_JOBS: 2
+      RUSTUP_TOOLCHAIN: 1.99.1-${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1-${{ matrix.target }}
+      - name: Verify native host and clean tracked checkout
+        run: |
+          python -c "import subprocess; host=subprocess.check_output(['rustc','-vV'],text=True); print(host); assert 'host: ${{ matrix.target }}' in host.splitlines()"
+          git diff HEAD --exit-code
+      - name: Validate maintainer scripts
+        run: python -m unittest discover -s scripts -p 'test_*.py'
+      - name: Prepare existing offline backend resources
+        run: python scripts/bundle_resources.py fetch --target ${{ matrix.target }}
+      - name: Verify published download, cancelled repair, reinstall and uninstall
+        run: >-
+          python scripts/verify_published_language_pack.py
+          --target ${{ matrix.target }}
+          --work-dir "${{ runner.temp }}/codestyles-published-pack"
+          --report-dir "${{ github.workspace }}/published-pack-reports"
+      - name: Ensure original tracked production catalog was restored
+        if: always()
+        run: |
+          git diff HEAD --exit-code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-language-pack-report-${{ matrix.target }}
+          path: published-pack-reports/*
+          if-no-files-found: warn
+          retention-days: 7

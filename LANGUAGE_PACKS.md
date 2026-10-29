@@ -8,12 +8,16 @@ arbitrary executable runner, or agent coding-rules engine.
 ## Current availability
 
 The Language support page shows installation status, location, progress, errors,
-cancellation and an uninstall confirmation. Network installation is deliberately
-disabled until reviewed bundles are actually published on GitHub and their exact
-URLs/hashes enabled in the embedded catalog. No release assets have been published.
-Linux x64 has one locally verified candidate; “Install verified local archive”
-accepts only that catalog-pinned archive, not arbitrary binaries or manifests.
-Other five platform entries remain unavailable, pending native dependency checks.
+cancellation and an uninstall confirmation. With explicit user approval, six
+reviewed Rust bundles were published on October 29, 2026 in the
+[toolchains-rustfmt-1.99.1-r1 pre-release](https://github.com/idkwhodatis/CodeStyles/releases/tag/toolchains-rustfmt-1.99.1-r1).
+This toolchain pre-release does not replace the application alpha release.
+The updated embedded catalog enables only the fixed, hash-pinned GitHub assets;
+older application binaries do not acquire this catalog update automatically.
+“Install verified local archive” accepts only the target's catalog-pinned archive,
+not arbitrary binaries or manifests. Five hosted native targets passed acceptance,
+with Linux x64 separately verified locally. Production GitHub download/install
+acceptance is a separate pending check, not implied by publication or those tests.
 See [packaging and approval requirements](TOOLCHAIN_PACKAGING.md).
 
 ## Storage
@@ -67,11 +71,12 @@ PATH executable, rustup, network request or shell is needed to format after inst
 
 ## Remaining validation / release gates
 
-- Actual GitHub publication and enabling download URLs require approval; network
-  installation of the unpublished candidate cannot be claimed as tested.
-- Linux x64 local installation and native execution are verified. Windows/macOS
-  and Linux ARM64 have verified official source archive/member hashes; native
-  execution and minimum OS checks remain pending. Static runtime closure findings
-  and remaining platform-specific gaps are recorded in `TOOLCHAIN_PACKAGING.md`.
+- The current six-bundle release and catalog activation were explicitly approved.
+  Future releases or changed pins still require approval. Production GitHub
+  download/install acceptance is pending; an ignored opt-in integration test
+  exercises that path separately from local candidate acceptance.
+- All six target runtimes have native execution evidence: five hosted native
+  jobs and Linux x64 local execution. Minimum-OS checks remain pending. Static
+  runtime closure findings and remaining gaps are in `TOOLCHAIN_PACKAGING.md`.
 - Desktop compilation/unit tests do not substitute for manual six-platform GUI,
   permission, relocation and packaging acceptance.

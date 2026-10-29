@@ -1,5 +1,6 @@
 """Offline verification-helper fixtures: no network, compiler, or foreign execution."""
 import json
+import itertools
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -15,7 +16,7 @@ from verify_native_language_pack import DEADLINE_ENV, MIN_FREE, run, terminate_t
 TARGET = 'aarch64-pc-windows-msvc'
 
 
-def setup(root):
+def setup(root, published=False):
     resources = root / 'resources'
     resources.mkdir()
     member = {'archive_path': 'upstream/bin/rustfmt.exe', 'path': 'bin/rustfmt.exe',
@@ -28,6 +29,12 @@ def setup(root):
     (resources / 'toolchain-sources.json').write_text(json.dumps(sources))
     catalog = {'format_version': 1, 'toolchains': {'rustfmt': {'version': '1.99.1',
                'targets': {TARGET: {'available': False}, 'other': {'available': False}}}}}
+    if published:
+        for spec in catalog['toolchains']['rustfmt']['targets'].values():
+            spec.update(available=True, archives=[{
+                'url': 'https://github.com/idkwhodatis/CodeStyles/releases/download/rustfmt-1.99.1/pinned.tar.gz',
+                'sha256': 'c' * 64,
+            }])
     (resources / 'toolchains.json').write_text(json.dumps(catalog))
     return sources
 
@@ -57,10 +64,10 @@ def build_fixture(bundle, sources, target=TARGET, empty_provenance=False):
 
 class NativeVerificationTests(unittest.TestCase):
     def test_restore_failure_success_and_cleanup_ownership(self):
-        for fail in (False, True, "zero-tests"):
-            with self.subTest(fail=fail), tempfile.TemporaryDirectory() as tmp:
+        for published, fail in itertools.product((False, True), (False, True, "zero-tests", "last-git")):
+            with self.subTest(published=published, fail=fail), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
-                sources = setup(root)
+                sources = setup(root, published=published)
                 catalog = root / 'resources/toolchains.json'
                 before = catalog.read_bytes()
                 work = root / 'work'; work.mkdir()
@@ -69,6 +76,8 @@ class NativeVerificationTests(unittest.TestCase):
                 def runner(argv, cwd, env, log):
                     calls.append(argv)
                     log.write_text('fixture')
+                    if fail == 'last-git' and log.name == 'catalog-after.log':
+                        raise RuntimeError('fixture final tracked failure')
                     if argv[0] == 'rustc': return f'host: {TARGET}\n'
                     if '--candidate' in argv:
                         bundle = Path(argv[argv.index('--output') + 1])
@@ -82,7 +91,11 @@ class NativeVerificationTests(unittest.TestCase):
                         for key in ('TMPDIR', 'TMP', 'TEMP'):
                             self.assertEqual(Path(env[key]), owned / 'runtime-temp')
                             self.assertTrue(Path(env[key]).is_dir())
-                        self.assertFalse(json.loads(catalog.read_text())['toolchains']['rustfmt']['targets'][TARGET]['available'])
+                        targets = json.loads(catalog.read_text())['toolchains']['rustfmt']['targets']
+                        self.assertIs(targets[TARGET]['available'], False)
+                        self.assertNotIn('url', targets[TARGET])
+                        self.assertTrue(all('url' not in archive for archive in targets[TARGET]['archives']))
+                        self.assertEqual(targets['other'], json.loads(before)['toolchains']['rustfmt']['targets']['other'])
                         if fail is True: raise RuntimeError('fixture native failure')
                         if fail == 'zero-tests': return 'test result: ok. 0 passed; 0 failed; 0 ignored;'
                         return 'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;'
@@ -90,15 +103,19 @@ class NativeVerificationTests(unittest.TestCase):
                 args = (TARGET, work, root / 'reports')
                 options = dict(root=root, runner=runner, disk_usage=lambda _: SimpleNamespace(free=MIN_FREE))
                 if fail:
-                    expected = 'native failure' if fail is True else 'one executed'
+                    expected = ('native failure' if fail is True else
+                                'final tracked failure' if fail == 'last-git' else 'one executed')
                     with self.assertRaisesRegex(RuntimeError, expected): verify(*args, **options)
                 else:
                     self.assertEqual(verify(*args, **options)['native_execution'], 'passed')
                 self.assertEqual(catalog.read_bytes(), before)
+                self.assertEqual([argv for argv in calls if argv[0] == 'git'],
+                                 [['git', 'diff', 'HEAD', '--exit-code']] * 2)
                 self.assertEqual(list(work.iterdir()), [keep])
                 report = json.loads((root / 'reports/report.json').read_text())
                 self.assertTrue(report['catalog_restored'])
                 self.assertTrue(report['own_temporary_removed'])
+                self.assertEqual(report['native_execution'], 'failed' if fail else 'passed')
 
     def test_reject_candidate_trust_and_provenance(self):
         for mutation in ('available', 'url', 'hash', 'target', 'member', 'empty-provenance'):
