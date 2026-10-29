@@ -30,6 +30,10 @@ class PublishedVerificationTests(unittest.TestCase):
                 catalog = root / 'resources/toolchains.json'
                 original = catalog.read_bytes()
                 work = root / 'work'; work.mkdir()
+                # Exercise a non-canonical spelling on every host, not only
+                # machines whose system temp directory is itself an alias.
+                child = work / 'child'; child.mkdir()
+                work = child / '..'
                 sentinel = work / 'unrelated'; sentinel.write_text('keep')
                 calls = []
                 def runner(argv, cwd, env, log):
@@ -43,7 +47,9 @@ class PublishedVerificationTests(unittest.TestCase):
                         self.assertNotIn('CODESTYLES_TEST_RUSTFMT_ARCHIVE', env)
                         self.assertEqual(env['TMP'], env['TEMP'])
                         self.assertEqual(env['TMP'], env['TMPDIR'])
-                        self.assertTrue(Path(env['TMP']).is_relative_to(work))
+                        # Canonicalize both sides: macOS /var aliases /private/var,
+                        # and Windows TEMP can contain DOS short-name components.
+                        self.assertTrue(Path(env['TMP']).resolve().is_relative_to(work.resolve()))
                         self.assertEqual(catalog.read_bytes(), original)
                         Path(env['TMP']).joinpath('installed-fixture').write_text('runtime')
                         if outcome == 'failure': raise RuntimeError('child failed')
@@ -57,7 +63,7 @@ class PublishedVerificationTests(unittest.TestCase):
                     with self.assertRaises((RuntimeError, ValueError)):
                         verify(TARGET, work, root / 'reports', **options)
                 self.assertEqual(catalog.read_bytes(), original)
-                self.assertEqual(list(work.iterdir()), [sentinel])
+                self.assertEqual(set(work.iterdir()), {sentinel, work / 'child'})
                 report = json.loads((root / 'reports/report.json').read_bytes())
                 self.assertTrue(report['catalog_unchanged'])
                 self.assertTrue(report['own_temporary_removed'])
