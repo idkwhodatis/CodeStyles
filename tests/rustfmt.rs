@@ -4,7 +4,7 @@ use codestyles::{
     config::ConfigDocument,
     project::{ProjectAction, ProjectRequest},
     resources, rustfmt,
-    toolchains::ToolchainManager,
+    toolchains::{ToolchainManager, ToolchainStatus},
 };
 use serde_json::json;
 use std::{
@@ -222,10 +222,46 @@ fn real_managed_rust_pack_preview_and_reviewed_project_end_to_end() {
     let installed = manager
         .install_verified_archive("rustfmt", Path::new(&archive), cancel(false), |_| {})
         .unwrap();
+    let runtime_root = installed.root.clone();
+    assert!(installed.executable.starts_with(&runtime_root));
+    assert!(runtime_root.starts_with(fs::canonicalize(manager.root()).unwrap()));
+    let mut version = std::process::Command::new(&installed.executable);
+    version
+        .env_clear()
+        .envs(installed.environment.iter().cloned());
+    #[cfg(windows)]
+    for key in ["SystemRoot", "WINDIR"] {
+        if let Some(value) = std::env::var_os(key) {
+            version.env(key, value);
+        }
+    }
+    let version = version
+        .current_dir(install.path())
+        .arg("--version")
+        .output()
+        .unwrap();
+    assert!(
+        version.status.success(),
+        "{}",
+        String::from_utf8_lossy(&version.stderr)
+    );
+    let version_text = String::from_utf8(version.stdout).unwrap();
+    assert!(version_text.starts_with("rustfmt "), "{version_text}");
+    assert!(version_text.contains("stable"), "{version_text}");
     drop(installed); // Shared lease must not block later uninstall.
+    assert!(matches!(
+        manager.status("rustfmt").unwrap(),
+        ToolchainStatus::Installed { .. }
+    ));
+    // Uninstall must leave siblings outside the owned managed directory alone.
+    let sentinel = install.path().join("keep-user-file");
+    fs::write(&sentinel, b"untouched").unwrap();
     let backend = backend().with_toolchain_manager(manager.clone());
     let project = tempfile::tempdir().unwrap();
-    let root = project.path();
+    // macOS /var aliases and Windows verbatim prefixes must match the same
+    // canonical identities enforced by ProjectRequest, not lexical temp paths.
+    let canonical_root = fs::canonicalize(project.path()).unwrap();
+    let root = canonical_root.as_path();
     let mut config = document(
         root,
         json!({"rustfmt":{"edition":"2021","style_edition":"2021"}}),
@@ -326,6 +362,18 @@ fn real_managed_rust_pack_preview_and_reviewed_project_end_to_end() {
             .contains("cancelled")
     );
     manager.uninstall("rustfmt").unwrap();
+    assert_eq!(manager.status("rustfmt").unwrap(), ToolchainStatus::Missing);
+    assert!(
+        !runtime_root.exists(),
+        "Uninstall must remove the managed runtime"
+    );
+    assert!(!manager.root().join("rustfmt/active.json").exists());
+    let remaining = fs::read_dir(manager.root().join("rustfmt"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect::<Vec<_>>();
+    assert_eq!(remaining, vec![std::ffi::OsString::from(".lock")]);
+    assert_eq!(fs::read(sentinel).unwrap(), b"untouched");
     assert!(
         preview(&backend, &config, source)
             .unwrap_err()

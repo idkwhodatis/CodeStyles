@@ -165,3 +165,36 @@ the binaries. It intentionally rejects unsupported PE layouts rather than
 inferring a closure. Tests cover ARM64 headers, ordinary/delayed imports and
 malformed bounds/addressing. Static imports cannot establish OS compatibility;
 a clean native runner remains required before publishing/enabling a bundle.
+
+## Manual native candidate acceptance (no release)
+
+The `Verify unpublished native language packs` Actions workflow is deliberately
+`workflow_dispatch` only. It uses the same existing native Linux ARM64, macOS
+x64/ARM64 and Windows x64/ARM64 hosted runners, at most two at once. It does not
+publish releases, upload candidate bundles, enable a download URL, or alter the
+checked-in application catalog. Each job has a 30-minute limit and requires at
+least 2 GiB free before candidate work; the five official component inputs total
+approximately 316 MiB, in addition to ordinary Cargo/toolchain/backend setup.
+
+`scripts/verify_native_language_pack.py` builds one candidate from reviewed source
+pins, verifies the complete candidate/source/provenance relationship, temporarily
+embeds that exact unpublished candidate for the current target, and runs the real
+managed install/format/project/uninstall integration test. The temporary catalog
+continues to say `available: false`. Original catalog bytes are restored even on
+ordinary failure, and the workflow independently checks that tracked files and
+production download availability remain unchanged. Temporary source/bundle/runtime
+files are removed; only bounded logs, candidate metadata and an acceptance report
+are retained for seven days. No foreign binary is executed on this local executor.
+
+The Rust test uses the absolute managed executable and a cleared runtime
+environment, not the runner's installed rustfmt. It checks the stable version,
+preview idempotence/settings/edition/syntax diagnostics, selected project writes,
+module isolation and stale review rejection, then verifies uninstall removes the
+managed runtime while preserving unrelated files. The Rust compiler installed on
+the runner is used only to build the test harness.
+
+A successful native job is evidence for that runner OS, not every minimum OS,
+GUI/quarantine/signing scenario, or a published GitHub-download installation.
+Maintainer review and separate release approval are still required before adding
+final GitHub asset URLs and enabling a target. Before sharing a successful result,
+check the run's exact commit, all five job conclusions and per-target reports.

@@ -1,0 +1,72 @@
+name: Verify unpublished native language packs
+
+# Deliberate manual validation, never a release or an automatic source download.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unpublished-native-language-packs
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Native rustfmt pack (${{ matrix.target }})
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_BUILD_JOBS: 2
+      RUSTUP_TOOLCHAIN: 1.99.1-${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1-${{ matrix.target }}
+      - name: Verify native host and unpublished production catalog
+        run: |
+          python -c "import json,subprocess; host=subprocess.check_output(['rustc','-vV'],text=True); print(host); assert 'host: ${{ matrix.target }}' in host; c=json.load(open('resources/toolchains.json')); assert all(t['available'] is False for t in c['toolchains']['rustfmt']['targets'].values())"
+      - name: Validate maintainer scripts
+        run: python -m unittest discover -s scripts -p 'test_*.py'
+      - name: Prepare existing offline backend resources
+        run: python scripts/bundle_resources.py fetch --target ${{ matrix.target }}
+      - name: Build, install, execute and uninstall the pinned native candidate
+        run: >-
+          python scripts/verify_native_language_pack.py
+          --target ${{ matrix.target }}
+          --work-dir "${{ runner.temp }}/codestyles-native-pack"
+          --report-dir "${{ github.workspace }}/language-pack-reports"
+      - name: Ensure production catalog was restored and downloads remain disabled
+        if: always()
+        run: |
+          git diff --exit-code -- resources/toolchains.json
+          python -c "import json; c=json.load(open('resources/toolchains.json')); assert all(t['available'] is False for t in c['toolchains']['rustfmt']['targets'].values())"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-language-pack-report-${{ matrix.target }}
+          path: language-pack-reports/*
+          if-no-files-found: warn
+          retention-days: 7
