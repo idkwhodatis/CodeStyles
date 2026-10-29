@@ -380,3 +380,94 @@ fn real_managed_rust_pack_preview_and_reviewed_project_end_to_end() {
             .contains("Install Rust")
     );
 }
+
+/// Production acceptance: URLs and digests come only from the compiled catalog.
+/// This deliberately fails before networking if the current platform is unpublished.
+/// Downloads the published bundle twice plus one cancelled partial transfer; allow
+/// disk space for two retained runtimes and one staging archive. No PATH fallback.
+/// This tests same-version reinstallation, NOT a real cross-version upgrade.
+#[test]
+#[ignore = "requires published embedded GitHub release URLs and explicit network acceptance"]
+fn published_github_rust_pack_download_cancel_reinstall_and_uninstall() {
+    use std::sync::atomic::Ordering;
+
+    let install = tempfile::tempdir().unwrap();
+    let manager = ToolchainManager::at_managed_root(install.path().join("managed")).unwrap();
+    manager
+        .download_available("rustfmt")
+        .expect("publish the platform bundle and enable its pinned embedded URL first");
+    let sentinel = install.path().join("keep-user-file");
+    fs::write(&sentinel, b"untouched").unwrap();
+    assert_eq!(manager.status("rustfmt").unwrap(), ToolchainStatus::Missing);
+
+    let received_bytes = AtomicBool::new(false);
+    let first = manager
+        .install("rustfmt", cancel(false), |progress| {
+            if progress.phase == "downloading" && progress.downloaded_bytes > 0 {
+                received_bytes.store(true, Ordering::Release);
+            }
+        })
+        .expect("download and verify the actual pinned GitHub bundle");
+    assert!(received_bytes.load(Ordering::Acquire));
+    let first_root = first.root.clone();
+    let first_version = first.version.clone();
+    assert!(first.executable.starts_with(&first_root));
+    drop(first); // Never retain a runtime lease across install/uninstall.
+    let pointer = manager.root().join("rustfmt/active.json");
+    let original_pointer = fs::read(&pointer).unwrap();
+
+    let backend = backend().with_toolchain_manager(manager.clone());
+    let project = tempfile::tempdir().unwrap();
+    let config = document(project.path(), json!({"rustfmt":{"edition":"2021"}}));
+    let source = "fn main( ){let answer=42;}\n";
+    let formatted = preview(&backend, &config, source).unwrap();
+    assert_ne!(formatted, source);
+    assert_eq!(preview(&backend, &config, &formatted).unwrap(), formatted);
+
+    // Cancel only after receiving real response bytes, not before the request.
+    let cancelled = cancel(false);
+    let error = manager
+        .install("rustfmt", cancelled.clone(), |progress| {
+            if progress.phase == "downloading" && progress.downloaded_bytes > 0 {
+                cancelled.store(true, Ordering::Release);
+            }
+        })
+        .unwrap_err();
+    assert!(cancelled.load(Ordering::Acquire));
+    assert!(error.contains("cancelled"), "{error}");
+    assert_eq!(fs::read(&pointer).unwrap(), original_pointer);
+    let still_active = manager.resolve("rustfmt").unwrap();
+    assert_eq!(still_active.root, first_root);
+    drop(still_active);
+    assert_eq!(preview(&backend, &config, source).unwrap(), formatted);
+    assert!(
+        fs::read_dir(manager.root().join("rustfmt"))
+            .unwrap()
+            .all(|entry| !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".staging-"))
+    );
+
+    // A successful same-version reinstall activates a fresh immutable directory
+    // and retains the prior runtime until explicit uninstall.
+    let second = manager.install("rustfmt", cancel(false), |_| {}).unwrap();
+    let second_root = second.root.clone();
+    assert_eq!(second.version, first_version);
+    assert_ne!(second_root, first_root);
+    assert!(first_root.is_dir());
+    drop(second);
+    let active = manager.resolve("rustfmt").unwrap();
+    assert_eq!(active.root, second_root);
+    drop(active);
+    assert_eq!(preview(&backend, &config, source).unwrap(), formatted);
+
+    manager.uninstall("rustfmt").unwrap();
+    assert_eq!(manager.status("rustfmt").unwrap(), ToolchainStatus::Missing);
+    assert!(manager.resolve("rustfmt").is_err());
+    assert!(!first_root.exists());
+    assert!(!second_root.exists());
+    assert_eq!(fs::read(&sentinel).unwrap(), b"untouched");
+    assert!(preview(&backend, &config, source).is_err());
+}

@@ -6,17 +6,18 @@
       "distribution": "GitHub release bundles only; no runtime fallback to upstream component downloads.",
       "targets": {
         "x86_64-unknown-linux-gnu": {
-          "available": false,
-          "reason": "Unpublished local build candidate; GitHub release approval required.",
+          "available": true,
           "executable": "bin/rustfmt",
           "environment": {},
           "max_installed_bytes": 387615675,
           "validation": {
             "archive_and_members": "verified",
-            "native_execution": "passed-linux-x64-clean-environment-stdin-format",
+            "native_execution": "passed-local-linux-x64",
             "rustfmt_version": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
             "abi_max_glibc": "2.16",
-            "minimum_os_execution": "not-tested"
+            "minimum_os_execution": "not-tested",
+            "native_evidence": "local native Linux x64 validation; codestyles-rust-real-final.log",
+            "release_asset_reproduction": "sha256-verified"
           },
           "archives": [
             {
@@ -111,49 +112,890 @@
                   "sha256": "5b8e1d33bec840fdd70140a27a383ccbeeab81eb0958549d15eb5afa7e8bac1b",
                   "executable": false
                 }
-              ]
+              ],
+              "url": "https://github.com/idkwhodatis/CodeStyles/releases/download/toolchains-rustfmt-1.99.1-r1/codestyles-rustfmt-1.99.1-x86_64-unknown-linux-gnu.tar.gz"
             }
           ]
         },
         "aarch64-unknown-linux-gnu": {
-          "available": false,
-          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "available": true,
           "executable": "bin/rustfmt",
           "environment": {},
-          "archives": [],
-          "max_installed_bytes": 0
+          "max_installed_bytes": 288556934,
+          "validation": {
+            "archive_and_members": "verified",
+            "native_execution": "passed-native-ci-40841604286",
+            "static_dependency_inspection": [
+              {
+                "path": "bin/rustfmt",
+                "inspection_tool": "readelf",
+                "inspection_success": true,
+                "imports": [
+                  "0x0000000000000001 (NEEDED)             Shared library: [librustc_driver-d2ac115384bfcfd9.so]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libpthread.so.0]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]"
+                ],
+                "loader_paths": [
+                  "0x000000000000001d (RUNPATH)            Library runpath: [$ORIGIN/../lib]"
+                ],
+                "max_glibc": "2.17"
+              },
+              {
+                "path": "lib/libLLVM.so.23.1-rust-1.99.1-stable",
+                "inspection_tool": "readelf",
+                "inspection_success": true,
+                "imports": [
+                  "0x0000000000000001 (NEEDED)             Shared library: [librt.so.1]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libdl.so.2]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libpthread.so.0]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libz.so.1]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]"
+                ],
+                "loader_paths": [
+                  "0x000000000000001d (RUNPATH)            Library runpath: [$ORIGIN/../lib:$ORIGIN/../lib/aarch64-unknown-linux-gnu]"
+                ],
+                "max_glibc": "2.17"
+              },
+              {
+                "path": "lib/librustc_driver-d2ac115384bfcfd9.so",
+                "inspection_tool": "readelf",
+                "inspection_success": true,
+                "imports": [
+                  "0x0000000000000001 (NEEDED)             Shared library: [libdl.so.2]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libLLVM.so.23.1-rust-1.99.1-stable]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libpthread.so.0]",
+                  "0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]"
+                ],
+                "loader_paths": [
+                  "0x000000000000001d (RUNPATH)            Library runpath: [$ORIGIN/../lib]"
+                ],
+                "max_glibc": "2.17"
+              }
+            ],
+            "runtime_dependency_closure": "loader-imports-reviewed; native execution pending",
+            "native_evidence": "native-final-12883460546.zip",
+            "release_asset_reproduction": "sha256-verified"
+          },
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-rustfmt-1.99.1-aarch64-unknown-linux-gnu.tar.gz",
+              "sha256": "e4310214e01c6b4f8a4561d4f488340cdea785ecc599fba540043532c22f8102",
+              "bytes": 95103006,
+              "max_download_bytes": 95103006,
+              "max_expanded_bytes": 288579462,
+              "members": [
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "sha256": "092c8e82c47fb859d7385253c1b04052dbd65a8bcf0bbd8b6f7dba58a9e8753d",
+                  "bytes": 10852,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "sha256": "ae0f1f791e3b4faccf981c0b530199235a8b8a021c7ef0c3c85c6c676ea4d27f",
+                  "bytes": 1076,
+                  "executable": false
+                },
+                {
+                  "archive_path": "bin/rustfmt",
+                  "path": "bin/rustfmt",
+                  "sha256": "62bd5b5451fc1310ef5912c7741dea64c059f3319aef8e8488c8b650029f926f",
+                  "bytes": 5057232,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-APACHE",
+                  "path": "licenses/rustc/LICENSE-APACHE",
+                  "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+                  "bytes": 9723,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT",
+                  "path": "licenses/rustc/COPYRIGHT",
+                  "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af",
+                  "bytes": 1571,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-MIT",
+                  "path": "licenses/rustc/LICENSE-MIT",
+                  "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+                  "bytes": 1068,
+                  "executable": false
+                },
+                {
+                  "archive_path": "lib/libLLVM.so.23.1-rust-1.99.1-stable",
+                  "path": "lib/libLLVM.so.23.1-rust-1.99.1-stable",
+                  "sha256": "70948ce3ff7b9d7e6186ab2aa4aa0318ba3e192ef6f9d27c1985db8dd6139aa4",
+                  "bytes": 163270520,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT.html",
+                  "path": "licenses/rustc/COPYRIGHT.html",
+                  "sha256": "d518ae2d76bc7a1f0cbf0069b8deafb56efc39c2614cab74a859ef0b467f8373",
+                  "bytes": 14423589,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT-library.html",
+                  "path": "licenses/rustc/COPYRIGHT-library.html",
+                  "sha256": "5647be074c8edf7339fd863055923a8fc80bc5610a8d4661ec3b767b9d392c27",
+                  "bytes": 1499465,
+                  "executable": false
+                },
+                {
+                  "archive_path": "lib/librustc_driver-d2ac115384bfcfd9.so",
+                  "path": "lib/librustc_driver-d2ac115384bfcfd9.so",
+                  "sha256": "3fc5f04879e6de7ff3c30949378468f3129d9de91c1a08f6dacfa501a0544dea",
+                  "bytes": 104278248,
+                  "executable": true
+                },
+                {
+                  "archive_path": "lib/libLLVM-23-rust-1.99.1-stable.so",
+                  "path": "lib/libLLVM-23-rust-1.99.1-stable.so",
+                  "sha256": "ed06fbed8d297efa92979aeb227a4ce5b87b1a462d0aeac66d093300fad74824",
+                  "bytes": 42,
+                  "executable": true
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3548,
+                  "sha256": "ccf2da3b808e5ef62dd91507161c9bfb377b4be165e2874f7dff2bddab18099c",
+                  "executable": false
+                }
+              ],
+              "url": "https://github.com/idkwhodatis/CodeStyles/releases/download/toolchains-rustfmt-1.99.1-r1/codestyles-rustfmt-1.99.1-aarch64-unknown-linux-gnu.tar.gz"
+            }
+          ]
         },
         "x86_64-apple-darwin": {
-          "available": false,
-          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "available": true,
           "executable": "bin/rustfmt",
           "environment": {},
-          "archives": [],
-          "max_installed_bytes": 0
+          "max_installed_bytes": 257823132,
+          "validation": {
+            "archive_and_members": "verified",
+            "native_execution": "passed-native-ci-40841604286",
+            "static_dependency_inspection": [
+              {
+                "path": "bin/rustfmt",
+                "mach_o_load_commands": [
+                  {
+                    "cmd": "LC_VERSION_MIN_MACOSX",
+                    "version": "0xa0c00"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "@rpath/librustc_driver-0e0e2715cdf3b127.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libiconv.2.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libSystem.B.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libobjc.A.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libz.1.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libc++.1.dylib"
+                  },
+                  {
+                    "cmd": "0x8000001c",
+                    "name": "@loader_path/../lib"
+                  }
+                ]
+              },
+              {
+                "path": "lib/librustc_driver-0e0e2715cdf3b127.dylib",
+                "mach_o_load_commands": [
+                  {
+                    "cmd": "0xd",
+                    "name": "@rpath/librustc_driver-0e0e2715cdf3b127.dylib"
+                  },
+                  {
+                    "cmd": "LC_VERSION_MIN_MACOSX",
+                    "version": "0xa0c00"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libSystem.B.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libobjc.A.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libz.1.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "@rpath/libLLVM.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libc++.1.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libiconv.2.dylib"
+                  },
+                  {
+                    "cmd": "0x8000001c",
+                    "name": "@loader_path/../lib"
+                  }
+                ]
+              },
+              {
+                "path": "lib/libLLVM.dylib",
+                "mach_o_load_commands": [
+                  {
+                    "cmd": "0xd",
+                    "name": "@rpath/libLLVM.dylib"
+                  },
+                  {
+                    "cmd": "LC_VERSION_MIN_MACOSX",
+                    "version": "0xa0c00"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libSystem.B.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libz.1.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libc++.1.dylib"
+                  },
+                  {
+                    "cmd": "0x8000001c",
+                    "name": "@loader_path/../lib"
+                  }
+                ]
+              }
+            ],
+            "runtime_dependency_closure": "loader-imports-reviewed; native execution pending",
+            "native_evidence": "native-final-12882559545.zip",
+            "release_asset_reproduction": "sha256-verified"
+          },
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-rustfmt-1.99.1-x86_64-apple-darwin.tar.gz",
+              "sha256": "a9e745cc0fafb84f58fcab92b625f5ca76a8e93d1c35a3cf6662357c2da3db99",
+              "bytes": 77011606,
+              "max_download_bytes": 77011606,
+              "max_expanded_bytes": 257844636,
+              "members": [
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "sha256": "092c8e82c47fb859d7385253c1b04052dbd65a8bcf0bbd8b6f7dba58a9e8753d",
+                  "bytes": 10852,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "sha256": "ae0f1f791e3b4faccf981c0b530199235a8b8a021c7ef0c3c85c6c676ea4d27f",
+                  "bytes": 1076,
+                  "executable": false
+                },
+                {
+                  "archive_path": "bin/rustfmt",
+                  "path": "bin/rustfmt",
+                  "sha256": "cb1abe4aefd8983f1168d9ad6d9c753b59edcce39ffcd566593777fc4a934d04",
+                  "bytes": 4740568,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-APACHE",
+                  "path": "licenses/rustc/LICENSE-APACHE",
+                  "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+                  "bytes": 9723,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT",
+                  "path": "licenses/rustc/COPYRIGHT",
+                  "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af",
+                  "bytes": 1571,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-MIT",
+                  "path": "licenses/rustc/LICENSE-MIT",
+                  "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+                  "bytes": 1068,
+                  "executable": false
+                },
+                {
+                  "archive_path": "lib/librustc_driver-0e0e2715cdf3b127.dylib",
+                  "path": "lib/librustc_driver-0e0e2715cdf3b127.dylib",
+                  "sha256": "eb0df9261f3e4d25f5dd95ddfa58b3a4ec4e99755e31cc91be93e0df17add508",
+                  "bytes": 87572464,
+                  "executable": true
+                },
+                {
+                  "archive_path": "lib/libLLVM.dylib",
+                  "path": "lib/libLLVM.dylib",
+                  "sha256": "f90658dcc137933b951cbe3e1942d83af535b0899bc22446680caf0b9bab87b3",
+                  "bytes": 149559520,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT.html",
+                  "path": "licenses/rustc/COPYRIGHT.html",
+                  "sha256": "d518ae2d76bc7a1f0cbf0069b8deafb56efc39c2614cab74a859ef0b467f8373",
+                  "bytes": 14423589,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT-library.html",
+                  "path": "licenses/rustc/COPYRIGHT-library.html",
+                  "sha256": "5647be074c8edf7339fd863055923a8fc80bc5610a8d4661ec3b767b9d392c27",
+                  "bytes": 1499465,
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3236,
+                  "sha256": "cd1b196b97b3d96276cdf63a5de1c8f29480bc81030d97309b5b58ff54193864",
+                  "executable": false
+                }
+              ],
+              "url": "https://github.com/idkwhodatis/CodeStyles/releases/download/toolchains-rustfmt-1.99.1-r1/codestyles-rustfmt-1.99.1-x86_64-apple-darwin.tar.gz"
+            }
+          ]
         },
         "aarch64-apple-darwin": {
-          "available": false,
-          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "available": true,
           "executable": "bin/rustfmt",
           "environment": {},
-          "archives": [],
-          "max_installed_bytes": 0
+          "max_installed_bytes": 247424551,
+          "validation": {
+            "archive_and_members": "verified",
+            "native_execution": "passed-native-ci-40841604286",
+            "static_dependency_inspection": [
+              {
+                "path": "bin/rustfmt",
+                "mach_o_load_commands": [
+                  {
+                    "cmd": "LC_BUILD_VERSION",
+                    "platform": 1,
+                    "minos": "0xb0000"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "@rpath/librustc_driver-451a19fa7a19fc36.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libiconv.2.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libSystem.B.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libobjc.A.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libz.1.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "@rpath/libLLVM.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libc++.1.dylib"
+                  },
+                  {
+                    "cmd": "0x8000001c",
+                    "name": "@loader_path/../lib"
+                  }
+                ]
+              },
+              {
+                "path": "lib/librustc_driver-451a19fa7a19fc36.dylib",
+                "mach_o_load_commands": [
+                  {
+                    "cmd": "0xd",
+                    "name": "@rpath/librustc_driver-451a19fa7a19fc36.dylib"
+                  },
+                  {
+                    "cmd": "LC_BUILD_VERSION",
+                    "platform": 1,
+                    "minos": "0xb0000"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libSystem.B.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libobjc.A.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libz.1.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "@rpath/libLLVM.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libc++.1.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libiconv.2.dylib"
+                  },
+                  {
+                    "cmd": "0x8000001c",
+                    "name": "@loader_path/../lib"
+                  }
+                ]
+              },
+              {
+                "path": "lib/libLLVM.dylib",
+                "mach_o_load_commands": [
+                  {
+                    "cmd": "0xd",
+                    "name": "@rpath/libLLVM.dylib"
+                  },
+                  {
+                    "cmd": "LC_BUILD_VERSION",
+                    "platform": 1,
+                    "minos": "0xb0000"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libSystem.B.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libz.1.dylib"
+                  },
+                  {
+                    "cmd": "0xc",
+                    "name": "/usr/lib/libc++.1.dylib"
+                  },
+                  {
+                    "cmd": "0x8000001c",
+                    "name": "@loader_path/../lib"
+                  }
+                ]
+              }
+            ],
+            "runtime_dependency_closure": "loader-imports-reviewed; native execution pending",
+            "native_evidence": "native-final-12883336531.zip",
+            "release_asset_reproduction": "sha256-verified"
+          },
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-rustfmt-1.99.1-aarch64-apple-darwin.tar.gz",
+              "sha256": "338dde567e9a955c1d894e1a9885d82f4d6eee636281f1ac3ecca8d125bfc78b",
+              "bytes": 73802314,
+              "max_download_bytes": 73802314,
+              "max_expanded_bytes": 247446055,
+              "members": [
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "sha256": "092c8e82c47fb859d7385253c1b04052dbd65a8bcf0bbd8b6f7dba58a9e8753d",
+                  "bytes": 10852,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "sha256": "ae0f1f791e3b4faccf981c0b530199235a8b8a021c7ef0c3c85c6c676ea4d27f",
+                  "bytes": 1076,
+                  "executable": false
+                },
+                {
+                  "archive_path": "bin/rustfmt",
+                  "path": "bin/rustfmt",
+                  "sha256": "fae904bce0d6e9fcdd0ac4a4b597bdec4e571133dc7e9e9527b3e54bf5008a8d",
+                  "bytes": 4474088,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-APACHE",
+                  "path": "licenses/rustc/LICENSE-APACHE",
+                  "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+                  "bytes": 9723,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT",
+                  "path": "licenses/rustc/COPYRIGHT",
+                  "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af",
+                  "bytes": 1571,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-MIT",
+                  "path": "licenses/rustc/LICENSE-MIT",
+                  "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+                  "bytes": 1068,
+                  "executable": false
+                },
+                {
+                  "archive_path": "lib/librustc_driver-451a19fa7a19fc36.dylib",
+                  "path": "lib/librustc_driver-451a19fa7a19fc36.dylib",
+                  "sha256": "ebf983c7473eac96e90a4201ca969801ac53a3cf4abc8f27b0021d53fb148395",
+                  "bytes": 83390408,
+                  "executable": true
+                },
+                {
+                  "archive_path": "lib/libLLVM.dylib",
+                  "path": "lib/libLLVM.dylib",
+                  "sha256": "2a8a4612d921ac0bd6be3b7b601f9a71d93b8cdf0a23f36d4c2df15cb616c981",
+                  "bytes": 143609472,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT.html",
+                  "path": "licenses/rustc/COPYRIGHT.html",
+                  "sha256": "d518ae2d76bc7a1f0cbf0069b8deafb56efc39c2614cab74a859ef0b467f8373",
+                  "bytes": 14423589,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT-library.html",
+                  "path": "licenses/rustc/COPYRIGHT-library.html",
+                  "sha256": "5647be074c8edf7339fd863055923a8fc80bc5610a8d4661ec3b767b9d392c27",
+                  "bytes": 1499465,
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3239,
+                  "sha256": "6e57152edd4326ea0a09e697f7cf82a65f75ff8f429492833272015baf40ff5b",
+                  "executable": false
+                }
+              ],
+              "url": "https://github.com/idkwhodatis/CodeStyles/releases/download/toolchains-rustfmt-1.99.1-r1/codestyles-rustfmt-1.99.1-aarch64-apple-darwin.tar.gz"
+            }
+          ]
         },
         "x86_64-pc-windows-msvc": {
-          "available": false,
-          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "available": true,
           "executable": "bin/rustfmt.exe",
           "environment": {},
-          "archives": [],
-          "max_installed_bytes": 0
+          "max_installed_bytes": 226690672,
+          "validation": {
+            "archive_and_members": "verified",
+            "native_execution": "passed-native-ci-40841604286",
+            "static_dependency_inspection": [
+              {
+                "path": "bin/rustfmt.exe",
+                "inspection_tool": "objdump",
+                "inspection_success": true,
+                "imports": [
+                  "DLL Name: kernel32.dll",
+                  "DLL Name: shell32.dll",
+                  "DLL Name: combase.dll",
+                  "DLL Name: rustc_driver-58995fd3f1c8ecc6.dll",
+                  "DLL Name: api-ms-win-core-synch-l1-2-0.dll",
+                  "DLL Name: ntdll.dll",
+                  "DLL Name: KERNEL32.dll"
+                ],
+                "loader_paths": []
+              },
+              {
+                "path": "bin/rustc_driver-58995fd3f1c8ecc6.dll",
+                "inspection_tool": "objdump",
+                "inspection_success": true,
+                "imports": [
+                  "DLL Name: kernel32.dll",
+                  "DLL Name: api-ms-win-core-synch-l1-2-0.dll",
+                  "DLL Name: oleaut32.dll",
+                  "DLL Name: ole32.dll",
+                  "DLL Name: api-ms-win-core-winrt-error-l1-1-0.dll",
+                  "DLL Name: bcryptprimitives.dll",
+                  "DLL Name: SHELL32.dll",
+                  "DLL Name: ADVAPI32.dll",
+                  "DLL Name: WS2_32.dll",
+                  "DLL Name: ntdll.dll",
+                  "DLL Name: KERNEL32.dll",
+                  "DLL Name: USERENV.dll"
+                ],
+                "loader_paths": []
+              }
+            ],
+            "runtime_dependency_closure": "loader-imports-reviewed; native execution pending",
+            "native_evidence": "native-final-12883626081.zip",
+            "release_asset_reproduction": "sha256-verified"
+          },
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-rustfmt-1.99.1-x86_64-pc-windows-msvc.tar.gz",
+              "sha256": "d4d75cfbb9b842c12f0944b154acd5b8eb3d6fa06551fad5304cc224c5fa3ad0",
+              "bytes": 71243402,
+              "max_download_bytes": 71243402,
+              "max_expanded_bytes": 226711152,
+              "members": [
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "sha256": "092c8e82c47fb859d7385253c1b04052dbd65a8bcf0bbd8b6f7dba58a9e8753d",
+                  "bytes": 10852,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "sha256": "ae0f1f791e3b4faccf981c0b530199235a8b8a021c7ef0c3c85c6c676ea4d27f",
+                  "bytes": 1076,
+                  "executable": false
+                },
+                {
+                  "archive_path": "bin/rustfmt.exe",
+                  "path": "bin/rustfmt.exe",
+                  "sha256": "231e4b294d5f6d9f025a9025514e3e6b0ee5defa524fd016498e1c77eb96980a",
+                  "bytes": 4735488,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-APACHE",
+                  "path": "licenses/rustc/LICENSE-APACHE",
+                  "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+                  "bytes": 9723,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT",
+                  "path": "licenses/rustc/COPYRIGHT",
+                  "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af",
+                  "bytes": 1571,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-MIT",
+                  "path": "licenses/rustc/LICENSE-MIT",
+                  "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+                  "bytes": 1068,
+                  "executable": false
+                },
+                {
+                  "archive_path": "bin/rustc_driver-58995fd3f1c8ecc6.dll",
+                  "path": "bin/rustc_driver-58995fd3f1c8ecc6.dll",
+                  "sha256": "49372ce03e58bc7556d228c3a9e0d92d6643ba881a5563c76aa610646196d495",
+                  "bytes": 206004736,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT.html",
+                  "path": "licenses/rustc/COPYRIGHT.html",
+                  "sha256": "d518ae2d76bc7a1f0cbf0069b8deafb56efc39c2614cab74a859ef0b467f8373",
+                  "bytes": 14423589,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT-library.html",
+                  "path": "licenses/rustc/COPYRIGHT-library.html",
+                  "sha256": "5647be074c8edf7339fd863055923a8fc80bc5610a8d4661ec3b767b9d392c27",
+                  "bytes": 1499465,
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3104,
+                  "sha256": "3a42e13a914d0bc90fece4d906b9efbb1499ddbfedeb0124e639c40b4cca97c6",
+                  "executable": false
+                }
+              ],
+              "url": "https://github.com/idkwhodatis/CodeStyles/releases/download/toolchains-rustfmt-1.99.1-r1/codestyles-rustfmt-1.99.1-x86_64-pc-windows-msvc.tar.gz"
+            }
+          ]
         },
         "aarch64-pc-windows-msvc": {
-          "available": false,
-          "reason": "Unpublished: official source dependency closure and GitHub release publication pending.",
+          "available": true,
           "executable": "bin/rustfmt.exe",
           "environment": {},
-          "archives": [],
-          "max_installed_bytes": 0
+          "max_installed_bytes": 200588915,
+          "validation": {
+            "archive_and_members": "verified",
+            "native_execution": "passed-native-ci-40841604286",
+            "static_dependency_inspection": [
+              {
+                "path": "bin/rustfmt.exe",
+                "sha256": "a25f28632977ca8591efc2ba860330859e86f86dbd634902dc9a341e80056269",
+                "inspection_tool": "scripts/inspect_pe_imports.py",
+                "machine": "0xaa64",
+                "format": "PE32+",
+                "imports": [
+                  "kernel32.dll",
+                  "shell32.dll",
+                  "combase.dll",
+                  "rustc_driver-150645f85b42168b.dll",
+                  "api-ms-win-core-synch-l1-2-0.dll",
+                  "ntdll.dll",
+                  "KERNEL32.dll"
+                ],
+                "delay_imports": []
+              },
+              {
+                "path": "bin/rustc_driver-150645f85b42168b.dll",
+                "sha256": "7a991b7cecb8ec0d87038428e001532e8c6499e196aca081ee70c1fd2670163a",
+                "inspection_tool": "scripts/inspect_pe_imports.py",
+                "machine": "0xaa64",
+                "format": "PE32+",
+                "imports": [
+                  "kernel32.dll",
+                  "api-ms-win-core-synch-l1-2-0.dll",
+                  "oleaut32.dll",
+                  "ole32.dll",
+                  "api-ms-win-core-winrt-error-l1-1-0.dll",
+                  "bcryptprimitives.dll",
+                  "SHELL32.dll",
+                  "ADVAPI32.dll",
+                  "WS2_32.dll",
+                  "ntdll.dll",
+                  "KERNEL32.dll",
+                  "USERENV.dll"
+                ],
+                "delay_imports": []
+              }
+            ],
+            "runtime_dependency_closure": "loader-imports-reviewed; native execution pending",
+            "inspection_limits": "PE import and delay-import tables only; does not detect constructed LoadLibrary paths or establish clean/minimum-OS execution. Host GNU objdump lacked ARM64 PE support; bounded stdlib parser used instead.",
+            "native_evidence": "native-final-12883552369.zip",
+            "release_asset_reproduction": "sha256-verified"
+          },
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-rustfmt-1.99.1-aarch64-pc-windows-msvc.tar.gz",
+              "sha256": "3f2c912ec525cca77fa08688a246eb4c079252f3ba5f698061323d07be252eff",
+              "bytes": 62706939,
+              "max_download_bytes": 62706939,
+              "max_expanded_bytes": 200609395,
+              "members": [
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "path": "licenses/rustfmt-preview/LICENSE-APACHE",
+                  "sha256": "092c8e82c47fb859d7385253c1b04052dbd65a8bcf0bbd8b6f7dba58a9e8753d",
+                  "bytes": 10852,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "path": "licenses/rustfmt-preview/LICENSE-MIT",
+                  "sha256": "ae0f1f791e3b4faccf981c0b530199235a8b8a021c7ef0c3c85c6c676ea4d27f",
+                  "bytes": 1076,
+                  "executable": false
+                },
+                {
+                  "archive_path": "bin/rustfmt.exe",
+                  "path": "bin/rustfmt.exe",
+                  "sha256": "a25f28632977ca8591efc2ba860330859e86f86dbd634902dc9a341e80056269",
+                  "bytes": 4771840,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-APACHE",
+                  "path": "licenses/rustc/LICENSE-APACHE",
+                  "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+                  "bytes": 9723,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT",
+                  "path": "licenses/rustc/COPYRIGHT",
+                  "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af",
+                  "bytes": 1571,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/LICENSE-MIT",
+                  "path": "licenses/rustc/LICENSE-MIT",
+                  "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+                  "bytes": 1068,
+                  "executable": false
+                },
+                {
+                  "archive_path": "bin/rustc_driver-150645f85b42168b.dll",
+                  "path": "bin/rustc_driver-150645f85b42168b.dll",
+                  "sha256": "7a991b7cecb8ec0d87038428e001532e8c6499e196aca081ee70c1fd2670163a",
+                  "bytes": 179866624,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT.html",
+                  "path": "licenses/rustc/COPYRIGHT.html",
+                  "sha256": "d518ae2d76bc7a1f0cbf0069b8deafb56efc39c2614cab74a859ef0b467f8373",
+                  "bytes": 14423589,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/rustc/COPYRIGHT-library.html",
+                  "path": "licenses/rustc/COPYRIGHT-library.html",
+                  "sha256": "5647be074c8edf7339fd863055923a8fc80bc5610a8d4661ec3b767b9d392c27",
+                  "bytes": 1499465,
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3107,
+                  "sha256": "ed701254aec455ca05f30e47840ce40343e86b8435c06912a746034fb2390751",
+                  "executable": false
+                }
+              ],
+              "url": "https://github.com/idkwhodatis/CodeStyles/releases/download/toolchains-rustfmt-1.99.1-r1/codestyles-rustfmt-1.99.1-aarch64-pc-windows-msvc.tar.gz"
+            }
+          ]
         }
       }
     }

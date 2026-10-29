@@ -4,8 +4,8 @@ Implementation was developed locally on `chatgpt-dot/language-packs`, based on
 Python commit `8e839b040aac64c14e261948cfafaa1ec752312f`. The user subsequently
 authorized direct master publication (superseding the draft-PR plan). The verified
 product head is `0c582e518feea8ea151810e6eb51a99f2a826bd8`; connector publication
-preserved the exact local tree, not local commit IDs. GitHub release assets still
-require separate publishing approval.
+preserved the exact local tree, not local commit IDs. The user separately approved the six-toolchain release and manifest activation;
+that publication is recorded below. Future releases still require approval.
 
 ## Verified locally (Linux x64)
 
@@ -52,8 +52,10 @@ responses and shutdown. Only fixed embedded catalog data can authorize downloads
 
 ## Explicit gaps / approval gates
 
-- Final GitHub assets are **unpublished**; all target network availability flags
-  remain false. No end-to-end production GitHub download claim is made.
+- The approved GitHub assets are published and the catalog update enables their
+  fixed URLs. Production network download/install acceptance remains pending;
+  no end-to-end production GitHub download claim is made. Older alpha binaries
+  are not automatically updated by this catalog source change.
 - The initial bulk download was stopped after review rejection. After explicit
   user approval on October 29, the remaining five targets were inspected serially
   (331,130,168 source bytes). Later native CI execution is documented below;
@@ -108,11 +110,49 @@ checks for Linux, macOS and Windows x64/ARM64. This is distinct from the optiona
 Rust candidate acceptance above. A later documentation-only commit may record
 these results without rerunning unchanged product code.
 
-### Remaining release gate
+### Approved publication and remaining acceptance
 
-No candidate has been published as a GitHub release asset, and all production
-catalog targets remain `available: false`. Publishing requires separate approval,
-then reproducible six-target package assembly, exact hash/member/license review,
-GitHub attachment upload, and a catalog update to verified fixed asset URLs.
-A production download/install/cancel/upgrade acceptance pass must follow; the
-current local/native candidate acceptance does not claim this network path works.
+With explicit user approval, the public
+[toolchains-rustfmt-1.99.1-r1 pre-release](https://github.com/idkwhodatis/CodeStyles/releases/tag/toolchains-rustfmt-1.99.1-r1)
+was published at **2026-10-29T14:37:32Z**. It is a toolchain pre-release, not a
+replacement application alpha. All eight assets (six target tar.gz bundles,
+`SHA256SUMS`, and `TOOLCHAIN_MANIFEST.json`) have GitHub API sizes and digests
+matching the reviewed native candidates. Reproducible assembly preserves the
+original Windows CRLF provenance bytes on any build host.
+
+Catalog activation is covered by this approval; future release publication still
+requires approval. The source update does not install new capabilities into an
+already downloaded older alpha binary. Commit publication remains subject to the
+user's non-working-hours requirement, independently of the toolchain release.
+
+Production GitHub download/install acceptance is **pending**. A separate ignored,
+opt-in integration test exercises the real published bundle path. Neither native
+candidate acceptance nor matching release asset metadata is a substitute for
+that network test. No minimum-OS, manual GUI, or real cross-version upgrade
+acceptance is claimed. The manual workflow is now **Verify native language pack
+candidates**; it temporarily uses an unavailable candidate without URLs and
+restores the exact original catalog bytes, including an already-published catalog.
+
+#### Public-byte verification and local network boundary
+
+All eight actual public asset URLs were streamed fully and matched the prior
+fixed SHA256 values: **511,224,431 bytes** total. Redirects remained HTTPS
+`github.com` to `release-assets.githubusercontent.com`. No foreign executable
+was run during this check and no new checksum was substituted for the pins.
+
+The local Linux production-manager test is **environment-blocked, not passed**:
+its strict webpki TLS client reported `UnknownIssuer` through this executor's
+mandatory HTTPS proxy. Independent same-dependency diagnosis confirmed the error
+chain. Neither TLS verification nor the proxy was bypassed; the product trust
+model remains unchanged. Six-platform native-runner production acceptance is
+pending the separately permitted non-working-hours commit.
+
+The current release-preparation Python suite reports **126 passed, 1 skipped**
+(127 discovered), including fixed target-specific provenance line endings,
+published-catalog restoration, and production-wrapper failure/zero-test checks.
+
+With the release manifest prepared locally, the complete core suite passed
+**167 tests** (3 explicitly ignored), and release core all-targets Clippy passed
+with warnings denied. The ignored network test remains a separate recorded
+failure, not included in that passing total; its owned temporary directory was
+empty after failure.

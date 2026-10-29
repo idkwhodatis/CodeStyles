@@ -1,14 +1,18 @@
-# Downloadable rustfmt toolchain packaging (unpublished)
+# Downloadable rustfmt toolchain packaging
 
 ## Distribution boundary
 
 The application must consume a complete, reviewed **GitHub release bundle**.
 It must not silently download Rust components from static.rust-lang.org, run
 rustup/install.sh, search PATH for an existing Rust installation, or claim an
-unpublished URL exists. `resources/toolchains.json` is the application manifest;
-every target is currently unavailable for network installation. Linux x64 has a
-real local candidate with exact archive/member hashes for offline-install tests.
-No GitHub release or asset was created by this work.
+unpublished URL exists. `resources/toolchains.json` is the application manifest.
+The approved [toolchains-rustfmt-1.99.1-r1 release](https://github.com/idkwhodatis/CodeStyles/releases/tag/toolchains-rustfmt-1.99.1-r1)
+was published at **2026-10-29T14:37:32Z** as a public pre-release so it does not
+replace the application alpha. Its eight assets comprise six target `.tar.gz`
+bundles, `SHA256SUMS`, and `TOOLCHAIN_MANIFEST.json`. GitHub API asset sizes and
+SHA256 digests match the reviewed native candidate pins. The catalog update
+consumes those fixed GitHub URLs; it does not retroactively update older binaries.
+Production network acceptance remains a distinct pending validation.
 
 `resources/toolchain-sources.json` is separate maintainer build input. Official
 Rust components are permissible build sources, not final application endpoints.
@@ -55,7 +59,7 @@ formatted stdin successfully without rustup/RUSTUP_HOME/LD_LIBRARY_PATH.
 ELF symbol-version inspection of all three actual ELF files found maximum
 GLIBC requirement **2.16**, below the application's desired glibc 2.28 ceiling.
 This is ABI inspection plus a current Linux x64 runtime test, **not** execution
-on the minimum OS, six-platform verification, or GUI acceptance.
+on the minimum OS or GUI acceptance. Other native targets were tested separately.
 
 After authorization, the other five official archive pairs were downloaded and
 SHA256/member-verified sequentially without executing their binaries. Static
@@ -73,19 +77,21 @@ loader inspection confirmed these additional closures:
 - Windows x64: rustfmt.exe and rustc_driver DLL, together in `bin/`; recorded
   PE imports name only that bundled driver and Windows system DLLs/API sets.
   No separate LLVM or VC redistributable DLL appears in these import tables.
-  This does not establish successful execution on a clean Windows machine.
+  Native Windows acceptance is recorded below; the import audit alone does not establish execution on a clean minimum-OS machine.
 - Windows ARM64: official archive/member hashes and static PE32+ imports now
   verified. Host GNU objdump lacked ARM64 support, so the bounded stdlib parser
   `scripts/inspect_pe_imports.py` inspected both binaries without loading them.
   rustfmt.exe imports the bundled rustc_driver DLL; all other imports are Windows
   system DLLs/API sets. Neither binary has delay imports. No separate LLVM or
-  VC runtime DLL is named in these tables. This is not native execution or proof
+  VC runtime DLL is named in these tables. This static audit alone is not native execution or proof
   against dynamically constructed LoadLibrary dependencies.
 
-The source manifest records the actual ELF/PE/Mach-O static observations.
-All five targets retain `native_execution: not-tested`. No additional final
-bundles were built; all six application targets remain network-unavailable.
-Native Windows/macOS/Linux ARM64 CI and minimum-OS testing remain required.
+The source manifest records the actual ELF/PE/Mach-O static observations. Its
+historical inspection fields are not the final native acceptance record:
+[native run 40841604286](https://github.com/idkwhodatis/CodeStyles/actions/runs/40841604286)
+passed on all five additional targets, and Linux x64 passed local real-bundle
+execution. All six final bundles were reproduced and published with matching
+native candidate hashes. Minimum-OS and GUI testing remain separate gates.
 
 ## Reproducible maintainer workflow
 
@@ -109,7 +115,9 @@ SHA256 before inspection, extracts only regular allowlisted members, verifies
 member hashes, and never executes archive contents or installer scripts. Source
 and final manifests remain separate. The final bundle contains PROVENANCE.json
 with source archive identities and file pins. Tar ordering, uid/gid, mode,
-timestamp, gzip header timestamp and filename are deterministic.
+timestamp, gzip header timestamp and filename are deterministic. Provenance
+serialization uses the target platform's fixed newline convention (CRLF for
+Windows), reproducing the original native bundles regardless of build host.
 
 After a candidate is reviewed, obtain explicit publishing approval. Only then
 upload the actual bundle to the selected repository/release, verify asset bytes
@@ -132,11 +140,12 @@ archive construction is not native cross-platform execution. Native CI should
 install each final candidate, clear Rust environment/PATH assumptions, test
 stdin formatting/idempotence and syntax errors, and audit dynamic libraries.
 
-### Additional targets: verified source sizes (no final bundles)
+### Additional targets: verified source sizes
 
 The authorized sequential inspection verified these compressed source bytes
 and exact selected installed files, including complete notices. Installed sizes
-below exclude the future small provenance receipt. No foreign binary was run.
+below exclude the small provenance receipt. This original inspection did not
+execute foreign binaries; subsequent native CI did.
 
 | Target | Verified compressed bytes | Selected installed bytes |
 |---|---:|---:|
@@ -150,8 +159,8 @@ Total additional source download: **331,130,168 bytes** (about 316 MiB).
 Inspection used one process and one archive at a time; all downloaded archives
 and extracted inspection temporaries were removed after pins were recorded.
 Allow at least 1 GiB staging per sequential target. Final gzip bytes/hashes are
-still unknown for these five targets; native testing and publishing are separate
-steps, not implied by verified build inputs. Windows ARM64's import audit required a second verified 65,217,448-byte
+now pinned in the application manifest and published release metadata; native
+acceptance and publication are separately documented, not inferred from inputs. Windows ARM64's import audit required a second verified 65,217,448-byte
 source download; that inspection also removed its own temporary files.
 
 ### Repeating the Windows static audit
@@ -166,9 +175,9 @@ inferring a closure. Tests cover ARM64 headers, ordinary/delayed imports and
 malformed bounds/addressing. Static imports cannot establish OS compatibility;
 a clean native runner remains required before publishing/enabling a bundle.
 
-## Manual native candidate acceptance (no release)
+## Manual native candidate acceptance
 
-The `Verify unpublished native language packs` Actions workflow is deliberately
+The `Verify native language pack candidates` Actions workflow is deliberately
 `workflow_dispatch` only. It uses the same existing native Linux ARM64, macOS
 x64/ARM64 and Windows x64/ARM64 hosted runners, at most two at once. It does not
 publish releases, upload candidate bundles, enable a download URL, or alter the
@@ -182,7 +191,10 @@ embeds that exact unpublished candidate for the current target, and runs the rea
 managed install/format/project/uninstall integration test. The temporary catalog
 continues to say `available: false`. Original catalog bytes are restored even on
 ordinary failure, and the workflow independently checks that tracked files and
-production download availability remain unchanged. Temporary source/bundle/runtime
+the original production catalog bytes remain unchanged. A published production
+catalog is permitted: its URLs and availability are restored exactly, rather
+than requiring production availability to remain false. The temporary candidate
+itself always has `available: false` and no download URL. Temporary source/bundle/runtime
 files are removed; only bounded logs, candidate metadata and an acceptance report
 are retained for seven days. No foreign binary is executed on this local executor.
 
@@ -195,6 +207,30 @@ the runner is used only to build the test harness.
 
 A successful native job is evidence for that runner OS, not every minimum OS,
 GUI/quarantine/signing scenario, or a published GitHub-download installation.
-Maintainer review and separate release approval are still required before adding
-final GitHub asset URLs and enabling a target. Before sharing a successful result,
+The current release and catalog activation received explicit approval; future
+publication still requires maintainer review and separate approval. Before
+sharing a successful result,
 check the run's exact commit, all five job conclusions and per-target reports.
+
+## Published asset acceptance versus production download acceptance
+
+The current release has six matching native-tested bundle digests plus checksum
+and manifest attachments. All eight public asset URLs were also streamed in full
+(511,224,431 bytes) and matched the existing SHA256 pins; all redirects remained
+HTTPS GitHub asset hosts. This establishes the published bytes, not the
+application manager's actual download/install path. An independent
+ignored integration test is opt-in because it downloads a real published bundle
+and consumes staging disk. Its production-network result is pending and must be
+recorded separately; local imports and candidate CI must not be reported as a
+passing network install, cancellation, or real cross-version upgrade test.
+
+The local Linux production-manager attempt failed before receiving asset bytes:
+`error sending request -> client error (Connect) -> invalid peer certificate:
+UnknownIssuer`. This executor's mandatory HTTPS proxy uses a CA outside the
+application's fixed webpki roots. TLS verification and product trust policy were
+not weakened or changed. The manually dispatched **Verify published language pack
+downloads** workflow runs the exact ignored manager test on all six existing
+native runners (two concurrent jobs), with no URL override, a 2 GiB free-space
+gate, bounded execution/logs, exact one-test-pass enforcement, and temporary
+cleanup. Two complete transfers plus one cancelled partial per target test
+reinstallation; this is not a genuine cross-version upgrade claim.
