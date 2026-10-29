@@ -29,6 +29,14 @@ const MAX_METADATA: u64 = 1024 * 1024;
 const LOCK_TIMEOUT: Duration = Duration::from_secs(30);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 
+// fs2 uses EWOULDBLOCK on Unix, but ERROR_LOCK_VIOLATION on Windows,
+// which Rust does not classify as ErrorKind::WouldBlock. Match only the
+// library's native contention code; unrelated I/O errors must still fail.
+fn lock_is_contended(error: &io::Error) -> bool {
+    error.raw_os_error().is_some()
+        && error.raw_os_error() == fs2::lock_contended_error().raw_os_error()
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ToolchainStatus {
     Missing,
@@ -411,7 +419,7 @@ impl ToolchainManager {
                 FileExt::try_lock_shared(&file)
             } {
                 Ok(()) => return Ok(file),
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                Err(error) if lock_is_contended(&error) => {
                     if started.elapsed() >= LOCK_TIMEOUT {
                         return Err("Another toolchain operation is still running.".into());
                     }
@@ -1596,14 +1604,18 @@ mod tests {
             Path::new("/private/var/folders/x/AppTranslocation/uuid/App.app/Contents/MacOS/app"),
             Path::new("/tmp")
         ));
+        // Use a native absolute path even when testing Linux's environment
+        // precedence on a Windows runner ("/home/user" is drive-relative there).
+        let home = dir.path().join("user-home");
+        assert!(home.is_absolute());
         assert_eq!(
             user_data_root("linux", |key| match key {
                 "XDG_DATA_HOME" => Some("relative".into()),
-                "HOME" => Some("/home/user".into()),
+                "HOME" => Some(home.clone().into_os_string()),
                 _ => None,
             })
             .unwrap(),
-            PathBuf::from("/home/user/.local/share/CodeStyles/toolchains")
+            home.join(".local/share/CodeStyles/toolchains")
         );
     }
 
@@ -1629,6 +1641,21 @@ mod tests {
     }
 
     #[test]
+    fn lock_contention_matches_native_code_not_error_kind() {
+        let native = fs2::lock_contended_error();
+        assert!(lock_is_contended(&native));
+        assert!(!lock_is_contended(&io::Error::from(
+            io::ErrorKind::PermissionDenied
+        )));
+        assert!(!lock_is_contended(&io::Error::other(
+            "unrelated lock failure"
+        )));
+        assert!(!lock_is_contended(&io::Error::from_raw_os_error(0)));
+        #[cfg(windows)]
+        assert_eq!(native.raw_os_error(), Some(33)); // ERROR_LOCK_VIOLATION
+    }
+
+    #[test]
     fn lock_child_probe() {
         let Some(path) = std::env::var_os("CODESTYLES_TEST_LOCK_PATH") else {
             return;
@@ -1642,7 +1669,7 @@ mod tests {
         if std::env::var_os("CODESTYLES_TEST_LOCK_AVAILABLE").is_some() {
             assert!(result.is_ok());
         } else {
-            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::WouldBlock);
+            assert!(lock_is_contended(&result.unwrap_err()));
         }
     }
 
