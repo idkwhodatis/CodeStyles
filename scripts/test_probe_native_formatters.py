@@ -101,5 +101,54 @@ class ProbeTests(unittest.TestCase):
             self.assertLessEqual((root/'overflow.log').stat().st_size, 128)
             self.assertEqual(probe.formatter_run([sys.executable, '-c', "print('ok')"], root, env, '', root/'ok.log').splitlines(), ['ok'])
 
+    def test_builtin_windows_imports_machine_and_subsystem(self):
+        from test_audit_compatibility import pe
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / 'formatter.exe'
+            for target, machine, architecture in [
+                ('x86_64-pc-windows-msvc', 0x8664, 'x86_64'),
+                ('aarch64-pc-windows-msvc', 0xaa64, 'aarch64'),
+            ]:
+                binary.write_bytes(pe(machine=machine, subsystem=3, imports=('KERNEL32.dll',), delay=('ucrtbase.dll',)))
+                report = probe.windows_dependencies(binary, target)
+                self.assertEqual(report['machine'], hex(machine))
+                self.assertEqual(report['architecture'], architecture)
+                self.assertEqual(report['subsystem'], 3)
+                self.assertEqual(report['subsystem_version'], '6.0')
+                self.assertEqual(report['os_header_version'], '6.0')
+                self.assertEqual(report['imports'], ['KERNEL32.dll'])
+                self.assertEqual(report['delay_imports'], ['ucrtbase.dll'])
+                self.assertIn('minimum Windows', report['limitation'])
+            with self.assertRaisesRegex(ValueError, 'architecture'):
+                probe.windows_dependencies(binary, 'x86_64-pc-windows-msvc')
+            binary.write_bytes(pe(dll=True))
+            with self.assertRaises(ValueError):
+                probe.windows_dependencies(binary, 'x86_64-pc-windows-msvc')
+            binary.write_bytes(b'MZtruncated')
+            with self.assertRaises(ValueError):
+                probe.windows_dependencies(binary, 'x86_64-pc-windows-msvc')
+
+    def test_windows_scope_is_exactly_four_jobs_and_all_remains_twelve(self):
+        jobs = probe.probe_matrix('windows-only')['include']
+        expected = {(tool, target) for tool in ('gofmt', 'dartfmt')
+                    for target in ('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc')}
+        self.assertEqual({(job['tool'], job['platform']['target']) for job in jobs}, expected)
+        self.assertEqual(len(jobs), 4)
+        all_jobs = probe.probe_matrix('all')['include']
+        expected_runners = {
+            'x86_64-unknown-linux-gnu': 'ubuntu-24.04',
+            'aarch64-unknown-linux-gnu': 'ubuntu-24.04-arm',
+            'x86_64-apple-darwin': 'macos-15-intel',
+            'aarch64-apple-darwin': 'macos-15',
+            'x86_64-pc-windows-msvc': 'windows-2025',
+            'aarch64-pc-windows-msvc': 'windows-11-arm',
+        }
+        self.assertEqual(len(all_jobs), 12)
+        self.assertEqual({(job['tool'], job['platform']['target'], job['platform']['os']) for job in all_jobs},
+                         {(tool, target, runner) for tool in ('gofmt', 'dartfmt') for target, runner in expected_runners.items()})
+        with patch.object(probe, 'TARGETS', dict(reversed(list(probe.TARGETS.items())))):
+            self.assertEqual(probe.probe_matrix('all')['include'], all_jobs)
+        with self.assertRaises(ValueError): probe.probe_matrix('all; shell')
+
 
 if __name__ == '__main__': unittest.main()

@@ -1,27 +1,38 @@
 name: Probe unpublished Go and Dart native closures
 on:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Native platforms to probe (never publishes)
+        type: choice
+        default: all
+        options: [all, windows-only]
 permissions:
   contents: read
 concurrency:
   group: native-formatter-closure-probe
   cancel-in-progress: false
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: matrix
+        env:
+          PROBE_SCOPE: ${{ inputs.scope }}
+        run: echo "matrix=$(python3 scripts/probe_native_formatters.py --matrix "$PROBE_SCOPE")" >> "$GITHUB_OUTPUT"
   probe:
+    needs: plan
     name: Probe ${{ matrix.tool }} (${{ matrix.platform.target }})
     timeout-minutes: 25
     strategy:
       fail-fast: false
       max-parallel: 2
-      matrix:
-        tool: [gofmt, dartfmt]
-        platform:
-          - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
-          - { os: macos-15-intel, target: x86_64-apple-darwin }
-          - { os: macos-15, target: aarch64-apple-darwin }
-          - { os: windows-2025, target: x86_64-pc-windows-msvc }
-          - { os: windows-11-arm, target: aarch64-pc-windows-msvc }
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.platform.os }}
     steps:
       - uses: actions/checkout@v4

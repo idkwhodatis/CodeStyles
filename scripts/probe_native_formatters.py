@@ -8,6 +8,7 @@ Outputs are review evidence only, never an application catalog or release bundle
 import argparse
 import hashlib
 import json
+import mmap
 import os
 from pathlib import Path
 import platform
@@ -23,6 +24,8 @@ import urllib.parse
 import zipfile
 
 from build_language_pack import ROOT, digest_file, safe_path
+from inspect_pe_imports import inspect_pe
+from audit_compatibility import parse_pe
 from verify_native_language_pack import run, terminate_tree, DEADLINE_ENV
 
 SOURCES = ROOT / 'resources/native-formatter-sources.json'
@@ -45,6 +48,42 @@ def host_matches(target, system=None, machine=None):
     system = {'darwin': 'macos'}.get(system, system)
     machine = {'amd64': 'x86_64', 'aarch64': 'arm64'}.get(machine, machine)
     return (system, machine) == (TARGETS[target][0], TARGETS[target][3])
+
+
+def windows_dependencies(executable, target):
+    expected = {'x86_64-pc-windows-msvc': ('0x8664', 'x86_64'),
+                'aarch64-pc-windows-msvc': ('0xaa64', 'aarch64')}
+    if target not in expected:
+        raise ValueError('PE evidence requires an explicit Windows target')
+    with executable.open('rb') as stream, mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as data:
+        imports = inspect_pe(data)
+        header = parse_pe(data)
+    machine, architecture = expected[target]
+    if imports['machine'] != machine or header['architecture'] != architecture or header['bits'] != 64 or header['is_dll']:
+        raise ValueError('Native formatter PE architecture/type does not match target')
+    if imports['imports'] != header['imports'] or imports['delay_imports'] != header['delay_imports']:
+        raise ValueError('PE parsers disagree on import evidence')
+    return {**header, 'machine': imports['machine'], 'parser': 'builtin-inspect_pe-and-parse_pe',
+            'scope': 'static-direct-and-delay-imports-only',
+            'limitation': 'Not proof of dynamic LoadLibrary targets, transitive dependencies, API availability or minimum Windows version. Native smoke covers only this runner.'}
+
+
+def probe_matrix(scope):
+    if scope not in ('all', 'windows-only'): raise ValueError('Invalid probe scope')
+    runners = {
+        'x86_64-unknown-linux-gnu': 'ubuntu-24.04',
+        'aarch64-unknown-linux-gnu': 'ubuntu-24.04-arm',
+        'x86_64-apple-darwin': 'macos-15-intel',
+        'aarch64-apple-darwin': 'macos-15',
+        'x86_64-pc-windows-msvc': 'windows-2025',
+        'aarch64-pc-windows-msvc': 'windows-11-arm',
+    }
+    if set(runners) != set(TARGETS):
+        raise ValueError('Every supported target needs an explicit native runner')
+    return {'include': [{'tool': tool, 'platform': {'os': runner, 'target': target}}
+                        for target, runner in runners.items()
+                        if scope == 'all' or TARGETS[target][0] == 'windows'
+                        for tool in ('gofmt', 'dartfmt')]}
 
 
 def source_pin(manifest, tool, target):
@@ -226,13 +265,17 @@ def probe(tool, target, work, reports):
             else:
                 source = stage / 'source.dart'; source.write_text("void main( ){print('hello');}\n")
                 args = [str(executable), '--suppress-analytics', 'format', '--output=show', '--summary=none', '--show=none', '--language-version=3.13', '--page-width=80', '--trailing-commas=automate']
-            scanner = 'otool' if platform.system() == 'Darwin' else ('dumpbin' if os.name == 'nt' else 'readelf')
-            binary = shutil.which(scanner)
-            if binary:
-                flags = ['-L'] if scanner == 'otool' else (['/DEPENDENTS'] if scanner == 'dumpbin' else ['-d', '-V', '-h'])
-                report['dependencies'] = run([binary, *flags, str(executable)], home, {**os.environ, DEADLINE_ENV: str(time.monotonic() + 60)}, reports / f'{tool}-dependencies.log')
+            if TARGETS[target][0] == 'windows':
+                report['dependencies'] = windows_dependencies(executable, target)
+                (reports / f'{tool}-dependencies.json').write_text(json.dumps(report['dependencies'], indent=2) + '\n')
             else:
-                report['dependencies'] = f'{scanner} unavailable; dependency/ABI validation remains incomplete'
+                scanner = 'otool' if platform.system() == 'Darwin' else 'readelf'
+                binary = shutil.which(scanner)
+                if binary:
+                    flags = ['-L'] if scanner == 'otool' else ['-d', '-V', '-h']
+                    report['dependencies'] = run([binary, *flags, str(executable)], home, {**os.environ, DEADLINE_ENV: str(time.monotonic() + 60)}, reports / f'{tool}-dependencies.log')
+                else:
+                    report['dependencies'] = f'{scanner} unavailable; dependency/ABI validation remains incomplete'
             original = source.read_text()
             output = formatter_run(args, home, env, original, reports / f'{tool}-format.log')
             if not output.strip() or output == original or source.read_text() != original:
@@ -251,11 +294,18 @@ def probe(tool, target, work, reports):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--target', required=True, choices=TARGETS)
-    parser.add_argument('--tool', required=True, choices=('gofmt', 'dartfmt'))
-    parser.add_argument('--work-dir', required=True, type=Path)
-    parser.add_argument('--report-dir', required=True, type=Path)
-    args = parser.parse_args(); probe(args.tool, args.target, args.work_dir, args.report_dir)
+    parser.add_argument('--matrix', choices=('all', 'windows-only'))
+    parser.add_argument('--target', choices=TARGETS)
+    parser.add_argument('--tool', choices=('gofmt', 'dartfmt'))
+    parser.add_argument('--work-dir', type=Path)
+    parser.add_argument('--report-dir', type=Path)
+    args = parser.parse_args()
+    if args.matrix:
+        print(json.dumps(probe_matrix(args.matrix), separators=(',', ':')))
+        return
+    if any(v is None for v in (args.tool, args.target, args.work_dir, args.report_dir)):
+        parser.error('probe requires --tool, --target, --work-dir and --report-dir')
+    probe(args.tool, args.target, args.work_dir, args.report_dir)
 
 
 if __name__ == '__main__': main()
