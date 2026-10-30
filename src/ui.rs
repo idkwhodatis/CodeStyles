@@ -15,7 +15,9 @@ use codestyles::{
     project::{NativeLanguage, ProjectAction, ProjectReport, ProjectRequest},
     project_worker::ProjectController,
     resources,
-    schema::{FieldKind, PinnedPlugin, SchemaCatalog, SchemaField, setting_categories},
+    schema::{
+        FieldKind, PinnedPlugin, SchemaCatalog, SchemaContext, SchemaField, setting_categories,
+    },
     toolchain_worker::{PackAction, PackSnapshot, ToolchainController},
     toolchains::{PackFootprint, ToolchainStatus},
 };
@@ -61,7 +63,7 @@ pub struct PreviewWindow {
     subscriptions: Vec<Subscription>,
     selected_field: Option<String>,
     group: String,
-    vue_css_settings: bool,
+    vue_settings: VueSettingsGroup,
     search: String,
     diff_mode: bool,
     baseline: Option<String>,
@@ -134,7 +136,7 @@ impl PreviewWindow {
             subscriptions: Vec::new(),
             selected_field: None,
             group: String::new(),
-            vue_css_settings: false,
+            vue_settings: VueSettingsGroup::Template,
             search: String::new(),
             diff_mode: false,
             baseline: None,
@@ -431,21 +433,24 @@ impl PreviewWindow {
 
     fn change_setting(
         &mut self,
-        path: &[&str],
+        field: &SchemaField,
         value: Option<Value>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         if self.raw_dirty {
-            return;
+            return false;
         }
+        let plugin = self.plugin();
+        let context = self.schema_context();
         let Some(document) = self.document.as_mut() else {
-            return;
+            return false;
         };
         let result = match value {
-            Some(value) => document.set(path, value),
-            None => document.remove(path),
+            Some(value) => field.set_in_context(document, plugin, value, context),
+            None => field.unset_in_context(document, plugin, context),
         };
+        let applied = result.is_ok();
         match result {
             Ok(()) => {
                 self.project_selection.clear();
@@ -463,6 +468,7 @@ impl PreviewWindow {
             Err(error) => self.fail(error),
         }
         cx.notify();
+        applied
     }
 
     fn apply_raw(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -755,6 +761,80 @@ impl PreviewWindow {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum VueSettingsGroup {
+    Template,
+    Script,
+    Styles,
+}
+impl VueSettingsGroup {
+    const ALL: [Self; 3] = [Self::Template, Self::Script, Self::Styles];
+    fn plugin(self) -> PinnedPlugin {
+        match self {
+            Self::Template => PinnedPlugin::Markup,
+            Self::Script => PinnedPlugin::TypeScript,
+            Self::Styles => PinnedPlugin::Malva,
+        }
+    }
+    fn label(self) -> &'static str {
+        match self {
+            Self::Template => "Template",
+            Self::Script => "Script (JS / TS)",
+            Self::Styles => "Styles",
+        }
+    }
+}
+fn vue_group_can_change(
+    raw_dirty: bool,
+    field_dirty: bool,
+    project_busy: bool,
+    dialog_pending: bool,
+) -> bool {
+    !raw_dirty && !field_dirty && !project_busy && !dialog_pending
+}
+fn inline_control_key(context: SchemaContext, plugin: PinnedPlugin, name: &str) -> String {
+    format!("{:?}.{}.{}", context, plugin.section(), name)
+}
+
+fn setting_choice_label(value: &Value, typed: bool) -> String {
+    if !typed {
+        return value
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(|| value.to_string());
+    }
+    match value {
+        Value::Null => "null (explicit)".into(),
+        Value::Bool(value) => format!("{value} (boolean)"),
+        Value::String(value) => format!(
+            "{} (text)",
+            serde_json::to_string(value).expect("string serialization")
+        ),
+        value => value.to_string(),
+    }
+}
+fn remote_pack_availability(available: bool) -> &'static str {
+    if available {
+        "GitHub download available for this platform (verified pinned package)."
+    } else {
+        "GitHub download unavailable for this platform. An unpublished or unsupported package cannot be installed remotely; see the catalog reason above."
+    }
+}
+
+fn field_annotation(field: &SchemaField, explicit: Option<&Value>) -> String {
+    match explicit {
+        Some(value) => format!("Explicit: {value}"),
+        None => format!(
+            "Inherited / default (not written) · Schema default: {}",
+            field
+                .default
+                .as_ref()
+                .map(Value::to_string)
+                .unwrap_or_else(|| "not declared".into())
+        ),
+    }
+}
+
 fn format_package_bytes(bytes: Option<u64>) -> String {
     match bytes {
         None => "Unknown (not recorded in the trusted catalog)".into(),
@@ -913,9 +993,17 @@ fn dialog_is_current(opened_version: u64, current_version: u64) -> bool {
 }
 
 impl PreviewWindow {
+    fn schema_context(&self) -> SchemaContext {
+        if self.source.language() == SourceLanguage::Vue {
+            SchemaContext::ManagedVue
+        } else {
+            SchemaContext::Standalone
+        }
+    }
+
     fn plugin(&self) -> PinnedPlugin {
-        if self.source.language() == SourceLanguage::Vue && self.vue_css_settings {
-            PinnedPlugin::Malva
+        if self.source.language() == SourceLanguage::Vue {
+            self.vue_settings.plugin()
         } else {
             self.source.language().plugin()
         }
@@ -956,11 +1044,14 @@ impl PreviewWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<InputState> {
-        let key = format!("{}.{}", self.plugin().section(), field.name);
+        let context = self.schema_context();
+        let key = inline_control_key(context, self.plugin(), &field.name);
         let baseline = self
             .document
             .as_ref()
-            .map(|doc| field_input_text(field, doc, self.plugin()))
+            .map(|doc| {
+                field_input_text_in_context(field, doc, self.plugin(), self.schema_context())
+            })
             .unwrap_or_default();
         if let Some(editor) = self.inline_editors.get(&key) {
             if !(self.selected_field.as_ref() == Some(&field.name) && self.field_draft.is_dirty())
@@ -981,7 +1072,7 @@ impl PreviewWindow {
             &editor,
             window,
             move |this, editor, event, window, cx| {
-                if this.plugin() != plugin {
+                if this.plugin() != plugin || this.schema_context() != context {
                     return;
                 }
                 if matches!(event, InputEvent::Change) {
@@ -989,7 +1080,7 @@ impl PreviewWindow {
                     let baseline = this
                         .document
                         .as_ref()
-                        .map(|doc| field_input_text(&field, doc, plugin))
+                        .map(|doc| field_input_text_in_context(&field, doc, plugin, context))
                         .unwrap_or_default();
                     // Programmatic synchronization is not a pending user edit.
                     if text == baseline && this.selected_field.as_ref() != Some(&field.name) {
@@ -1015,7 +1106,7 @@ impl PreviewWindow {
                     let baseline = this
                         .document
                         .as_ref()
-                        .map(|doc| field_input_text(&field, doc, plugin))
+                        .map(|doc| field_input_text_in_context(&field, doc, plugin, context))
                         .unwrap_or_default();
                     let text = editor.read(cx).value().to_string();
                     if !prepare_inline_apply(
@@ -1044,18 +1135,21 @@ impl PreviewWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<SelectState<Vec<String>>> {
-        let key = format!("{}.{}", self.plugin().section(), field.name);
+        let context = self.schema_context();
+        let key = inline_control_key(context, self.plugin(), &field.name);
         let explicit = self
             .document
             .as_ref()
-            .and_then(|doc| field.state(doc, self.plugin()).ok())
+            .and_then(|doc| {
+                field
+                    .state_in_context(doc, self.plugin(), self.schema_context())
+                    .ok()
+            })
             .and_then(|state| state.explicit);
-        let label = |value: &Value| {
-            value
-                .as_str()
-                .map(str::to_owned)
-                .unwrap_or_else(|| value.to_string())
-        };
+        let typed_labels = values.iter().any(Value::is_null)
+            || (values.iter().any(Value::is_string)
+                && values.iter().any(|value| !value.is_string()));
+        let label = |value: &Value| setting_choice_label(value, typed_labels);
         let selected = explicit.as_ref().map(label);
         if let Some(select) = self.inline_selects.get(&key) {
             if select.read(cx).selected_value() != selected.as_ref() {
@@ -1083,7 +1177,7 @@ impl PreviewWindow {
             &select,
             window,
             move |this, _, event, window, cx| {
-                if this.plugin() != plugin {
+                if this.plugin() != plugin || this.schema_context() != context {
                     return;
                 }
                 let SelectEvent::Confirm(value) = event;
@@ -1112,7 +1206,11 @@ impl PreviewWindow {
         self.selected_field = Some(name.to_owned());
         self.field_editor = self
             .inline_editors
-            .get(&format!("{}.{}", self.plugin().section(), name))
+            .get(&inline_control_key(
+                self.schema_context(),
+                self.plugin(),
+                name,
+            ))
             .cloned();
         self.set_field(value, window, cx);
     }
@@ -1126,9 +1224,9 @@ impl PreviewWindow {
         let text = self
             .selected_schema_field()
             .and_then(|field| {
-                self.document
-                    .as_ref()
-                    .map(|doc| field_input_text(&field, doc, self.plugin()))
+                self.document.as_ref().map(|doc| {
+                    field_input_text_in_context(&field, doc, self.plugin(), self.schema_context())
+                })
             })
             .unwrap_or_default();
         self.field_draft.reset(text.clone());
@@ -1163,7 +1261,7 @@ impl PreviewWindow {
         let Some(catalog) = self.schema.as_ref().ok() else {
             return;
         };
-        if let Err(error) = catalog.available(document, plugin) {
+        if let Err(error) = catalog.available_in_context(document, plugin, self.schema_context()) {
             self.fail(error);
             cx.notify();
             return;
@@ -1175,8 +1273,9 @@ impl PreviewWindow {
             cx.notify();
             return;
         }
-        self.change_setting(&[plugin.section(), &field.name], value, window, cx);
-        self.sync_field(window, cx);
+        if self.change_setting(&field, value, window, cx) {
+            self.sync_field(window, cx);
+        }
     }
 
     fn apply_field(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1212,7 +1311,7 @@ impl PreviewWindow {
                 self.document
                     .as_ref()
                     .ok_or_else(|| "No configuration loaded".into())
-                    .and_then(|doc| schema.available(doc, plugin))
+                    .and_then(|doc| schema.available_in_context(doc, plugin, self.schema_context()))
             });
         let disabled = self.raw_dirty || availability.is_err() || self.project_busy();
         let fields = self
@@ -1258,7 +1357,7 @@ impl PreviewWindow {
                 .document
                 .as_ref()
                 .ok_or_else(|| "No document".to_owned())
-                .and_then(|doc| field.state(doc, plugin));
+                .and_then(|doc| field.state_in_context(doc, plugin, self.schema_context()));
             let explicit = state.as_ref().ok().and_then(|state| state.explicit.clone());
             let pending =
                 self.field_draft.is_dirty() && self.selected_field.as_ref() == Some(&field.name);
@@ -1296,7 +1395,7 @@ impl PreviewWindow {
                             Select::new(&select)
                                 .w(px(170.0))
                                 .small()
-                                .placeholder("Unset")
+                                .placeholder("Inherit / default")
                                 .accessibility_label(field.name.clone())
                                 .disabled(blocked),
                         );
@@ -1313,10 +1412,33 @@ impl PreviewWindow {
                         Select::new(&select)
                             .w(px(170.0))
                             .small()
-                            .placeholder("Unset")
+                            .placeholder("Inherit / default")
                             .accessibility_label(field.name.clone())
                             .disabled(blocked),
                     );
+                }
+                FieldKind::NullableNumber(_) => {
+                    let editor = self.inline_editor(field, window, cx);
+                    let name = field.name.clone();
+                    controls = controls
+                        .child(
+                            div().w(px(130.0)).child(
+                                Input::new(&editor)
+                                    .disabled(blocked)
+                                    .aria_label(format!("Number or null for {}", field.name)),
+                            ),
+                        )
+                        .child(
+                            Button::new(("explicit-null", index))
+                                .small()
+                                .label("null")
+                                .tooltip("Write explicit null, not inherit/default")
+                                .disabled(blocked || pending)
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.set_inline_field(&name, Some(Value::Null), window, cx)
+                                })),
+                        )
+                        .child(div().text_xs().child("number / null"));
                 }
                 FieldKind::Const(value) => {
                     let select = self.inline_select(field, vec![value.clone()], window, cx);
@@ -1324,7 +1446,7 @@ impl PreviewWindow {
                         Select::new(&select)
                             .w(px(170.0))
                             .small()
-                            .placeholder("Unset")
+                            .placeholder("Inherit / default")
                             .accessibility_label(field.name.clone())
                             .disabled(blocked),
                     );
@@ -1345,17 +1467,13 @@ impl PreviewWindow {
                 }
             }
             let name = field.name.clone();
-            let annotation = if explicit.is_some() {
-                "Custom"
-            } else {
-                "Unset"
-            };
+            let annotation = field_annotation(field, explicit.as_ref());
             let help = field_help(field, explicit.as_ref());
             let mut row = div().id(("setting-row", index)).aria_label(field.name.clone()).aria_description(help.clone()).flex().flex_col().gap_1().py_2()
                 .child(div().flex().items_center().gap_3()
                     .child(div().id(("setting-label", index)).flex_1().min_w_0().text_sm().child(field.short_label()).tooltip(move |window, cx| Tooltip::new(help.clone()).build(window, cx)))
                     .child(controls)
-                    .child(Button::new(("reset", index)).small().label("Reset").tooltip("Remove explicit value; inherit configuration or plugin default")
+                    .child(Button::new(("reset", index)).small().label("Inherit").tooltip("Remove explicit value; inherit configuration or plugin default")
                         .disabled(blocked || pending || explicit.is_none()).on_click(cx.listener(move |this, _, window, cx| this.set_inline_field(&name, None, window, cx)))))
                 .child(div().text_xs().text_color(cx.theme().muted_foreground).child(annotation));
             if pending {
@@ -1412,9 +1530,10 @@ impl PreviewWindow {
             .gap_2()
             .child(div().text_lg().child("Settings"))
             .when(self.source.language() == SourceLanguage::Go, |panel| panel.child(div().text_sm().child("Go uses gofmt's canonical style. There are no style controls; CodeStyles does not expose gofmt rewrite or simplify flags.")))
-            .when(self.source.language() == SourceLanguage::Dart, |panel| panel.child(div().text_sm().child("Dart / Flutter source formatting only; no Flutter SDK, analyzer, pub tooling or widget generation. Dart preview uses plain text when no highlighting grammar is available.")))
-            .when(self.source.language() == SourceLanguage::Vue, |panel| panel.child(div().flex().gap_2().children([(false, "Template / SFC (markup_fmt)"), (true, "Styles (Malva)")].into_iter().map(|(css, label)| Button::new(("vue-setting-group", css as usize)).label(label).selected(self.vue_css_settings == css).disabled(self.raw_dirty || self.field_draft.is_dirty() || self.project_busy()).on_click(cx.listener(move |this, _, window, cx| {
-                if this.allow_field_transition(cx) && !this.raw_dirty { this.vue_css_settings = css; this.selected_field = None; this.group.clear(); this.sync_field(window, cx); cx.notify(); }
+            .when(self.source.language() == SourceLanguage::Dart, |panel| panel.child(div().text_sm().child("Dart / Flutter source formatting: languageVersion, pageWidth, trailingCommas. No Flutter SDK, analyzer, pub tooling or widget generation. Dart preview uses plain text when no highlighting grammar is available.")))
+            .when(self.source.language() == SourceLanguage::Vue, |panel| panel.child(div().text_xs().child("Template → markup (markup_fmt) · Script → shared typescript settings (also affect JS/TS previews) · Styles → malva. JSONC and unknown options are preserved. Settings can be edited before installing support; download availability follows the language-pack catalog.")))
+            .when(self.source.language() == SourceLanguage::Vue, |panel| panel.child(div().flex().gap_2().children(VueSettingsGroup::ALL.into_iter().enumerate().map(|(index, group)| Button::new(("vue-setting-group", index)).label(group.label()).selected(self.vue_settings == group).disabled(!vue_group_can_change(self.raw_dirty, self.field_draft.is_dirty(), self.project_busy(), self.dialog_pending)).on_click(cx.listener(move |this, _, window, cx| {
+                if vue_group_can_change(this.raw_dirty, this.field_draft.is_dirty(), this.project_busy(), this.dialog_pending) && this.allow_field_transition(cx) { this.vue_settings = group; this.selected_field = None; this.group.clear(); this.sync_field(window, cx); cx.notify(); }
             }))))))
             .child(
                 div()
@@ -1513,7 +1632,7 @@ impl PreviewWindow {
                                                                     return;
                                                                 }
                                                                 this.switch_pack(language.pack_id().unwrap_or("rustfmt"), cx);
-                                                                this.vue_css_settings = false;
+                                                                this.vue_settings = VueSettingsGroup::Template;
                                                                 this.source
                                                                     .select_language(language);
                                                                 this.project_report = None;
@@ -1864,7 +1983,7 @@ impl PreviewWindow {
                 .child(div().text_sm().child("This optional language uses a verified managed pack. Installing it does not change editor settings or add project plugin URLs. Configure external editor/CI tools explicitly; the bundled offline dprint config alone does not provide this language."))
                 .child(div().text_sm().child(match self.source.language() {
                     SourceLanguage::Go => "Go uses canonical gofmt with no style settings. Configure your normal Go editor tooling separately.",
-                    SourceLanguage::Dart => "Dart / Flutter source uses the pinned Dart formatter. This does not install Flutter or run pub/analyzer commands. Only explicit languageVersion and lineWidth settings are supported.",
+                    SourceLanguage::Dart => "Dart / Flutter source uses the pinned Dart formatter. This does not install Flutter or run pub/analyzer commands. The three supported options are languageVersion, pageWidth, and trailingCommas.",
                     _ => "Vue support is Vue-only SFC formatting with pinned markup_fmt / Malva and bundled script formatters. External src and unsupported custom block languages fail closed. It is not a Vue build system or arbitrary embedded-language runner.",
                 })).into_any_element();
         }
@@ -2133,6 +2252,7 @@ impl PreviewWindow {
                 .child(div().text_sm().child(state))
                 .child(div().text_sm().child(format!("Managed directory: {root}")))
                 .child(div().text_sm().text_color(cx.theme().muted_foreground).child(publication))
+                .child(div().text_sm().text_color(if remote { cx.theme().muted_foreground } else { cx.theme().warning }).child(remote_pack_availability(remote)))
                 .child(div().text_sm().text_color(if footprint_error { cx.theme().warning } else { cx.theme().muted_foreground }).child(footprint))
                 .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Catalog payload sizes, not measured disk usage. New staging limit = compressed archive limits + installed payload limit; excludes receipts, filesystem overhead and existing/retained runtimes. Existing versions need additional space. Free disk space is not checked. Size metadata does not mean an unpublished download is available."))
                 .child(div().flex().flex_wrap().gap_2()
@@ -2349,13 +2469,23 @@ fn field_help(field: &SchemaField, explicit: Option<&Value>) -> String {
     )
 }
 
+#[cfg(test)]
 fn field_input_text(
     field: &SchemaField,
     document: &ConfigDocument,
     plugin: PinnedPlugin,
 ) -> String {
+    field_input_text_in_context(field, document, plugin, SchemaContext::Standalone)
+}
+
+fn field_input_text_in_context(
+    field: &SchemaField,
+    document: &ConfigDocument,
+    plugin: PinnedPlugin,
+    context: SchemaContext,
+) -> String {
     field
-        .state(document, plugin)
+        .state_in_context(document, plugin, context)
         .ok()
         .and_then(|state| state.explicit.or(state.schema_default))
         .map(|value| match value {
@@ -2681,6 +2811,108 @@ mod tests {
         schema::{PinnedPlugin, SchemaCatalog},
         toolchains::PackFootprint,
     };
+
+    #[test]
+    fn inline_control_cache_uses_identical_keys_for_creation_and_update_lookup() {
+        use codestyles::schema::SchemaContext;
+        let mut controls = std::collections::HashMap::new();
+        let plugin = PinnedPlugin::TypeScript;
+        let vue = super::inline_control_key(SchemaContext::ManagedVue, plugin, "lineWidth");
+        controls.insert(vue.clone(), "Vue editor");
+        assert_eq!(
+            controls.get(&super::inline_control_key(
+                SchemaContext::ManagedVue,
+                plugin,
+                "lineWidth"
+            )),
+            Some(&"Vue editor")
+        );
+        let standalone = super::inline_control_key(SchemaContext::Standalone, plugin, "lineWidth");
+        assert_ne!(vue, standalone);
+        assert!(!controls.contains_key(&standalone));
+        controls.insert(standalone.clone(), "Standalone editor");
+        assert_eq!(controls.get(&standalone), Some(&"Standalone editor"));
+        assert_eq!(controls.get(&vue), Some(&"Vue editor"));
+        assert_ne!(
+            vue,
+            super::inline_control_key(SchemaContext::ManagedVue, PinnedPlugin::Markup, "lineWidth")
+        );
+        assert_ne!(
+            vue,
+            super::inline_control_key(SchemaContext::ManagedVue, plugin, "indentWidth")
+        );
+    }
+
+    #[test]
+    fn dart_has_exactly_three_actual_source_formatter_controls() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let names: std::collections::BTreeSet<_> = catalog
+            .fields(PinnedPlugin::Dartfmt)
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            ["languageVersion", "pageWidth", "trailingCommas"]
+                .into_iter()
+                .collect()
+        );
+        assert!(catalog.fields(PinnedPlugin::Gofmt).is_empty());
+    }
+
+    #[test]
+    fn vue_groups_map_to_existing_sections_and_block_pending_transitions() {
+        assert_eq!(
+            super::VueSettingsGroup::ALL.map(|group| group.plugin().section()),
+            ["markup", "typescript", "malva"]
+        );
+        assert!(super::vue_group_can_change(false, false, false, false));
+        for (raw, field, busy, dialog) in [
+            (true, false, false, false),
+            (false, true, false, false),
+            (false, false, true, false),
+            (false, false, false, true),
+        ] {
+            assert!(!super::vue_group_can_change(raw, field, busy, dialog));
+        }
+    }
+
+    #[test]
+    fn nullable_choices_preserve_json_types_and_distinguish_inheritance() {
+        use serde_json::{Value, json};
+        assert_eq!(
+            super::setting_choice_label(&Value::Null, true),
+            "null (explicit)"
+        );
+        assert_ne!(
+            super::setting_choice_label(&json!(false), true),
+            super::setting_choice_label(&json!("false"), true)
+        );
+        assert_ne!(
+            super::setting_choice_label(&Value::Null, true),
+            super::setting_choice_label(&json!("null"), true)
+        );
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let field = catalog
+            .schema(PinnedPlugin::TypeScript)
+            .field("lineWidth")
+            .unwrap();
+        assert!(super::field_annotation(field, None).contains("Inherited / default (not written)"));
+        assert_eq!(
+            super::field_annotation(field, Some(&Value::Null)),
+            "Explicit: null"
+        );
+        assert_eq!(
+            super::field_annotation(field, Some(&json!(80))),
+            "Explicit: 80"
+        );
+    }
+
+    #[test]
+    fn publication_state_is_not_inferred_from_editable_settings() {
+        assert!(super::remote_pack_availability(false).contains("cannot be installed remotely"));
+        assert!(super::remote_pack_availability(true).contains("available for this platform"));
+    }
 
     #[test]
     fn unrelated_pack_mutations_never_cancel_or_block_the_current_preview() {
