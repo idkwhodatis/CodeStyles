@@ -1,0 +1,516 @@
+{
+  "format_version": 1,
+  "purpose": "Offline Linux x64 candidate reproduction only. Not an install or release catalog. No downloads are performed by the builder.",
+  "metadata_only_other_targets": {
+    "observed_utc": "2026-10-30",
+    "not_application_download_catalog": true,
+    "dart": {
+      "version": "3.13.7",
+      "source": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/VERSION",
+      "targets": [
+        {
+          "os": "windows",
+          "arch": "x64",
+          "url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-windows-x64-release.zip",
+          "bytes": 219893829,
+          "sha256": "3b31d9f90b27861f29842d378f39f98ce9e60910042334f950ef5702f174fb81",
+          "checksum_url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-windows-x64-release.zip.sha256sum",
+          "validation": "HEAD-and-official-checksum-text-only",
+          "available": false
+        },
+        {
+          "os": "windows",
+          "arch": "arm64",
+          "url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-windows-arm64-release.zip",
+          "bytes": 161631198,
+          "sha256": "02d1dcf26438dfd65be6cc3075c3b7f23fdef84d2601b488e59aa8aa8cd742b5",
+          "checksum_url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-windows-arm64-release.zip.sha256sum",
+          "validation": "HEAD-and-official-checksum-text-only",
+          "available": false
+        },
+        {
+          "os": "macos",
+          "arch": "x64",
+          "url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-macos-x64-release.zip",
+          "bytes": 228809663,
+          "sha256": "44caf063178ac7680060fe14c2247532c652874d38f1016bf45cf475c86e44b5",
+          "checksum_url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-macos-x64-release.zip.sha256sum",
+          "validation": "HEAD-and-official-checksum-text-only",
+          "available": false
+        },
+        {
+          "os": "macos",
+          "arch": "arm64",
+          "url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-macos-arm64-release.zip",
+          "bytes": 225890953,
+          "sha256": "9f972ee1e1139cb4f845f35c7c77bef269dd2ec727b239fb17a2ebcb66d0fb2f",
+          "checksum_url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-macos-arm64-release.zip.sha256sum",
+          "validation": "HEAD-and-official-checksum-text-only",
+          "available": false
+        },
+        {
+          "os": "linux",
+          "arch": "x64",
+          "url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-linux-x64-release.zip",
+          "bytes": 238850892,
+          "sha256": "eb99aed266efbcb615c6ae21c12f52cfe935b9f208bccc5fea7f64c21e867229",
+          "checksum_url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-linux-x64-release.zip.sha256sum",
+          "validation": "archive-and-linux-smoke",
+          "available": false
+        },
+        {
+          "os": "linux",
+          "arch": "arm64",
+          "url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-linux-arm64-release.zip",
+          "bytes": 236443245,
+          "sha256": "887cbb763bc4a1d6f3d7c34a6ea08f0f05211807abf98c06d6e4263907ccac1a",
+          "checksum_url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-linux-arm64-release.zip.sha256sum",
+          "validation": "HEAD-and-official-checksum-text-only",
+          "available": false
+        }
+      ]
+    },
+    "go": {
+      "version": "1.27.3",
+      "source": "https://go.dev/dl/?mode=json",
+      "targets": [
+        {
+          "os": "darwin",
+          "arch": "amd64",
+          "url": "https://go.dev/dl/go1.27.3.darwin-amd64.tar.gz",
+          "bytes": 71697771,
+          "sha256": "b6f8e931e4ab497fcde6da8ae4499a58f9d258e55c8a80824a516eae5950a750",
+          "validation": "official-JSON-metadata-only",
+          "available": false
+        },
+        {
+          "os": "darwin",
+          "arch": "arm64",
+          "url": "https://go.dev/dl/go1.27.3.darwin-arm64.tar.gz",
+          "bytes": 68196737,
+          "sha256": "dd3908cf20959d798c1e06ebe5b72213f0505ce01373b40ce3110975a6cd99c2",
+          "validation": "official-JSON-metadata-only",
+          "available": false
+        },
+        {
+          "os": "linux",
+          "arch": "amd64",
+          "url": "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz",
+          "bytes": 70588678,
+          "sha256": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40",
+          "validation": "archive-and-linux-smoke",
+          "available": false
+        },
+        {
+          "os": "linux",
+          "arch": "arm64",
+          "url": "https://go.dev/dl/go1.27.3.linux-arm64.tar.gz",
+          "bytes": 67076044,
+          "sha256": "a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f1193269587165f49",
+          "validation": "official-JSON-metadata-only",
+          "available": false
+        },
+        {
+          "os": "windows",
+          "arch": "amd64",
+          "url": "https://go.dev/dl/go1.27.3.windows-amd64.zip",
+          "bytes": 79010309,
+          "sha256": "f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff",
+          "validation": "official-JSON-metadata-only",
+          "available": false
+        },
+        {
+          "os": "windows",
+          "arch": "arm64",
+          "url": "https://go.dev/dl/go1.27.3.windows-arm64.zip",
+          "bytes": 75113075,
+          "sha256": "c507872ff21f8a7cd3c1c217b059c6f7271a4a9d8e692810ef9dd3e1f601197c",
+          "validation": "official-JSON-metadata-only",
+          "available": false
+        }
+      ]
+    }
+  },
+  "tools": {
+    "gofmt": {
+      "version": "1.27.3",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_receipt": {
+        "url": "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz",
+        "bytes": 70588678,
+        "sha256": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40",
+        "members": [
+          {
+            "path": "go/LICENSE",
+            "bytes": 1453,
+            "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+          },
+          {
+            "path": "go/PATENTS",
+            "bytes": 1303,
+            "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+          },
+          {
+            "path": "go/bin/gofmt",
+            "bytes": 3144728,
+            "sha256": "fd464d1c9098a6714d06bd3fcd2a1fedcdd291e710241160ebb663bf99adf2f8"
+          },
+          {
+            "path": "go/src/vendor/golang.org/x/crypto/LICENSE",
+            "bytes": 1453,
+            "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+          },
+          {
+            "path": "go/src/vendor/golang.org/x/crypto/PATENTS",
+            "bytes": 1303,
+            "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+          },
+          {
+            "path": "go/src/vendor/golang.org/x/net/LICENSE",
+            "bytes": 1453,
+            "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+          },
+          {
+            "path": "go/src/vendor/golang.org/x/net/PATENTS",
+            "bytes": 1303,
+            "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+          },
+          {
+            "path": "go/src/vendor/golang.org/x/sys/LICENSE",
+            "bytes": 1453,
+            "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+          },
+          {
+            "path": "go/src/vendor/golang.org/x/sys/PATENTS",
+            "bytes": 1303,
+            "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+          },
+          {
+            "path": "go/src/vendor/golang.org/x/text/LICENSE",
+            "bytes": 1453,
+            "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+          },
+          {
+            "path": "go/src/vendor/golang.org/x/text/PATENTS",
+            "bytes": 1303,
+            "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+          }
+        ]
+      },
+      "archive_format": "tar.gz",
+      "max_source_expanded_bytes": 2147483648,
+      "files": [
+        {
+          "archive_path": "bin/gofmt",
+          "path": "bin/gofmt",
+          "sha256": "fd464d1c9098a6714d06bd3fcd2a1fedcdd291e710241160ebb663bf99adf2f8",
+          "bytes": 3144728,
+          "executable": true,
+          "input_path": "go/bin/gofmt",
+          "origin": "archive",
+          "source_archive_path": "go/bin/gofmt"
+        },
+        {
+          "archive_path": "licenses/LICENSE",
+          "path": "licenses/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "bytes": 1453,
+          "executable": false,
+          "input_path": "go/LICENSE",
+          "origin": "archive",
+          "source_archive_path": "go/LICENSE"
+        },
+        {
+          "archive_path": "licenses/PATENTS",
+          "path": "licenses/PATENTS",
+          "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+          "bytes": 1303,
+          "executable": false,
+          "input_path": "go/PATENTS",
+          "origin": "archive",
+          "source_archive_path": "go/PATENTS"
+        },
+        {
+          "archive_path": "licenses/src/cmd/vendor/golang.org/x/sync/LICENSE",
+          "path": "licenses/src/cmd/vendor/golang.org/x/sync/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "bytes": 1453,
+          "executable": false,
+          "input_path": "go/src/cmd/vendor/golang.org/x/sync/LICENSE",
+          "origin": "supplement",
+          "url": "https://raw.githubusercontent.com/golang/go/go1.27.3/src/cmd/vendor/golang.org/x/sync/LICENSE"
+        },
+        {
+          "archive_path": "licenses/src/cmd/vendor/golang.org/x/telemetry/LICENSE",
+          "path": "licenses/src/cmd/vendor/golang.org/x/telemetry/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "bytes": 1453,
+          "executable": false,
+          "input_path": "go/src/cmd/vendor/golang.org/x/telemetry/LICENSE",
+          "origin": "supplement",
+          "url": "https://raw.githubusercontent.com/golang/go/go1.27.3/src/cmd/vendor/golang.org/x/telemetry/LICENSE"
+        },
+        {
+          "archive_path": "licenses/src/vendor/golang.org/x/crypto/LICENSE",
+          "path": "licenses/src/vendor/golang.org/x/crypto/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "bytes": 1453,
+          "executable": false,
+          "input_path": "go/src/vendor/golang.org/x/crypto/LICENSE",
+          "origin": "archive",
+          "source_archive_path": "go/src/vendor/golang.org/x/crypto/LICENSE"
+        },
+        {
+          "archive_path": "licenses/src/vendor/golang.org/x/crypto/PATENTS",
+          "path": "licenses/src/vendor/golang.org/x/crypto/PATENTS",
+          "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+          "bytes": 1303,
+          "executable": false,
+          "input_path": "go/src/vendor/golang.org/x/crypto/PATENTS",
+          "origin": "archive",
+          "source_archive_path": "go/src/vendor/golang.org/x/crypto/PATENTS"
+        },
+        {
+          "archive_path": "licenses/src/vendor/golang.org/x/net/LICENSE",
+          "path": "licenses/src/vendor/golang.org/x/net/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "bytes": 1453,
+          "executable": false,
+          "input_path": "go/src/vendor/golang.org/x/net/LICENSE",
+          "origin": "archive",
+          "source_archive_path": "go/src/vendor/golang.org/x/net/LICENSE"
+        },
+        {
+          "archive_path": "licenses/src/vendor/golang.org/x/net/PATENTS",
+          "path": "licenses/src/vendor/golang.org/x/net/PATENTS",
+          "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+          "bytes": 1303,
+          "executable": false,
+          "input_path": "go/src/vendor/golang.org/x/net/PATENTS",
+          "origin": "archive",
+          "source_archive_path": "go/src/vendor/golang.org/x/net/PATENTS"
+        },
+        {
+          "archive_path": "licenses/src/vendor/golang.org/x/sys/LICENSE",
+          "path": "licenses/src/vendor/golang.org/x/sys/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "bytes": 1453,
+          "executable": false,
+          "input_path": "go/src/vendor/golang.org/x/sys/LICENSE",
+          "origin": "archive",
+          "source_archive_path": "go/src/vendor/golang.org/x/sys/LICENSE"
+        },
+        {
+          "archive_path": "licenses/src/vendor/golang.org/x/sys/PATENTS",
+          "path": "licenses/src/vendor/golang.org/x/sys/PATENTS",
+          "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+          "bytes": 1303,
+          "executable": false,
+          "input_path": "go/src/vendor/golang.org/x/sys/PATENTS",
+          "origin": "archive",
+          "source_archive_path": "go/src/vendor/golang.org/x/sys/PATENTS"
+        },
+        {
+          "archive_path": "licenses/src/vendor/golang.org/x/text/LICENSE",
+          "path": "licenses/src/vendor/golang.org/x/text/LICENSE",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "bytes": 1453,
+          "executable": false,
+          "input_path": "go/src/vendor/golang.org/x/text/LICENSE",
+          "origin": "archive",
+          "source_archive_path": "go/src/vendor/golang.org/x/text/LICENSE"
+        },
+        {
+          "archive_path": "licenses/src/vendor/golang.org/x/text/PATENTS",
+          "path": "licenses/src/vendor/golang.org/x/text/PATENTS",
+          "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+          "bytes": 1303,
+          "executable": false,
+          "input_path": "go/src/vendor/golang.org/x/text/PATENTS",
+          "origin": "archive",
+          "source_archive_path": "go/src/vendor/golang.org/x/text/PATENTS"
+        }
+      ],
+      "candidate": {
+        "available": false,
+        "reason": "Local validation candidate only; not published. Cross-platform verification pending.",
+        "executable": "bin/gofmt",
+        "environment": {},
+        "max_installed_bytes": 3167207,
+        "validation": {
+          "archive_and_members": "verified",
+          "native_execution": "linux-x64-smoke-passed",
+          "network_syscall_audit": "blocked-ptrace-denied",
+          "license_audit": "upstream-and-vendored-notices-included"
+        }
+      },
+      "expected_bundle_sha256": "5e9d82c0105c9825ccfee56b175d5578f7afa690bda4801c329e4349786859c2",
+      "expected_bundle_bytes": 1336802
+    },
+    "dartfmt": {
+      "version": "3.13.7",
+      "target": "x86_64-unknown-linux-gnu",
+      "source_receipt": {
+        "url": "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.7/sdk/dartsdk-linux-x64-release.zip",
+        "bytes": 238850892,
+        "sha256": "eb99aed266efbcb615c6ae21c12f52cfe935b9f208bccc5fea7f64c21e867229",
+        "members": [
+          {
+            "path": "dart-sdk/sdk_packages.yaml",
+            "bytes": 160,
+            "sha256": "f427dcf4f87473458fd4af3d065db5d3a76cd21b2663c242f2c06bf08632c000"
+          },
+          {
+            "path": "dart-sdk/revision",
+            "bytes": 41,
+            "sha256": "768a9c944b0cf6db4e13cdedbd1498f1ab83bbebdb61fe769c6385c2cec07d88"
+          },
+          {
+            "path": "dart-sdk/README",
+            "bytes": 1271,
+            "sha256": "badfd0f9c13687769e68a7f2f48f36d761e5f083f8822262aa45f6ebb46a7fe6"
+          },
+          {
+            "path": "dart-sdk/LICENSE",
+            "bytes": 1502,
+            "sha256": "2cfa3ee8e7512e6d44c854b986510810fadc815f93f890373b3a81c1b6ccd256"
+          },
+          {
+            "path": "dart-sdk/version",
+            "bytes": 7,
+            "sha256": "3ce16e94590543a327d3e5ae412e663206e0ed1b46628ed3dd5ad29caa1ff5ac"
+          },
+          {
+            "path": "dart-sdk/bin/dart",
+            "bytes": 4835712,
+            "sha256": "01e869e4af277734b02ab8898b870c6b00c9bec61bbcf9c923cd14de7ed85fbb"
+          },
+          {
+            "path": "dart-sdk/bin/dartaotruntime",
+            "bytes": 5710176,
+            "sha256": "3599c987228070f342c80d29353f496c8efc72c620c75fc4d59e5671666b2f72"
+          },
+          {
+            "path": "dart-sdk/bin/dartvm",
+            "bytes": 42998912,
+            "sha256": "ec532a0620beed626fbf89234f1dcc857c15f4e064fb8e99715345027bfb129d"
+          },
+          {
+            "path": "dart-sdk/bin/snapshots/dartdev_aot.dart.snapshot",
+            "bytes": 22954416,
+            "sha256": "3f675fe483acfb56e752121c2cf0b1505d4db0edf0fc16ca996d3d76eb252b55"
+          }
+        ]
+      },
+      "archive_format": "zip",
+      "max_source_expanded_bytes": 2147483648,
+      "files": [
+        {
+          "archive_path": "README",
+          "path": "README",
+          "sha256": "badfd0f9c13687769e68a7f2f48f36d761e5f083f8822262aa45f6ebb46a7fe6",
+          "bytes": 1271,
+          "executable": false,
+          "input_path": "dart-sdk/README",
+          "origin": "archive",
+          "source_archive_path": "dart-sdk/README"
+        },
+        {
+          "archive_path": "bin/dart",
+          "path": "bin/dart",
+          "sha256": "01e869e4af277734b02ab8898b870c6b00c9bec61bbcf9c923cd14de7ed85fbb",
+          "bytes": 4835712,
+          "executable": true,
+          "input_path": "dart-sdk/bin/dart",
+          "origin": "archive",
+          "source_archive_path": "dart-sdk/bin/dart"
+        },
+        {
+          "archive_path": "bin/snapshots/dartdev_aot.dart.snapshot",
+          "path": "bin/snapshots/dartdev_aot.dart.snapshot",
+          "sha256": "3f675fe483acfb56e752121c2cf0b1505d4db0edf0fc16ca996d3d76eb252b55",
+          "bytes": 22954416,
+          "executable": false,
+          "input_path": "dart-sdk/bin/snapshots/dartdev_aot.dart.snapshot",
+          "origin": "archive",
+          "source_archive_path": "dart-sdk/bin/snapshots/dartdev_aot.dart.snapshot"
+        },
+        {
+          "archive_path": "licenses/AUDIT_STATUS.txt",
+          "path": "licenses/AUDIT_STATUS.txt",
+          "sha256": "71580e87e2cdb3d4016183a870f00fe0515a2fdd8f9d0009c701cd40c1d5a4e5",
+          "bytes": 225,
+          "executable": false,
+          "input_path": "dart-sdk/licenses/AUDIT_STATUS.txt",
+          "origin": "generated",
+          "text": "LOCAL VALIDATION CANDIDATE ONLY. SDK LICENSE and dart_style LICENSE are included. Full static dartdev snapshot third-party license closure has NOT yet been audited. Do not publish this candidate until that audit is complete.\n"
+        },
+        {
+          "archive_path": "licenses/LICENSE",
+          "path": "licenses/LICENSE",
+          "sha256": "2cfa3ee8e7512e6d44c854b986510810fadc815f93f890373b3a81c1b6ccd256",
+          "bytes": 1502,
+          "executable": false,
+          "input_path": "dart-sdk/LICENSE",
+          "origin": "archive",
+          "source_archive_path": "dart-sdk/LICENSE"
+        },
+        {
+          "archive_path": "licenses/dart_style-LICENSE",
+          "path": "licenses/dart_style-LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16",
+          "bytes": 1504,
+          "executable": false,
+          "input_path": "dart-sdk/licenses/dart_style-LICENSE",
+          "origin": "supplement",
+          "url": "https://raw.githubusercontent.com/dart-lang/dart_style/39edc2d946a5d7bd1caf6f1695f366b00f7b873c/LICENSE"
+        },
+        {
+          "archive_path": "revision",
+          "path": "revision",
+          "sha256": "768a9c944b0cf6db4e13cdedbd1498f1ab83bbebdb61fe769c6385c2cec07d88",
+          "bytes": 41,
+          "executable": false,
+          "input_path": "dart-sdk/revision",
+          "origin": "archive",
+          "source_archive_path": "dart-sdk/revision"
+        },
+        {
+          "archive_path": "sdk_packages.yaml",
+          "path": "sdk_packages.yaml",
+          "sha256": "f427dcf4f87473458fd4af3d065db5d3a76cd21b2663c242f2c06bf08632c000",
+          "bytes": 160,
+          "executable": false,
+          "input_path": "dart-sdk/sdk_packages.yaml",
+          "origin": "archive",
+          "source_archive_path": "dart-sdk/sdk_packages.yaml"
+        },
+        {
+          "archive_path": "version",
+          "path": "version",
+          "sha256": "3ce16e94590543a327d3e5ae412e663206e0ed1b46628ed3dd5ad29caa1ff5ac",
+          "bytes": 7,
+          "executable": false,
+          "input_path": "dart-sdk/version",
+          "origin": "archive",
+          "source_archive_path": "dart-sdk/version"
+        }
+      ],
+      "candidate": {
+        "available": false,
+        "reason": "Local validation candidate only; not published. Dartdev transitive license audit incomplete.",
+        "executable": "bin/dart",
+        "environment": {},
+        "max_installed_bytes": 27798820,
+        "validation": {
+          "archive_and_members": "verified",
+          "native_execution": "linux-x64-smoke-passed",
+          "network_syscall_audit": "blocked-ptrace-denied",
+          "license_audit": "pending-transitive-dartdev-not-for-publication"
+        }
+      },
+      "expected_bundle_sha256": "0489363d0de2af8ea3b7860100cc7fea76262629838dceb2d69a965270d702b7",
+      "expected_bundle_bytes": 10365657
+    }
+  }
+}

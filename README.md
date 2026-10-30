@@ -9,10 +9,18 @@ examples, then inspect and format real project files with the saved configuratio
 Optional native language packs add Rust settings, preview/Diff, `rustfmt.toml`
 export, and an explicit Rust-only project workflow without requiring installed
 Rust. Built-in offline languages, including Python, remain available.
-The Linux x64 candidate is locally verified; GitHub download publication and
-other five platform validations are **pending**, so network installation stays
-disabled. See [language support](LANGUAGE_PACKS.md) for storage, safety, scope and
+The approved Rust bundles are published and production download/install tests
+passed on all six platforms at master `b7f7ed8`. This does not update older alpha
+binaries automatically. See [language support](LANGUAGE_PACKS.md) for storage, safety, scope and
 current limitations, and [packaging](TOOLCHAIN_PACKAGING.md) for reproducible assets.
+
+## Dart / Flutter, Go and Vue (new local candidates)
+
+The next development batch adds `.dart`, `.go` and complete supported `.vue` SFC
+formatting through optional managed packs. Flutter means Dart source, not a full
+Flutter SDK. Go uses fixed gofmt style; Vue uses WASM, not Node/npm. New packs are
+**not published**: download stays disabled until their separate release gates are
+met. See [scope, tested paths and remaining gates](NEW_LANGUAGE_SUPPORT.md).
 
 ## Python formatting
 

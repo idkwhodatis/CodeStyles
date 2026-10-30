@@ -1,0 +1,6 @@
+{
+  "title": "Go formatting",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

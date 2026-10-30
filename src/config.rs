@@ -623,6 +623,55 @@ fn save_tempfile(path: &Path, text: &str) -> Result<NamedTempFile, String> {
     Ok(file)
 }
 
+/// Pure validation shared by preview and empty-scope project checks.
+pub(crate) fn validate_vue_config(text: &str) -> Result<Value, String> {
+    let cst = parse_object(text)?;
+    let root = cst.object_value().expect("validated root");
+    for key in [
+        "extends",
+        "overrides",
+        "inherit",
+        "markup",
+        "malva",
+        "typescript",
+        "json",
+    ] {
+        unique_property(&root, key)?;
+    }
+    let value = jsonc_parser::parse_to_serde_value(text, &jsonc_parser::ParseOptions::default())
+        .map_err(|e| e.to_string())?
+        .ok_or("Empty Vue configuration.")?;
+    let object = value
+        .as_object()
+        .ok_or("Vue configuration must be an object.")?;
+    if ["extends", "overrides"]
+        .iter()
+        .any(|key| object.contains_key(*key))
+        || object
+            .get("inherit")
+            .is_some_and(|v| v != &Value::Bool(false))
+    {
+        return Err(
+            "Managed Vue mode requires explicit settings without inheritance or overrides.".into(),
+        );
+    }
+    for key in ["markup", "malva", "typescript", "json"] {
+        if object.get(key).is_some_and(|section| !section.is_object()) {
+            return Err(format!("{key} must be an object."));
+        }
+    }
+    if value["markup"]
+        .get("scriptFormatter")
+        .is_some_and(|v| v != "dprint")
+    {
+        return Err(
+            "Managed Vue requires markup.scriptFormatter = dprint for complete script formatting."
+                .into(),
+        );
+    }
+    Ok(value)
+}
+
 /// Keeps a non-discoverable preview file alive until all child pipe readers exit.
 pub struct DraftConfig {
     file: NamedTempFile,
@@ -686,6 +735,46 @@ impl DraftConfig {
         Self::from_snapshot(&ConfigSnapshot {
             source_text: root.to_string(),
             original_path: snapshot.original_path.clone(),
+        })
+    }
+
+    /// Explicit Vue mode uses only the complete verified four-plugin chain in an
+    /// isolated draft. It never runs user-supplied plugins, inherited configs or
+    /// follows external SFC sources, and never modifies the original JSONC.
+    pub fn for_vue(snapshot: &ConfigSnapshot, plugins: &[PathBuf]) -> Result<Self, String> {
+        let mut value = validate_vue_config(snapshot.source_text())?;
+        let object = value.as_object_mut().expect("validated Vue config");
+        let markup = object
+            .entry("markup")
+            .or_insert_with(|| serde_json::json!({}))
+            .as_object_mut()
+            .expect("validated markup");
+        markup.insert("scriptFormatter".into(), Value::String("dprint".into()));
+        let expected = [
+            "markup-0.27.6.wasm",
+            "malva-0.16.0.wasm",
+            "typescript-0.96.1.wasm",
+            "json-0.25.2.wasm",
+        ];
+        let paths = expected
+            .iter()
+            .map(|name| {
+                let path = plugins
+                    .iter()
+                    .find(|path| path.file_name() == Some(std::ffi::OsStr::new(name)))
+                    .ok_or_else(|| format!("Managed Vue dependency missing: {name}"))?;
+                let canonical = fs::canonicalize(path).map_err(|e| e.to_string())?;
+                Ok(Value::String(canonical.to_string_lossy().into_owned()))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        object.insert("plugins".into(), Value::Array(paths));
+        object.insert("incremental".into(), Value::Bool(false));
+        for key in ["includes", "excludes", "inherit"] {
+            object.remove(key);
+        }
+        Self::from_snapshot(&ConfigSnapshot {
+            source_text: serde_json::to_string(&value).map_err(|e| e.to_string())?,
+            original_path: None,
         })
     }
 
@@ -1457,5 +1546,46 @@ mod tests {
                 .unwrap_err()
                 .contains("semiColons")
         );
+    }
+}
+
+#[cfg(test)]
+mod managed_vue_config_tests {
+    use super::*;
+    #[test]
+    fn vue_requires_complete_local_chain_without_rewriting_original() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths: Vec<_> = [
+            "markup-0.27.6.wasm",
+            "malva-0.16.0.wasm",
+            "typescript-0.96.1.wasm",
+            "json-0.25.2.wasm",
+        ]
+        .iter()
+        .map(|n| {
+            let p = dir.path().join(n);
+            fs::write(&p, b"fixture").unwrap();
+            p
+        })
+        .collect();
+        let snapshot = ConfigSnapshot { source_text: "{ // keep\n \"plugins\":[\"https://untrusted.invalid/x.wasm\"], \"markup\":{\"indentWidth\":4}, \"rustfmt\":{\"edition\":\"2024\"}}".into(), original_path: None };
+        let before = snapshot.clone();
+        let draft = DraftConfig::for_vue(&snapshot, &paths).unwrap();
+        let text = fs::read_to_string(draft.path()).unwrap();
+        assert!(!text.contains("untrusted.invalid"));
+        assert!(text.contains("dprint"));
+        assert_eq!(before, snapshot);
+        assert!(DraftConfig::for_vue(&snapshot, &paths[..3]).is_err());
+        for text in [
+            r#"{"extends":"../other.json"}"#,
+            r#"{"overrides":[]}"#,
+            r#"{"markup":{"scriptFormatter":"prettier"}}"#,
+        ] {
+            let snapshot = ConfigSnapshot {
+                source_text: text.into(),
+                original_path: None,
+            };
+            assert!(DraftConfig::for_vue(&snapshot, &paths).is_err());
+        }
     }
 }

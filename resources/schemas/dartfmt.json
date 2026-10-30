@@ -1,0 +1,43 @@
+{
+  "title": "Dart source formatting (not Flutter SDK)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "languageVersion": {
+      "type": "string",
+      "enum": [
+        "3.0",
+        "3.1",
+        "3.2",
+        "3.3",
+        "3.4",
+        "3.5",
+        "3.6",
+        "3.7",
+        "3.8",
+        "3.9",
+        "3.10",
+        "3.11",
+        "3.12",
+        "3.13"
+      ],
+      "default": "3.13",
+      "description": "Explicit Dart language version; never discovered from pubspec or package_config."
+    },
+    "pageWidth": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 80
+    },
+    "trailingCommas": {
+      "type": "string",
+      "enum": [
+        "automate",
+        "preserve"
+      ],
+      "default": "automate",
+      "description": "Preserve requires language version 3.8 or newer."
+    }
+  }
+}

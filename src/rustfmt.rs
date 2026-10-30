@@ -100,6 +100,151 @@ pub fn validate_option(name: &str, value: &Value) -> Result<(), String> {
     }
 }
 
+/// Read a user-selected, regular UTF-8 rustfmt.toml without following a final
+/// symlink/reparse point or blocking on a FIFO swapped in before open. The
+/// handle is checked after open and the streaming limit also covers file growth.
+pub fn read_import_config(path: &Path) -> Result<String, String> {
+    fn regular(metadata: &fs::Metadata) -> bool {
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            if metadata.file_attributes() & 0x400 != 0 {
+                return false;
+            } // FILE_ATTRIBUTE_REPARSE_POINT
+        }
+        metadata.is_file() && !metadata.file_type().is_symlink()
+    }
+    let before = fs::symlink_metadata(path)
+        .map_err(|error| format!("Cannot inspect rustfmt.toml: {error}"))?;
+    if !regular(&before) {
+        return Err("Rust configuration import requires a regular non-symlink file.".into());
+    }
+    if before.len() > IMPORT_LIMIT as u64 {
+        return Err("Rust configuration import exceeds the 1 MiB limit.".into());
+    }
+    let mut options = fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.custom_flags(0x0020_0000); // FILE_FLAG_OPEN_REPARSE_POINT
+    }
+    let file = options
+        .open(path)
+        .map_err(|error| format!("Cannot open rustfmt.toml safely: {error}"))?;
+    let opened = file
+        .metadata()
+        .map_err(|error| format!("Cannot inspect opened rustfmt.toml: {error}"))?;
+    if !regular(&opened) {
+        return Err("Rust configuration import requires a regular non-symlink file.".into());
+    }
+    let mut bytes = Vec::new();
+    file.take(IMPORT_LIMIT as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("Cannot read rustfmt.toml: {error}"))?;
+    if bytes.len() > IMPORT_LIMIT {
+        return Err("Rust configuration import exceeds the 1 MiB limit.".into());
+    }
+    String::from_utf8(bytes).map_err(|_| "rustfmt.toml is not valid UTF-8.".into())
+}
+
+const IMPORT_LIMIT: usize = 1024 * 1024;
+
+/// Explicitly merge supported settings from a rustfmt.toml into the draft.
+/// Only keys present in the TOML overwrite existing Rust settings; absent keys,
+/// other sections, and existing JSONC comments are preserved. TOML comments are
+/// not copied into JSONC. No disk write, implicit project lookup, or installation
+/// occurs. Every parse/validation/CST edit must succeed before the draft changes.
+pub fn import_config(
+    document: &mut crate::config::ConfigDocument,
+    text: &str,
+) -> Result<usize, String> {
+    import_config_inner(document, text).map_err(|error| bounded_import_message(&error, 2048))
+}
+
+fn bounded_import_message(message: &str, limit: usize) -> String {
+    if message.len() <= limit {
+        return message.to_owned();
+    }
+    let mut end = limit - "…".len();
+    while !message.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}…", &message[..end])
+}
+
+fn import_config_inner(
+    document: &mut crate::config::ConfigDocument,
+    text: &str,
+) -> Result<usize, String> {
+    if text.len() > IMPORT_LIMIT {
+        return Err("Rust configuration import exceeds the 1 MiB limit.".into());
+    }
+    let table = text.parse::<toml::Table>().map_err(|error| {
+        // toml::Error Display includes the entire source line and caret.
+        // Use its concise message and calculate a Unicode character column
+        // ourselves, without copying an untrusted (up to 1 MiB) source line.
+        let location = error
+            .span()
+            .map(|span| {
+                let mut offset = span.start.min(text.len());
+                while !text.is_char_boundary(offset) {
+                    offset -= 1;
+                }
+                let prefix = &text[..offset];
+                let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
+                let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+                format!(" at line {line}, column {column}")
+            })
+            .unwrap_or_default();
+        format!(
+            "Invalid rustfmt.toml{location}: {}",
+            bounded_import_message(error.message(), 1024)
+        )
+    })?;
+    if table.is_empty() {
+        return Err("rustfmt.toml contains no settings to import.".into());
+    }
+    let mut settings = Map::new();
+    for (name, value) in table {
+        // Validate the name before converting so unknown nested tables are not
+        // silently flattened or dropped, and nightly/path options remain denied.
+        if !OPTIONS.contains(&name.as_str()) {
+            let name = bounded_import_message(&name, 160);
+            return Err(format!(
+                "Unsupported Rust setting {name:?}; import supports only the 12 stable settings exposed by CodeStyles. Nothing was imported."
+            ));
+        }
+        let value = match value {
+            toml::Value::String(value) => Value::String(value),
+            toml::Value::Integer(value) => Value::from(value),
+            toml::Value::Boolean(value) => Value::Bool(value),
+            _ => {
+                return Err(format!(
+                    "Unsupported value type for Rust setting {name:?}; only its documented string, integer, or boolean type is accepted. Nothing was imported."
+                ));
+            }
+        };
+        validate_option(&name, &value)?;
+        settings.insert(name, value);
+    }
+    let count = settings.len();
+    let mut edited = document.clone();
+    for (name, value) in settings {
+        edited.set(&["rustfmt", &name], value)?;
+    }
+    // Apply the same stable/settings and inheritance contract as preview. In
+    // particular, do not claim import success for an unusable native section.
+    options(edited.draft_text())?;
+    document.replace_draft_text(edited.draft_text())?;
+    Ok(count)
+}
+
 /// Manager caches hashes and issues a shared lease for each formatting process.
 /// Keep the lease until all pipes are closed; never cache a lease across jobs.
 #[derive(Clone, Default)]

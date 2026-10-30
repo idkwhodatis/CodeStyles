@@ -1,0 +1,51 @@
+name: Probe unpublished Go and Dart native closures
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-formatter-closure-probe
+  cancel-in-progress: false
+jobs:
+  probe:
+    name: Probe ${{ matrix.tool }} (${{ matrix.platform.target }})
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        tool: [gofmt, dartfmt]
+        platform:
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
+          - { os: macos-15, target: aarch64-apple-darwin }
+          - { os: windows-2025, target: x86_64-pc-windows-msvc }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc }
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Offline probe contract tests
+        run: python -m unittest discover -s scripts -p test_probe_native_formatters.py
+      - name: Verify fixed official source and probe native minimal closure
+        run: >-
+          python scripts/probe_native_formatters.py
+          --tool ${{ matrix.tool }} --target ${{ matrix.platform.target }}
+          --work-dir "${{ runner.temp }}/formatter-probe"
+          --report-dir "${{ github.workspace }}/formatter-probe-reports"
+      - name: Production files must remain unchanged
+        if: always()
+        run: git diff HEAD --exit-code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: formatter-probe-${{ matrix.tool }}-${{ matrix.platform.target }}
+          path: formatter-probe-reports/*
+          if-no-files-found: warn
+          retention-days: 7
+# Reports only: no SDK/binary bundle upload, catalog enabling, or publication.

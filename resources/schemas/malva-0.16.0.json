@@ -1,0 +1,316 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://plugins.dprint.dev/g-plane/malva/v0.16.0/schema.json",
+  "title": "Config",
+  "description": "Configuration for dprint-plugin-malva.",
+  "type": "object",
+  "definitions": {
+    "quotes": {
+      "description": "Control the quotes of strings.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "alwaysDouble",
+          "description": "Always use double quotes. Double quotes in strings will be escaped."
+        },
+        {
+          "const": "alwaysSingle",
+          "description": "Always use single quotes. Single quotes in strings will be escaped."
+        },
+        {
+          "const": "preferDouble",
+          "description": "Use double quotes as possible. However if there're double quotes in strings, quotes will be kept as-is."
+        },
+        {
+          "const": "preferSingle",
+          "description": "Use single quotes as possible. However if there're single quotes in strings, quotes will be kept as-is."
+        }
+      ],
+      "default": "alwaysDouble"
+    },
+    "preferSingleLine": {
+      "description": "Control whether items should be placed on single line as possible, even they're originally on multiple lines.",
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "properties": {
+    "printWidth": {
+      "description": "The line width limitation that Malva should *(but not must)* avoid exceeding. Malva will try its best to keep line width less than this value, but it may exceed for some cases, for example, a very very long single word.",
+      "type": "integer",
+      "default": 80,
+      "minimum": 0
+    },
+    "useTabs": {
+      "description": "Specify use space or tab for indentation.",
+      "type": "boolean",
+      "default": false
+    },
+    "indentWidth": {
+      "description": "Size of indentation. When enabled `useTabs`, this option may be disregarded, since only one tab will be inserted when indented once.",
+      "type": "integer",
+      "default": 2,
+      "minimum": 0
+    },
+    "lineBreak": {
+      "description": "Specify use `\\n` (LF) or `\\r\\n` (CRLF) for line break.",
+      "type": "string",
+      "enum": ["lf", "crlf"],
+      "default": "lf"
+    },
+    "hexCase": {
+      "description": "Control the case of hex color values.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "ignore",
+          "description": "Hex color values will be kept as-is."
+        },
+        {
+          "const": "lower",
+          "description": "Hex color values will be converted to lower case."
+        },
+        {
+          "const": "upper",
+          "description": "Hex color values will be converted to upper case."
+        }
+      ],
+      "default": "lower"
+    },
+    "hexColorLength": {
+      "description": "Control the hex color values in short-hand form or long-hand form.",
+      "type": ["string", "null"],
+      "oneOf": [
+        {
+          "const": "short",
+          "description": "Hex color values will be converted to short-hand form."
+        },
+        {
+          "const": "long",
+          "description": "Hex color values will be converted to long-hand form."
+        },
+        {
+          "const": null,
+          "description": "Hex color values will be kept as-is."
+        }
+      ],
+      "default": null
+    },
+    "quotes": {
+      "$ref": "#/definitions/quotes"
+    },
+    "attrSelector.quotes": {
+      "$ref": "#/definitions/quotes"
+    },
+    "operatorLinebreak": {
+      "description": "Control whether line break should come before or after operators.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "before",
+          "description": "Line break will come before operators."
+        },
+        {
+          "const": "after",
+          "description": "Line break will come after operators."
+        }
+      ],
+      "default": "after"
+    },
+    "blockSelectorLinebreak": {
+      "description": "Control line break behavior after selector commas.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "always",
+          "description": "Always insert line break after comma."
+        },
+        {
+          "const": "consistent",
+          "description": "If the whole selector can be put on a single line, there won't be line breaks; otherwise, there will be line breaks after each comma."
+        },
+        {
+          "const": "wrap",
+          "description": "Selector will be put on one line as possible. Once it exceeds `printWidth`, line break will be inserted where the code exceeds `printWidth`."
+        }
+      ],
+      "default": "consistent"
+    },
+    "omitNumberLeadingZero": {
+      "description": "Control whether omit leading zero before dot of numbers or not.",
+      "type": "boolean",
+      "default": false
+    },
+    "trailingComma": {
+      "description": "Control whether trailing comma should be inserted or not.",
+      "type": "boolean",
+      "default": false
+    },
+    "formatComments": {
+      "description": "Control whether whitespace should be inserted at the beginning and end of comments.",
+      "type": "boolean",
+      "default": false
+    },
+    "alignComments": {
+      "description": "Control whether to tweak multi-line comments indentation.",
+      "type": "boolean",
+      "default": true
+    },
+    "linebreakInPseudoParens": {
+      "description": "Control whether line break should be inserted in pseudo class/element parens or not if current line is too long.",
+      "type": "boolean",
+      "default": false
+    },
+    "declarationOrder": {
+      "description": "Control the strategy of sorting CSS declarations (a.k.a. properties). If it's `null`, it won't sort CSS declarations.",
+      "type": ["string", "null"],
+      "oneOf": [
+        {
+          "const": "alphabetical",
+          "description": "Order in a simple alphabetical manner from a - z. This strategy will also sort unknown properties."
+        },
+        {
+          "const": "smacss",
+          "description": "Order from most important, flow affecting properties, to least important properties. Unknown properties won't be sorted."
+        },
+        {
+          "const": "concentric",
+          "description": "Order properties applying outside the box model, moving inward to intrinsic changes. Unknown properties won't be sorted."
+        },
+        {
+          "const": null,
+          "description": "Don't sort CSS declarations."
+        }
+      ],
+      "default": null
+    },
+    "declarationOrderGroupBy": {
+      "description": "Control how declarations are considered as a group when sorting.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "nonDeclaration",
+          "description": "Non-declaration statements are considered as the boundaries of declaration group."
+        },
+        {
+          "const": "nonDeclarationAndEmptyLine",
+          "description": "Non-declaration statements and empty lines (without comments) are considered as the boundaries of declaration group."
+        }
+      ],
+      "default": "nonDeclaration"
+    },
+    "singleLineBlockThreshold": {
+      "description": "Control the threshold value for putting block on a single line. If the number of statements in a block is less than or equal to this value, the block will be put on a single line as possible, but when the code can't fit on single line, it will still break into multiple lines.",
+      "type": ["integer", "null"],
+      "default": null,
+      "minimum": 0
+    },
+    "keyframeSelectorNotation": {
+      "description": "Control whether to use percentage or keyword (`from` and `to`) notation as keyframe selectors.",
+      "type": ["string", "null"],
+      "oneOf": [
+        {
+          "const": "keyword",
+          "description": "Use keyword notation. This only affects `0%` and `100%`. For other percentage values, they will be kept as-is."
+        },
+        {
+          "const": "percentage",
+          "description": "Use percentage notation."
+        },
+        {
+          "const": null,
+          "description": "Keyframe selector notation will be kept as-is."
+        }
+      ],
+      "default": null
+    },
+    "attrValueQuotes": {
+      "description": "Control whether should add quotes to attribute value in selector or not if it's not quoted.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "always",
+          "description": "Always add quotes."
+        },
+        {
+          "const": "ignore",
+          "description": "Don't add quotes to those that're not quoted. For quoted value, quotes won't be removed."
+        }
+      ],
+      "default": "always"
+    },
+    "preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "selectors.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "functionArgs.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "sassContentAtRule.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "sassIncludeAtRule.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "sassMap.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "sassModuleConfig.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "sassParams.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "lessImportOptions.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "lessMixinArgs.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "lessMixinParams.preferSingleLine": {
+      "$ref": "#/definitions/preferSingleLine"
+    },
+    "singleLineTopLevelDeclarations": {
+      "description": "Control whether to force to format all top-level declarations on a single line.",
+      "type": "boolean",
+      "default": false
+    },
+    "fontFamilyNames": {
+      "description": "Control the layout of font names in `font-family` declaration.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "consistent",
+          "description": "If all font names can be put on a single line, there won't be line breaks; otherwise, there will be line breaks after each comma."
+        },
+        {
+          "const": "wrap",
+          "description": "Font names will be put on one line as possible. Once it exceeds `printWidth`, line break will be inserted where the code exceeds `printWidth`."
+        }
+      ],
+      "default": "consistent"
+    },
+    "nthPlusSpacing": {
+      "description": "Control whether there should be spaces around the `+` or `-` operator in \"An+B\" selector syntax.",
+      "type": "boolean",
+      "default": false
+    },
+    "selectorOverrideCommentDirective": {
+      "description": "Text directive for overriding selector formatting.",
+      "type": "string",
+      "default": "malva-selector-override"
+    },
+    "ignoreCommentDirective": {
+      "description": "Text directive for ignoring formatting specific statement.",
+      "type": "string",
+      "default": "malva-ignore"
+    },
+    "ignoreFileCommentDirective": {
+      "description": "Text directive for ignoring formatting a whole file.",
+      "type": "string",
+      "default": "dprint-ignore-file"
+    }
+  }
+}

@@ -46,6 +46,89 @@ impl ProjectAction {
     }
 }
 
+/// Closed set of managed formatters with single-language project scopes.
+/// This is not an arbitrary executable or mixed-language project mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeLanguage {
+    Rust,
+    Go,
+    Dart,
+    Vue,
+}
+impl NativeLanguage {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Rust => "Rust",
+            Self::Go => "Go",
+            Self::Dart => "Dart",
+            Self::Vue => "Vue",
+        }
+    }
+    fn extension(self) -> &'static str {
+        match self {
+            Self::Rust => "rs",
+            Self::Go => "go",
+            Self::Dart => "dart",
+            Self::Vue => "vue",
+        }
+    }
+    fn formatter(self) -> &'static str {
+        match self {
+            Self::Rust => "rustfmt",
+            Self::Go => "gofmt",
+            Self::Dart => "dart format",
+            Self::Vue => "dprint Vue WASM",
+        }
+    }
+    fn excluded_directory(self, name: &str) -> bool {
+        name == ".git"
+            || match self {
+                Self::Rust => name == "target",
+                Self::Go => name == "vendor",
+                Self::Dart => matches!(name, "build" | ".dart_tool"),
+                Self::Vue => matches!(name, "node_modules" | "dist" | ".nuxt"),
+            }
+    }
+    fn metadata_names(self) -> &'static [&'static str] {
+        match self {
+            Self::Rust => &[
+                ".gitignore",
+                ".ignore",
+                "Cargo.toml",
+                "Cargo.lock",
+                "rustfmt.toml",
+                ".rustfmt.toml",
+                "rust-toolchain.toml",
+                "rust-toolchain",
+            ],
+            Self::Go => &[
+                ".gitignore",
+                ".ignore",
+                "go.mod",
+                "go.sum",
+                "go.work",
+                "go.work.sum",
+            ],
+            Self::Vue => &[
+                ".gitignore",
+                ".ignore",
+                "package.json",
+                "package-lock.json",
+                "pnpm-lock.yaml",
+                "yarn.lock",
+            ],
+            Self::Dart => &[
+                ".gitignore",
+                ".ignore",
+                "pubspec.yaml",
+                "pubspec.lock",
+                "analysis_options.yaml",
+                ".dart_tool/package_config.json",
+            ],
+        }
+    }
+}
+
 /// An immutable, explicitly authorized request. Private fields prevent callers
 /// bypassing dirty/trust/disk-baseline checks by constructing it directly.
 #[derive(Clone, Debug)]
@@ -54,7 +137,7 @@ pub struct ProjectRequest {
     config: ConfigSnapshot,
     action: ProjectAction,
     review: Option<Arc<ReviewSnapshot>>,
-    native_rust: bool,
+    native_language: Option<NativeLanguage>,
 }
 impl ProjectRequest {
     /// `trusted` means the user approved this run's saved config, inherited and
@@ -92,7 +175,7 @@ impl ProjectRequest {
             config: document.saved_snapshot(),
             action,
             review: None,
-            native_rust: false,
+            native_language: None,
         };
         request.verify_saved_config()?;
         if let ProjectAction::FormatSelected(paths) = &request.action {
@@ -112,10 +195,44 @@ impl ProjectRequest {
         action: ProjectAction,
         trusted: bool,
     ) -> Result<Self, String> {
+        Self::new_native(root, document, action, trusted, NativeLanguage::Rust)
+    }
+
+    /// Explicit single-language scope using only a trusted managed formatter.
+    /// Native project actions never prepare plugins or install tools implicitly.
+    pub fn new_native(
+        root: PathBuf,
+        document: &ConfigDocument,
+        action: ProjectAction,
+        trusted: bool,
+        language: NativeLanguage,
+    ) -> Result<Self, String> {
         let mut request = Self::new(root, document, action, trusted)?;
-        request.native_rust = true;
-        validate_rust_project_config(request.config.source_text())?;
+        request.native_language = Some(language);
+        validate_native_project_config(request.config.source_text(), language)?;
         Ok(request)
+    }
+
+    pub fn from_native_review(
+        root: PathBuf,
+        document: &ConfigDocument,
+        selected_paths: Vec<PathBuf>,
+        report: &ProjectReport,
+        trusted: bool,
+        language: NativeLanguage,
+    ) -> Result<Self, String> {
+        Self::new_native(
+            root,
+            document,
+            ProjectAction::FormatSelected(selected_paths),
+            trusted,
+            language,
+        )?
+        .attach_review(report)
+    }
+
+    pub fn native_language(&self) -> Option<NativeLanguage> {
+        self.native_language
     }
 
     pub fn from_rust_review(
@@ -135,7 +252,7 @@ impl ProjectRequest {
     }
 
     pub fn is_rust(&self) -> bool {
-        self.native_rust
+        self.native_language == Some(NativeLanguage::Rust)
     }
 
     /// Format only differing files selected from a successful displayed check.
@@ -166,7 +283,7 @@ impl ProjectRequest {
             .ok_or("Run Check project before applying reviewed changes.")?;
         if review.root != request.root
             || review.config_path != request.config_path()
-            || review.native_rust != request.native_rust
+            || review.native_language != request.native_language
         {
             return Err(
                 "The review belongs to a different project configuration. Check again.".into(),
@@ -274,7 +391,7 @@ struct ReviewSnapshot {
     configs: BTreeMap<PathBuf, Vec<u8>>,
     sources: BTreeMap<PathBuf, SourceFingerprint>,
     diffs: BTreeMap<PathBuf, String>,
-    native_rust: bool,
+    native_language: Option<NativeLanguage>,
 }
 
 impl Backend {
@@ -284,8 +401,8 @@ impl Backend {
         cancelled: Arc<AtomicBool>,
     ) -> Result<ProjectReport, String> {
         let mut writes_started = false;
-        let result = if request.native_rust {
-            self.execute_rust_project(request, &cancelled, &mut writes_started)
+        let result = if request.native_language.is_some() {
+            self.execute_native_project(request, &cancelled, &mut writes_started)
         } else {
             self.execute_project_inner(request, &cancelled, &mut writes_started)
         };
@@ -508,7 +625,7 @@ impl Backend {
                 config: request.config.clone(),
                 action: ProjectAction::Check,
                 review: None,
-                native_rust: false,
+                native_language: None,
             };
             let mut verification = self
                 .execute_project_inner(&verification_request, cancelled, writes_started)
@@ -545,7 +662,7 @@ impl Backend {
             config_path: request.config_path().to_owned(),
             discovered: all_files,
             configs,
-            native_rust: false,
+            native_language: None,
             diffs: report
                 .files
                 .iter()
@@ -561,26 +678,30 @@ impl Backend {
         Ok(report)
     }
 
-    fn execute_rust_project(
+    fn execute_native_project(
         &self,
         request: &ProjectRequest,
         cancelled: &Arc<AtomicBool>,
         writes_started: &mut bool,
     ) -> Result<ProjectReport, String> {
+        let language = request
+            .native_language
+            .ok_or("Native project mode is required.")?;
+        let label = language.label();
         request.verify_saved_config()?;
-        validate_rust_project_config(request.config.source_text())?;
+        validate_native_project_config(request.config.source_text(), language)?;
         if cancelled.load(Ordering::Acquire) {
-            return Err("Rust project operation cancelled.".into());
+            return Err("Native project operation cancelled.".into());
         }
         if request.action == ProjectAction::PreparePlugins {
-            return Err("Use Language support → Install Rust support. Rust project checks never download or install tools implicitly.".into());
+            return Err("Use Language support to install this language. Native project checks never download or install tools implicitly.".into());
         }
-        let (all_files, configs) = rust_scope(request, cancelled)?;
+        let (all_files, configs) = native_scope(request, cancelled)?;
         let protected = configs
             .keys()
             .map(same_file::Handle::from_path)
             .collect::<Result<std::collections::HashSet<_>, _>>()
-            .map_err(|e| format!("Cannot identify protected Rust configuration files: {e}"))?;
+            .map_err(|e| format!("Cannot identify protected native configuration files: {e}"))?;
         let mut candidates = BTreeSet::new();
         for path in &all_files {
             let identity = same_file::Handle::from_path(path).map_err(|e| e.to_string())?;
@@ -589,15 +710,18 @@ impl Backend {
             }
         }
         if let Some(review) = &request.review {
-            if !review.native_rust || review.discovered != all_files || review.configs != configs {
-                return Err("Rust project scope or configuration changed since review. Check again before applying.".into());
+            if review.native_language != Some(language)
+                || review.discovered != all_files
+                || review.configs != configs
+            {
+                return Err("Native project scope or configuration changed since review. Check again before applying.".into());
             }
             verify_configs(&review.configs)?;
         }
         let targets = match &request.action {
             ProjectAction::FormatSelected(selected) => selected.iter().map(|path| {
                 let path = request.safe_file(path)?;
-                if !candidates.contains(&path) { return Err("Selected Rust file is excluded, protected, or outside the reviewed Rust scope.".into()); }
+                if !candidates.contains(&path) { return Err("Selected native file is excluded, protected, or outside the reviewed native scope.".into()); }
                 Ok(path)
             }).collect::<Result<BTreeSet<_>, String>>()?,
             _ => candidates.clone(),
@@ -607,22 +731,22 @@ impl Backend {
         let mut differences = Vec::new();
         for path in &targets {
             if cancelled.load(Ordering::Acquire) {
-                return Err("Rust project operation cancelled.".into());
+                return Err("Native project operation cancelled.".into());
             }
-            let fingerprint = rust_source(path, cancelled)?.1;
+            let fingerprint = native_source(path, cancelled)?.1;
             if fingerprint.bytes > OUTPUT_LIMIT as u64 {
-                return Err("Rust source exceeds the 32 MiB safety limit.".into());
+                return Err("Native source exceeds the 32 MiB safety limit.".into());
             }
             if let Some(review) = &request.review {
                 let expected = review
                     .sources
                     .get(path)
-                    .ok_or("Rust source is not in the reviewed changes.")?;
-                verify_rust_source(path, expected, cancelled)?;
+                    .ok_or("Native source is not in the reviewed changes.")?;
+                verify_native_source(path, expected, cancelled)?;
             }
-            let source = String::from_utf8(rust_source(path, cancelled)?.0)
-                .map_err(|_| "Rust source is not valid UTF-8.")?;
-            verify_rust_source(path, &fingerprint, cancelled)?;
+            let source = String::from_utf8(native_source(path, cancelled)?.0)
+                .map_err(|_| "Native source is not valid UTF-8.")?;
+            verify_native_source(path, &fingerprint, cancelled)?;
             let output = self.format(
                 &crate::backend::FormatRequest {
                     source: source.clone(),
@@ -631,20 +755,20 @@ impl Backend {
                 },
                 cancelled.clone(),
             )?;
-            verify_rust_source(path, &fingerprint, cancelled)?;
+            verify_native_source(path, &fingerprint, cancelled)?;
             if output != source {
                 differences.push(ProjectFile {
                     path: path.clone(),
-                    diff: rust_diff(path, &source, &output),
+                    diff: native_diff(path, &source, &output, language),
                 });
                 outputs.insert(path.clone(), output);
             }
             sources.insert(path.clone(), fingerprint);
         }
         verify_configs(&configs)?;
-        if rust_scope(request, cancelled)? != (all_files.clone(), configs.clone()) {
+        if native_scope(request, cancelled)? != (all_files.clone(), configs.clone()) {
             return Err(
-                "Rust project scope or ignore rules changed during check. Check again.".into(),
+                "Native project scope or ignore rules changed during check. Check again.".into(),
             );
         }
         if let Some(review) = &request.review {
@@ -658,25 +782,25 @@ impl Backend {
                 .collect();
             if actual != expected {
                 return Err(
-                    "Rust formatting differences changed since review. Check again.".into(),
+                    "Native formatting differences changed since review. Check again.".into(),
                 );
             }
         }
         if request.action.writes_sources() {
             request.verify_saved_config()?;
             for path in &targets {
-                verify_rust_source(path, &sources[path], cancelled)?;
+                verify_native_source(path, &sources[path], cancelled)?;
             }
             for (path, output) in outputs {
                 if cancelled.load(Ordering::Acquire) {
-                    return Err("Rust project operation cancelled.".into());
+                    return Err("Native project operation cancelled.".into());
                 }
                 verify_configs(&configs)?;
-                verify_rust_source(&path, &sources[&path], cancelled)?;
+                verify_native_source(&path, &sources[&path], cancelled)?;
                 if request.safe_file(&path)? != path {
-                    return Err("Rust source path changed before write.".into());
+                    return Err("Native source path changed before write.".into());
                 }
-                replace_rust_source(
+                replace_native_source(
                     &path,
                     &output,
                     &sources[&path],
@@ -690,16 +814,16 @@ impl Backend {
                 config: request.config.clone(),
                 action: ProjectAction::Check,
                 review: None,
-                native_rust: true,
+                native_language: Some(language),
             };
             let mut report = self
-                .execute_rust_project(&verification, cancelled, writes_started)
+                .execute_native_project(&verification, cancelled, writes_started)
                 .map_err(|e| {
-                    format!("Rust formatting ran but automatic verification failed: {e}")
+                    format!("Native formatting ran but automatic verification failed: {e}")
                 })?;
             report.action = request.action.clone();
             report.summary = format!(
-                "Formatted {} selected Rust files; verified {} Rust files, {} still differ. Other languages were not changed.",
+                "Formatted {} selected {label} files; verified {} {label} files, {} still differ. Other languages were not changed.",
                 targets.len(),
                 report.checked_files,
                 report.files.len()
@@ -712,7 +836,7 @@ impl Backend {
             config_path: request.config_path().to_path_buf(),
             discovered: all_files,
             configs: configs.clone(),
-            native_rust: true,
+            native_language: Some(language),
             diffs: differences
                 .iter()
                 .map(|file| (file.path.clone(), file.diff.clone()))
@@ -723,11 +847,16 @@ impl Backend {
                 .collect(),
         });
         Ok(ProjectReport {
-            action: request.action.clone(), cli_version: "Managed stable rustfmt".into(),
+            action: request.action.clone(), cli_version: if language == NativeLanguage::Rust { "Managed stable rustfmt".into() } else { format!("Managed {}", language.formatter()) },
             checked_files: candidates.len(), protected_configs: configs.len(),
-            summary: format!("{} of {} Rust files need formatting. Rust-only scope; no source files changed.", differences.len(), candidates.len()),
+            summary: format!("{} of {} {label} files need formatting. {label}-only scope; no source files changed.", differences.len(), candidates.len()),
             files: differences,
-            diagnostics: "Rust-only project mode respects local .gitignore/.ignore, skips target/.git and symlinks. It uses the explicit rustfmt section, not Cargo.toml or rustfmt.toml discovery. Other languages use the dprint project mode.".into(),
+            diagnostics: match language {
+                NativeLanguage::Rust => "Rust-only project mode respects local .gitignore/.ignore, skips target/.git and symlinks. It uses the explicit rustfmt section, not Cargo.toml or rustfmt.toml discovery. Other languages use the dprint project mode.",
+                NativeLanguage::Go => "Go-only project mode respects local .gitignore/.ignore and skips vendor/.git and symlinks. Fixed gofmt behavior; no module discovery, dependency downloads or configurable style rules.",
+                NativeLanguage::Vue => "Vue-only project mode uses verified markup/TypeScript/JSON/style WASM with explicit settings. It excludes node_modules/dist/.nuxt; external src and unsupported SFC blocks are rejected, not silently skipped.",
+                NativeLanguage::Dart => "Dart-only project mode respects local .gitignore/.ignore and skips build/.dart_tool/.git and symlinks. Explicit snapshot formatting settings only; protected project metadata is not automatically inherited. Flutter support means Dart source only.",
+            }.into(),
             review: Some(review),
         })
     }
@@ -901,7 +1030,7 @@ fn read_bounded(mut stream: impl Read) -> Result<Vec<u8>, String> {
 // The CLI starts suspended, joins an owned Job Object, then resumes. Descendants
 // remain members after the CLI exits, so they cannot keep our pipes open forever.
 #[cfg(windows)]
-struct WindowsProcessTree(*mut std::ffi::c_void);
+pub(crate) struct WindowsProcessTree(*mut std::ffi::c_void);
 #[cfg(windows)]
 mod windows_process_api {
     use std::ffi::c_void;
@@ -930,7 +1059,10 @@ mod windows_process_api {
 }
 #[cfg(windows)]
 impl WindowsProcessTree {
-    fn attach_and_resume(child: &mut Child, cancelled: &AtomicBool) -> Result<Self, String> {
+    pub(crate) fn attach_and_resume(
+        child: &mut Child,
+        cancelled: &AtomicBool,
+    ) -> Result<Self, String> {
         use std::os::windows::io::AsRawHandle;
         use windows_process_api::*;
         // SAFETY: null name/attributes request an unnamed job; the Child owns a
@@ -1005,7 +1137,7 @@ impl WindowsProcessTree {
         }
         Ok(tree)
     }
-    fn terminate(&self) {
+    pub(crate) fn terminate(&self) {
         // SAFETY: this guard owns the live job handle until Drop.
         unsafe {
             windows_process_api::TerminateJobObject(self.0, 1);
@@ -1114,26 +1246,53 @@ fn parse_check_json(
         .collect())
 }
 
-fn validate_rust_project_config(text: &str) -> Result<(), String> {
-    crate::rustfmt::options(text)?;
+fn validate_native_project_config(text: &str, language: NativeLanguage) -> Result<(), String> {
+    if language == NativeLanguage::Rust {
+        crate::rustfmt::options(text)?;
+    } else if language == NativeLanguage::Go {
+        crate::native_format::options(text, crate::native_format::NativeLanguage::Go)?;
+    } else if language == NativeLanguage::Dart {
+        crate::native_format::options(text, crate::native_format::NativeLanguage::Dart)?;
+    } else if language == NativeLanguage::Vue {
+        crate::config::validate_vue_config(text)?;
+    }
     let value = jsonc_parser::parse_to_serde_value(text, &jsonc_parser::ParseOptions::default())
         .map_err(|e| e.to_string())?
         .ok_or("Empty project configuration.")?;
-    for key in ["includes", "excludes", "incremental"] {
+    if !value.is_object() {
+        return Err("Native project configuration must be a JSONC object.".into());
+    }
+    for key in [
+        "includes",
+        "excludes",
+        "incremental",
+        "extends",
+        "overrides",
+    ] {
         if value.get(key).is_some() {
             return Err(format!(
-                "Rust-only project mode does not interpret dprint {key}. Use a separate explicit configuration without dprint discovery overrides; local .gitignore/.ignore defines the Rust scope."
+                "{}-only project mode does not interpret dprint {key}. Use a separate explicit configuration without dprint discovery overrides; local .gitignore/.ignore defines the scope.",
+                language.label()
             ));
         }
+    }
+    if value
+        .get("inherit")
+        .is_some_and(|v| v != &serde_json::Value::Bool(false))
+    {
+        return Err("Native project mode does not resolve inherited configuration.".into());
     }
     Ok(())
 }
 
-type RustScope = (BTreeSet<PathBuf>, BTreeMap<PathBuf, Vec<u8>>);
+type NativeScope = (BTreeSet<PathBuf>, BTreeMap<PathBuf, Vec<u8>>);
 
-/// Exact local Rust-only scope and all files which influence that scope. Avoid
+/// Exact local single-language scope and all files which influence that scope. Avoid
 /// parent/global ignore rules so the review is independent of ambient user state.
-fn rust_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<RustScope, String> {
+fn native_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<NativeScope, String> {
+    let language = request
+        .native_language
+        .ok_or("Native project mode is required.")?;
     let mut files = BTreeSet::new();
     let mut configs = BTreeMap::new();
     configs.insert(
@@ -1148,23 +1307,27 @@ fn rust_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<RustSc
         .require_git(false)
         .follow_links(false)
         .max_depth(Some(128))
-        .filter_entry(|entry| {
-            entry.depth() == 0 || !matches!(entry.file_name().to_str(), Some("target" | ".git"))
+        .filter_entry(move |entry| {
+            entry.depth() == 0
+                || !entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| language.excluded_directory(name))
         })
         .build();
     let mut count = 0;
     for entry in walker {
         if cancelled.load(Ordering::Acquire) {
-            return Err("Rust project operation cancelled.".into());
+            return Err("Native project operation cancelled.".into());
         }
-        let entry = entry.map_err(|e| format!("Cannot discover Rust files: {e}"))?;
+        let entry = entry.map_err(|e| format!("Cannot discover Native files: {e}"))?;
         if let Some(error) = entry.error() {
-            return Err(format!("Cannot interpret Rust ignore rules: {error}"));
+            return Err(format!("Cannot interpret Native ignore rules: {error}"));
         }
         count += 1;
         if count > 100_000 {
             return Err(
-                "Rust project discovery exceeded the 100,000-entry limit; choose a smaller root."
+                "Native project discovery exceeded the 100,000-entry limit; choose a smaller root."
                     .into(),
             );
         }
@@ -1175,7 +1338,7 @@ fn rust_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<RustSc
         }
         if kind.is_some_and(|kind| kind.is_dir()) {
             if entry.depth() == 128 {
-                return Err("Rust project discovery exceeded the directory-depth limit; choose a smaller root.".into());
+                return Err("Native project discovery exceeded the directory-depth limit; choose a smaller root.".into());
             }
             for name in CONFIG_NAMES {
                 let config = path.join(name);
@@ -1183,35 +1346,43 @@ fn rust_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<RustSc
                     && fs::canonicalize(&config).ok().as_deref() != Some(request.config_path())
                 {
                     return Err(format!(
-                        "Rust-only project mode does not resolve nested or competing dprint configuration {}. Choose that directory/configuration as a separate project.",
+                        "Native-only project mode does not resolve nested or competing dprint configuration {}. Choose that directory/configuration as a separate project.",
                         config.display()
                     ));
                 }
             }
-            for name in [
-                ".gitignore",
-                ".ignore",
-                "Cargo.toml",
-                "Cargo.lock",
-                "rustfmt.toml",
-                ".rustfmt.toml",
-                "rust-toolchain.toml",
-                "rust-toolchain",
-            ] {
+            for name in language.metadata_names() {
                 let config = path.join(name);
+                // A skipped .dart_tool directory must not hide an external
+                // package config reached through a symlink/reparse point.
+                if name.contains('/') {
+                    let parent = config.parent().expect("nested metadata has a parent");
+                    match fs::symlink_metadata(parent) {
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                        Err(e) => return Err(e.to_string()),
+                        Ok(metadata) => {
+                            if !metadata.is_dir()
+                                || metadata.file_type().is_symlink()
+                                || fs::canonicalize(parent).ok().as_deref() != Some(parent)
+                            {
+                                return Err("Native project metadata directory must be a real in-root directory.".into());
+                            }
+                        }
+                    }
+                }
                 match fs::symlink_metadata(&config) {
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-                    Err(e) => return Err(format!("Cannot inspect Rust scope metadata: {e}")),
+                    Err(e) => return Err(format!("Cannot inspect Native scope metadata: {e}")),
                     Ok(metadata) => {
                         if !metadata.is_file() || metadata.file_type().is_symlink() {
                             return Err(format!(
-                                "Rust project configuration must be a regular non-symlink file: {}",
+                                "Native project configuration must be a regular non-symlink file: {}",
                                 config.display()
                             ));
                         }
                         if metadata.len() > 4 * 1024 * 1024 {
                             return Err(
-                                "Rust project metadata exceeds the 4 MiB safety limit.".into()
+                                "Native project metadata exceeds the 4 MiB safety limit.".into()
                             );
                         }
                         configs.insert(
@@ -1219,13 +1390,15 @@ fn rust_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<RustSc
                             fs::read(&config).map_err(|e| e.to_string())?,
                         );
                         if configs.len() > 4096 {
-                            return Err("Rust project configuration limit exceeded.".into());
+                            return Err("Native project configuration limit exceeded.".into());
                         }
                     }
                 }
             }
         } else if kind.is_some_and(|kind| kind.is_file())
-            && path.extension().is_some_and(|extension| extension == "rs")
+            && path
+                .extension()
+                .is_some_and(|extension| extension == language.extension())
         {
             files.insert(request.safe_file(path)?);
         }
@@ -1236,7 +1409,7 @@ fn rust_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<RustSc
 /// Stage beside the destination and atomically replace it, never unlinking the
 /// original first. All identity and staging handles are closed before commit:
 /// Windows replacement must not depend on open-handle sharing semantics.
-fn replace_rust_source(
+fn replace_native_source(
     path: &Path,
     output: &str,
     expected: &SourceFingerprint,
@@ -1252,16 +1425,16 @@ fn replace_rust_source(
             .collect::<Result<std::collections::HashSet<_>, _>>()
             .map_err(|e| e.to_string())?;
         if protected.contains(&identity) {
-            return Err("Rust source aliases a protected configuration.".into());
+            return Err("Native source aliases a protected configuration.".into());
         }
     }
     let permissions = fs::metadata(path).map_err(|e| e.to_string())?.permissions();
     if permissions.readonly() {
-        return Err("Cannot replace read-only Rust source.".into());
+        return Err("Cannot replace read-only Native source.".into());
     }
     let mut temporary =
-        tempfile::NamedTempFile::new_in(path.parent().ok_or("Rust source has no parent.")?)
-            .map_err(|e| format!("Cannot stage Rust formatting: {e}"))?;
+        tempfile::NamedTempFile::new_in(path.parent().ok_or("Native source has no parent.")?)
+            .map_err(|e| format!("Cannot stage Native formatting: {e}"))?;
     temporary
         .write_all(output.as_bytes())
         .map_err(|e| e.to_string())?;
@@ -1273,28 +1446,33 @@ fn replace_rust_source(
     // into_temp_path closes the writable handle but retains RAII cleanup if any
     // final guard or the atomic rename fails. No delete-before-rename fallback.
     let temporary = temporary.into_temp_path();
-    verify_rust_source(path, expected, cancelled)?;
+    verify_native_source(path, expected, cancelled)?;
     verify_configs(configs)?;
     if fs::metadata(path)
         .map_err(|e| e.to_string())?
         .permissions()
         .readonly()
     {
-        return Err("Cannot replace read-only Rust source.".into());
+        return Err("Cannot replace read-only Native source.".into());
     }
     if cancelled.load(Ordering::Acquire) {
-        return Err("Rust project operation cancelled.".into());
+        return Err("Native project operation cancelled.".into());
     }
     temporary
         .persist(path)
-        .map_err(|e| format!("Cannot replace Rust source: {}", e.error))?;
+        .map_err(|e| format!("Cannot replace Native source: {}", e.error))?;
     *writes_started = true;
     Ok(())
 }
 
-fn rust_diff(path: &Path, source: &str, formatted: &str) -> String {
+fn native_diff(path: &Path, source: &str, formatted: &str, language: NativeLanguage) -> String {
     use crate::comparison::{DiffKind, line_diff};
-    let mut output = format!("--- {}\n+++ {} (rustfmt)\n", path.display(), path.display());
+    let mut output = format!(
+        "--- {}\n+++ {} ({})\n",
+        path.display(),
+        path.display(),
+        language.formatter()
+    );
     for line in line_diff(source, formatted) {
         output.push(match line.kind {
             DiffKind::Unchanged => ' ',
@@ -1474,7 +1652,7 @@ struct SourceFingerprint {
     bytes: u64,
     sha256: [u8; 32],
 }
-fn rust_source(
+fn native_source(
     path: &Path,
     cancelled: &AtomicBool,
 ) -> Result<(Vec<u8>, SourceFingerprint), String> {
@@ -1484,7 +1662,8 @@ fn rust_source(
         || metadata.len() > OUTPUT_LIMIT as u64
     {
         return Err(
-            "Rust source must be a regular non-symlink file within the 32 MiB safety limit.".into(),
+            "Native source must be a regular non-symlink file within the 32 MiB safety limit."
+                .into(),
         );
     }
     let mut file = fs::File::open(path).map_err(|e| e.to_string())?;
@@ -1492,14 +1671,14 @@ fn rust_source(
     let mut buffer = [0; 64 * 1024];
     loop {
         if cancelled.load(Ordering::Acquire) {
-            return Err("Rust project operation cancelled.".into());
+            return Err("Native project operation cancelled.".into());
         }
         let count = file.read(&mut buffer).map_err(|e| e.to_string())?;
         if count == 0 {
             break;
         }
         if data.len() + count > OUTPUT_LIMIT {
-            return Err("Rust source exceeds the 32 MiB safety limit.".into());
+            return Err("Native source exceeds the 32 MiB safety limit.".into());
         }
         data.extend_from_slice(&buffer[..count]);
     }
@@ -1509,12 +1688,12 @@ fn rust_source(
     };
     Ok((data, fingerprint))
 }
-fn verify_rust_source(
+fn verify_native_source(
     path: &Path,
     expected: &SourceFingerprint,
     cancelled: &AtomicBool,
 ) -> Result<(), String> {
-    if rust_source(path, cancelled)?.1 != *expected
+    if native_source(path, cancelled)?.1 != *expected
         || fs::canonicalize(path).ok().as_deref() != Some(path)
     {
         return Err(format!(
@@ -1575,8 +1754,150 @@ fn verify_configs(configs: &BTreeMap<PathBuf, Vec<u8>>) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    fn native_fixture(
+        language: NativeLanguage,
+    ) -> (tempfile::TempDir, ConfigDocument, ProjectRequest) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        fs::write(root.join("dprint.jsonc"), "{}").unwrap();
+        let document = ConfigDocument::load(&root.join("dprint.jsonc")).unwrap();
+        let request =
+            ProjectRequest::new_native(root, &document, ProjectAction::Check, true, language)
+                .unwrap();
+        (dir, document, request)
+    }
+
     #[test]
-    fn rust_source_atomic_replace_existing_preserves_permissions_and_siblings() {
+    fn native_scopes_are_single_language_and_protect_metadata_without_inheriting_it() {
+        for language in [
+            NativeLanguage::Rust,
+            NativeLanguage::Go,
+            NativeLanguage::Dart,
+        ] {
+            let (_dir, _document, request) = native_fixture(language);
+            let root = request.root();
+            for extension in ["rs", "go", "dart", "vue"] {
+                fs::write(root.join(format!("source.{extension}")), "source").unwrap();
+            }
+            let skipped = match language {
+                NativeLanguage::Rust => "target",
+                NativeLanguage::Go => "vendor",
+                NativeLanguage::Dart => "build",
+                NativeLanguage::Vue => "node_modules",
+            };
+            fs::create_dir(root.join(skipped)).unwrap();
+            fs::write(
+                root.join(skipped)
+                    .join(format!("skip.{}", language.extension())),
+                "skip",
+            )
+            .unwrap();
+            for name in language.metadata_names() {
+                let path = root.join(name);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(path, "").unwrap();
+            }
+            let cancel = AtomicBool::new(false);
+            let (files, configs) = native_scope(&request, &cancel).unwrap();
+            assert_eq!(
+                files,
+                BTreeSet::from([root.join(format!("source.{}", language.extension()))])
+            );
+            for name in language.metadata_names() {
+                assert!(configs.contains_key(&root.join(name)));
+            }
+            let metadata = root.join(language.metadata_names()[2]);
+            fs::write(&metadata, "changed").unwrap();
+            assert!(verify_configs(&configs).is_err());
+            assert_ne!(native_scope(&request, &cancel).unwrap().1, configs);
+            fs::remove_file(metadata).unwrap();
+            assert_ne!(native_scope(&request, &cancel).unwrap().1, configs);
+            assert!(native_scope(&request, &AtomicBool::new(true)).is_err());
+        }
+    }
+
+    #[test]
+    fn native_review_cannot_cross_language_or_dprint_mode() {
+        let (_dir, document, request) = native_fixture(NativeLanguage::Go);
+        let path = request.root().join("source.go");
+        fs::write(&path, "package main").unwrap();
+        let fingerprint = native_source(&path, &AtomicBool::new(false)).unwrap().1;
+        let report = ProjectReport {
+            action: ProjectAction::Check,
+            cli_version: String::new(),
+            files: Vec::new(),
+            diagnostics: String::new(),
+            summary: String::new(),
+            checked_files: 1,
+            protected_configs: 1,
+            review: Some(Arc::new(ReviewSnapshot {
+                root: request.root.clone(),
+                config_path: request.config_path().into(),
+                discovered: BTreeSet::from([path.clone()]),
+                configs: BTreeMap::new(),
+                sources: BTreeMap::from([(path.clone(), fingerprint)]),
+                diffs: BTreeMap::new(),
+                native_language: Some(NativeLanguage::Go),
+            })),
+        };
+        assert!(
+            ProjectRequest::from_native_review(
+                request.root.clone(),
+                &document,
+                vec![path.clone()],
+                &report,
+                true,
+                NativeLanguage::Go
+            )
+            .is_ok()
+        );
+        for other in [NativeLanguage::Rust, NativeLanguage::Dart] {
+            assert!(
+                ProjectRequest::from_native_review(
+                    request.root.clone(),
+                    &document,
+                    vec![path.clone()],
+                    &report,
+                    true,
+                    other
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            ProjectRequest::from_review(request.root.clone(), &document, vec![path], &report, true)
+                .is_err()
+        );
+        let rust =
+            ProjectRequest::new_rust(request.root.clone(), &document, ProjectAction::Check, true)
+                .unwrap();
+        assert!(rust.is_rust());
+        assert_eq!(rust.native_language(), Some(NativeLanguage::Rust));
+    }
+
+    #[test]
+    fn native_modes_reject_implicit_discovery_and_nested_configs() {
+        for language in [
+            NativeLanguage::Rust,
+            NativeLanguage::Go,
+            NativeLanguage::Dart,
+        ] {
+            for config in [
+                r#"{"extends":"base.json"}"#,
+                r#"{"includes":["**/*"]}"#,
+                r#"{"inherit":true}"#,
+            ] {
+                assert!(validate_native_project_config(config, language).is_err());
+            }
+            let (_dir, _document, request) = native_fixture(language);
+            fs::create_dir(request.root.join("nested")).unwrap();
+            fs::write(request.root.join("nested/dprint.json"), "{}").unwrap();
+            assert!(native_scope(&request, &AtomicBool::new(false)).is_err());
+        }
+    }
+
+    #[test]
+    fn native_source_atomic_replace_existing_preserves_permissions_and_siblings() {
         let dir = tempfile::tempdir().unwrap();
         let path = fs::canonicalize(dir.path()).unwrap().join("source.rs");
         fs::write(&path, "fn main( ){}\n").unwrap();
@@ -1584,9 +1905,9 @@ mod tests {
         fs::write(&sibling, "untouched").unwrap();
         let permissions = fs::metadata(&path).unwrap().permissions();
         let cancelled = AtomicBool::new(false);
-        let expected = rust_source(&path, &cancelled).unwrap().1;
+        let expected = native_source(&path, &cancelled).unwrap().1;
         let mut written = false;
-        replace_rust_source(
+        replace_native_source(
             &path,
             "fn main() {}\n",
             &expected,
@@ -1603,18 +1924,18 @@ mod tests {
     }
 
     #[test]
-    fn rust_source_atomic_replace_readonly_and_stale_fail_without_changes() {
+    fn native_source_atomic_replace_readonly_and_stale_fail_without_changes() {
         let dir = tempfile::tempdir().unwrap();
         let path = fs::canonicalize(dir.path()).unwrap().join("source.rs");
         fs::write(&path, "original").unwrap();
         let cancelled = AtomicBool::new(false);
-        let expected = rust_source(&path, &cancelled).unwrap().1;
+        let expected = native_source(&path, &cancelled).unwrap().1;
         let original_permissions = fs::metadata(&path).unwrap().permissions();
         let mut readonly = original_permissions.clone();
         readonly.set_readonly(true);
         fs::set_permissions(&path, readonly).unwrap();
         let mut written = false;
-        let error = replace_rust_source(
+        let error = replace_native_source(
             &path,
             "changed",
             &expected,
@@ -1629,7 +1950,7 @@ mod tests {
         fs::set_permissions(&path, original_permissions).unwrap();
         fs::write(&path, "external edit").unwrap();
         assert!(
-            replace_rust_source(
+            replace_native_source(
                 &path,
                 "changed",
                 &expected,
@@ -1685,5 +2006,21 @@ mod tests {
         );
         fs::write(descriptor, "changed").unwrap();
         assert!(verify_configs(&protected).is_err());
+    }
+}
+
+#[cfg(test)]
+mod vue_config_contract_tests {
+    use super::*;
+    #[test]
+    fn empty_vue_scope_still_rejects_invalid_formatter_settings() {
+        for text in [
+            r#"{"markup":false}"#,
+            r#"{"markup":{"scriptFormatter":"prettier"}}"#,
+            r#"{"malva":[]}"#,
+        ] {
+            assert!(validate_native_project_config(text, NativeLanguage::Vue).is_err());
+        }
+        assert!(validate_native_project_config("{}", NativeLanguage::Vue).is_ok());
     }
 }

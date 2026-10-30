@@ -13,3 +13,6 @@ pub mod self_test;
 pub mod rustfmt;
 pub mod toolchain_worker;
 pub mod toolchains;
+
+pub mod native_format;
+pub mod vue;
