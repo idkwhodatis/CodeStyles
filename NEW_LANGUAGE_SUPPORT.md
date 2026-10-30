@@ -46,7 +46,19 @@ transient configuration using only these verified local WASM paths, forces the
 script formatter to dprint, and rejects inherited/overridden configuration. It
 never runs arbitrary plugins from a user configuration. Original JSONC comments,
 unknown fields and plugin references are preserved on disk; they are not silently
-rewritten to install Vue. Vue `markup` and `malva` controls are separate groups.
+rewritten to install Vue. Vue controls have separate Template (`markup`), Script (`typescript`) and Styles
+(`malva`) groups. Script settings are shared with JS/TS previews; the managed Vue
+context identifies the fixed bundled TypeScript schema without rewriting the
+user's `plugins` array or relaxing standalone TypeScript identity checks.
+
+Nullable booleans/enums and bounded nullable numbers have typed controls,
+including maximum attributes per line, independent script/style indentation,
+Vue directive spelling and CSS declaration order. An absent field (Inherit),
+explicit JSON `null`, and the schema default are distinct states. Unsupported
+complex values remain editable through JSONC; comments and unknown fields are
+preserved. Go explicitly explains its fixed style instead of inventing settings;
+Dart lists its three real formatter options and the Flutter-source-only scope.
+Installation status follows the managed catalog, not a hardcoded release state.
 
 ## Distribution and evidence boundaries
 
@@ -116,3 +128,12 @@ uninstall tests. No remote jobs were triggered by the local preparation.
 The probe has nine offline contract tests (including bounded formatter output,
 redirect refusal, native-host gating and failure evidence cleanup). The combined
 Python suite after this addition is 141 passed and one skipped (142 discovered).
+
+## New-language settings UI validation
+
+The separate UI follow-on based on `3e88b30` passed 204 core tests (six default
+ignored tests), strict core Clippy, desktop `cargo check --bin codestyles --tests`
+and strict desktop Clippy. An initial dependency compilation was SIGKILL-limited;
+after resources were freed, the bounded incremental check succeeded. Desktop-only
+tests were compiled, not linked/executed locally; no manual visual acceptance is
+claimed from these checks. The UI changes do not enable or publish language packs.

@@ -239,6 +239,8 @@ impl NumberConstraints {
 pub enum FieldKind {
     Boolean,
     Number(NumberConstraints),
+    /// An explicit JSON null is distinct from removing the setting (Unset).
+    NullableNumber(NumberConstraints),
     String,
     Enum(Vec<EnumChoice>),
     Const(Value),
@@ -262,6 +264,42 @@ pub struct SchemaField {
     pub group: String,
     pub default: Option<Value>,
     pub kind: FieldKind,
+}
+
+/// Schema identity comes from the actual formatting pipeline, never guessed plugins.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SchemaContext {
+    #[default]
+    Standalone,
+    /// The Vue adapter injects its fixed four trusted plugins in an isolated config.
+    ManagedVue,
+}
+
+impl SchemaContext {
+    fn ensure_available(
+        self,
+        plugin: PinnedPlugin,
+        document: &ConfigDocument,
+    ) -> Result<(), String> {
+        match self {
+            Self::Standalone => plugin.ensure_available(document),
+            Self::ManagedVue => {
+                if !matches!(
+                    plugin,
+                    PinnedPlugin::TypeScript
+                        | PinnedPlugin::Json
+                        | PinnedPlugin::Markup
+                        | PinnedPlugin::Malva
+                ) {
+                    return Err(
+                        "This schema is not part of the managed Vue formatter chain.".into(),
+                    );
+                }
+                crate::config::validate_vue_config(document.draft_text())?;
+                Ok(())
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -417,6 +455,8 @@ impl SchemaField {
             FieldKind::Boolean if value.is_boolean() => Ok(()),
             FieldKind::Boolean => Err("Expected a boolean (true or false).".into()),
             FieldKind::Number(constraints) => constraints.validate(value),
+            FieldKind::NullableNumber(_) if value.is_null() => Ok(()),
+            FieldKind::NullableNumber(constraints) => constraints.validate(value),
             FieldKind::String if value.is_string() => Ok(()),
             FieldKind::String => Err("Expected a string.".into()),
             FieldKind::Enum(choices) => {
@@ -481,7 +521,16 @@ impl SchemaField {
         document: &ConfigDocument,
         plugin: PinnedPlugin,
     ) -> Result<FieldState, String> {
-        plugin.ensure_available(document)?;
+        self.state_in_context(document, plugin, SchemaContext::Standalone)
+    }
+
+    pub fn state_in_context(
+        &self,
+        document: &ConfigDocument,
+        plugin: PinnedPlugin,
+        context: SchemaContext,
+    ) -> Result<FieldState, String> {
+        context.ensure_available(plugin, document)?;
         let explicit = document.value(&[plugin.section(), &self.name])?;
         let validation_error = explicit
             .as_ref()
@@ -500,7 +549,17 @@ impl SchemaField {
         plugin: PinnedPlugin,
         value: Value,
     ) -> Result<(), String> {
-        plugin.ensure_available(document)?;
+        self.set_in_context(document, plugin, value, SchemaContext::Standalone)
+    }
+
+    pub fn set_in_context(
+        &self,
+        document: &mut ConfigDocument,
+        plugin: PinnedPlugin,
+        value: Value,
+        context: SchemaContext,
+    ) -> Result<(), String> {
+        context.ensure_available(plugin, document)?;
         self.validate(&value)?;
         document.set(&[plugin.section(), &self.name], value)
     }
@@ -508,16 +567,34 @@ impl SchemaField {
     /// Reset writes the documented schema default explicitly. No default means
     /// no reset action; do not make up a zero, false, or empty-string default.
     pub fn reset(&self, document: &mut ConfigDocument, plugin: PinnedPlugin) -> Result<(), String> {
+        self.reset_in_context(document, plugin, SchemaContext::Standalone)
+    }
+
+    pub fn reset_in_context(
+        &self,
+        document: &mut ConfigDocument,
+        plugin: PinnedPlugin,
+        context: SchemaContext,
+    ) -> Result<(), String> {
         let value = self
             .default
             .clone()
             .ok_or("This schema does not declare a default. Use Unset to remove the property.")?;
-        self.set(document, plugin, value)
+        self.set_in_context(document, plugin, value, context)
     }
 
     /// Unset removes the property, allowing formatter inheritance/defaults.
     pub fn unset(&self, document: &mut ConfigDocument, plugin: PinnedPlugin) -> Result<(), String> {
-        plugin.ensure_available(document)?;
+        self.unset_in_context(document, plugin, SchemaContext::Standalone)
+    }
+
+    pub fn unset_in_context(
+        &self,
+        document: &mut ConfigDocument,
+        plugin: PinnedPlugin,
+        context: SchemaContext,
+    ) -> Result<(), String> {
+        context.ensure_available(plugin, document)?;
         document.remove(&[plugin.section(), &self.name])
     }
 }
@@ -707,7 +784,16 @@ impl SchemaCatalog {
     }
 
     pub fn available(&self, document: &ConfigDocument, plugin: PinnedPlugin) -> Result<(), String> {
-        plugin.ensure_available(document)
+        self.available_in_context(document, plugin, SchemaContext::Standalone)
+    }
+
+    pub fn available_in_context(
+        &self,
+        document: &ConfigDocument,
+        plugin: PinnedPlugin,
+        context: SchemaContext,
+    ) -> Result<(), String> {
+        context.ensure_available(plugin, document)
     }
 
     /// Validate only known, supported values under a provable pinned identity.
@@ -854,12 +940,28 @@ fn parse_kind(schema: &Value) -> Result<FieldKind, String> {
     if let Some(key) = object.keys().find(|key| !ALLOWED.contains(&key.as_str())) {
         return Err(format!("Unsupported schema rule {key:?}."));
     }
-    let declared_type = match object.get("type") {
-        None => None,
+    let (declared_type, nullable) = match object.get("type") {
+        None => (None, false),
         Some(Value::String(kind))
             if matches!(kind.as_str(), "boolean" | "number" | "integer" | "string") =>
         {
-            Some(kind.as_str())
+            (Some(kind.as_str()), false)
+        }
+        Some(Value::Array(types)) if types.len() == 2 => {
+            let primitive = types
+                .iter()
+                .filter_map(Value::as_str)
+                .find(|kind| matches!(*kind, "boolean" | "number" | "integer" | "string"));
+            if types
+                .iter()
+                .filter(|kind| kind.as_str() == Some("null"))
+                .count()
+                != 1
+                || primitive.is_none()
+            {
+                return Err("Only a primitive plus null union has a typed editor.".into());
+            }
+            (primitive, true)
         }
         Some(_) => return Err("Complex or union schema types require raw JSONC.".into()),
     };
@@ -870,6 +972,9 @@ fn parse_kind(schema: &Value) -> Result<FieldKind, String> {
         return Err("Numeric constraints on a nonnumeric schema require raw JSONC.".into());
     }
     let is_valid_choice = |value: &Value| -> bool {
+        if value.is_null() && nullable {
+            return true;
+        }
         let compatible = match declared_type {
             Some("boolean") => value.is_boolean(),
             Some("number" | "integer") => value.is_number(),
@@ -959,6 +1064,21 @@ fn parse_kind(schema: &Value) -> Result<FieldKind, String> {
             return Ok(FieldKind::Boolean);
         }
         return Ok(FieldKind::Enum(choices));
+    }
+    if nullable {
+        return match declared_type {
+            Some("boolean") => Ok(FieldKind::Enum(
+                [Value::Bool(false), Value::Bool(true), Value::Null]
+                    .into_iter()
+                    .map(|value| EnumChoice {
+                        value,
+                        description: String::new(),
+                    })
+                    .collect(),
+            )),
+            Some("number" | "integer") => Ok(FieldKind::NullableNumber(constraints)),
+            _ => Err("Nullable strings without finite choices require raw JSONC.".into()),
+        };
     }
     match declared_type {
         Some("boolean") => Ok(FieldKind::Boolean),
@@ -1534,6 +1654,274 @@ mod tests {
     }
 
     #[test]
+    fn managed_vue_schema_context_does_not_relax_standalone_identity() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let plugin = PinnedPlugin::TypeScript;
+        let field = catalog.schema(plugin).field("quoteStyle").unwrap();
+        let mut doc = document(json!({}));
+        assert!(catalog.available(&doc, plugin).is_err());
+        assert!(field.state(&doc, plugin).is_err());
+        assert!(field.set(&mut doc, plugin, json!("alwaysSingle")).is_err());
+        catalog
+            .available_in_context(&doc, plugin, SchemaContext::ManagedVue)
+            .unwrap();
+        assert_eq!(
+            field
+                .state_in_context(&doc, plugin, SchemaContext::ManagedVue)
+                .unwrap()
+                .explicit,
+            None
+        );
+        field
+            .set_in_context(
+                &mut doc,
+                plugin,
+                json!("alwaysSingle"),
+                SchemaContext::ManagedVue,
+            )
+            .unwrap();
+        assert_eq!(
+            doc.value(&["typescript", "quoteStyle"]).unwrap(),
+            Some(json!("alwaysSingle"))
+        );
+        assert_eq!(doc.value(&["plugins"]).unwrap(), None);
+        field
+            .reset_in_context(&mut doc, plugin, SchemaContext::ManagedVue)
+            .unwrap();
+        field
+            .unset_in_context(&mut doc, plugin, SchemaContext::ManagedVue)
+            .unwrap();
+        assert!(catalog.available(&doc, plugin).is_err());
+        assert!(
+            catalog
+                .available_in_context(&doc, PinnedPlugin::Rustfmt, SchemaContext::ManagedVue)
+                .is_err()
+        );
+
+        let mut doc =
+            document(json!({"plugins":["custom-local-plugin.wasm"],"future":{"keep":true}}));
+        doc.replace_draft_text(&format!("// keep user plugins\n{}", doc.draft_text()))
+            .unwrap();
+        let original_plugins = doc.value(&["plugins"]).unwrap();
+        field
+            .set_in_context(
+                &mut doc,
+                plugin,
+                json!("alwaysSingle"),
+                SchemaContext::ManagedVue,
+            )
+            .unwrap();
+        assert_eq!(doc.value(&["plugins"]).unwrap(), original_plugins);
+        assert!(doc.draft_text().contains("// keep user plugins"));
+        assert_eq!(doc.value(&["future", "keep"]).unwrap(), Some(json!(true)));
+        assert!(field.state(&doc, plugin).is_err());
+    }
+
+    #[test]
+    fn managed_vue_context_rejects_ambiguous_or_unsupported_configuration_atomically() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let plugin = PinnedPlugin::TypeScript;
+        let field = catalog.schema(plugin).field("quoteStyle").unwrap();
+        for value in [
+            json!({"extends":"base.json"}),
+            json!({"inherit":true}),
+            json!({"overrides":[]}),
+            json!({"markup":{"scriptFormatter":"prettier"}}),
+            json!({"typescript":[]}),
+        ] {
+            let mut doc = document(value);
+            let before = doc.draft_text().to_owned();
+            assert!(
+                catalog
+                    .available_in_context(&doc, plugin, SchemaContext::ManagedVue)
+                    .is_err()
+            );
+            assert!(
+                field
+                    .state_in_context(&doc, plugin, SchemaContext::ManagedVue)
+                    .is_err()
+            );
+            assert!(
+                field
+                    .set_in_context(
+                        &mut doc,
+                        plugin,
+                        json!("alwaysSingle"),
+                        SchemaContext::ManagedVue
+                    )
+                    .is_err()
+            );
+            assert!(
+                field
+                    .reset_in_context(&mut doc, plugin, SchemaContext::ManagedVue)
+                    .is_err()
+            );
+            assert!(
+                field
+                    .unset_in_context(&mut doc, plugin, SchemaContext::ManagedVue)
+                    .is_err()
+            );
+            assert_eq!(doc.draft_text(), before);
+        }
+    }
+
+    #[test]
+    fn pinned_vue_nullable_controls_validate_real_schema_values() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let markup = catalog.schema(PinnedPlugin::Markup);
+        let number = markup.field("maxAttrsPerLine").unwrap();
+        assert!(matches!(number.kind, FieldKind::NullableNumber(_)));
+        for valid in ["null", "1", "2"] {
+            assert!(number.parse_input(valid).is_ok());
+        }
+        for invalid in ["0", "-1", "1.5", "true", "\"2\"", "NaN", "1e400", ""] {
+            assert!(number.parse_input(invalid).is_err(), "{invalid}");
+        }
+        for name in ["vue.scriptIndent", "vue.styleIndent"] {
+            let field = markup.field(name).unwrap();
+            assert!(matches!(field.kind, FieldKind::Enum(_)));
+            for valid in [Value::Null, json!(true), json!(false)] {
+                field.validate(&valid).unwrap();
+            }
+            assert!(field.validate(&json!("false")).is_err());
+        }
+        for name in ["vBindStyle", "vOnStyle"] {
+            let field = markup.field(name).unwrap();
+            for valid in [Value::Null, json!("short"), json!("long")] {
+                field.validate(&valid).unwrap();
+            }
+            assert!(field.validate(&json!("automatic")).is_err());
+        }
+        let order = catalog
+            .schema(PinnedPlugin::Malva)
+            .field("declarationOrder")
+            .unwrap();
+        for valid in [
+            Value::Null,
+            json!("alphabetical"),
+            json!("smacss"),
+            json!("concentric"),
+        ] {
+            order.validate(&valid).unwrap();
+        }
+        assert!(order.validate(&json!(["color", "display"])).is_err());
+        assert!(matches!(
+            markup.field("scriptFormatter").unwrap().kind,
+            FieldKind::Raw { .. }
+        ));
+    }
+
+    #[test]
+    fn nullable_union_parser_stays_fail_closed_for_other_unions() {
+        let schema = schema(json!({
+            "reversed":{"type":["null","integer"],"minimum":1},
+            "enum":{"type":["string","null"],"enum":["a",null]},
+            "limited":{"type":["boolean","null"],"enum":[true,false]},
+            "wrongChoice":{"type":["string","null"],"enum":["a",false,null]},
+            "duplicates":{"type":["boolean","boolean"]},
+            "complex":{"type":["object","null"]},
+            "three":{"type":["boolean","string","null"]},
+            "badType":{"type":[{},"null"]},
+            "badDefault":{"type":["integer","null"],"minimum":1,"default":0}
+        }));
+        assert!(matches!(
+            schema.field("reversed").unwrap().kind,
+            FieldKind::NullableNumber(_)
+        ));
+        assert!(schema.field("enum").unwrap().validate(&Value::Null).is_ok());
+        assert!(
+            schema
+                .field("limited")
+                .unwrap()
+                .validate(&Value::Null)
+                .is_err()
+        );
+        for name in [
+            "wrongChoice",
+            "duplicates",
+            "complex",
+            "three",
+            "badType",
+            "badDefault",
+        ] {
+            assert!(!schema.field(name).unwrap().kind.is_supported(), "{name}");
+        }
+    }
+
+    #[test]
+    fn nullable_settings_keep_unset_null_defaults_and_jsonc_round_trip_distinct() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("dprint.jsonc");
+        fs::write(
+            &path,
+            r#"// keep root comment
+{
+  "markup": { /* keep section comment */ "futureOption": {"nested": [1,true]} },
+  "malva": {"futureStyle": "unchanged"},
+  "custom": {"keep": true}
+}
+"#,
+        )
+        .unwrap();
+        let mut doc = ConfigDocument::load(&path).unwrap();
+        let catalog = SchemaCatalog::bundled().unwrap();
+        for (plugin, name, explicit) in [
+            (PinnedPlugin::Markup, "maxAttrsPerLine", json!(2)),
+            (PinnedPlugin::Markup, "vue.scriptIndent", json!(true)),
+            (PinnedPlugin::Markup, "vBindStyle", json!("short")),
+            (
+                PinnedPlugin::Malva,
+                "declarationOrder",
+                json!("alphabetical"),
+            ),
+        ] {
+            let field = catalog.schema(plugin).field(name).unwrap();
+            assert_eq!(field.state(&doc, plugin).unwrap().explicit, None);
+            assert_eq!(
+                field.state(&doc, plugin).unwrap().schema_default,
+                Some(Value::Null)
+            );
+            field.set(&mut doc, plugin, explicit.clone()).unwrap();
+            let before = doc.draft_text().to_owned();
+            assert!(
+                field
+                    .set(&mut doc, plugin, json!({"invalid":true}))
+                    .is_err()
+            );
+            assert_eq!(doc.draft_text(), before);
+            field.reset(&mut doc, plugin).unwrap();
+            assert_eq!(
+                field.state(&doc, plugin).unwrap().explicit,
+                Some(Value::Null)
+            );
+            field.unset(&mut doc, plugin).unwrap();
+            assert_eq!(field.state(&doc, plugin).unwrap().explicit, None);
+            field.set(&mut doc, plugin, explicit).unwrap();
+        }
+        doc.save().unwrap();
+        let saved = fs::read_to_string(&path).unwrap();
+        assert!(saved.contains("// keep root comment"));
+        assert!(saved.contains("/* keep section comment */"));
+        let reloaded = ConfigDocument::load(&path).unwrap();
+        assert_eq!(
+            reloaded.value(&["markup", "futureOption"]).unwrap(),
+            Some(json!({"nested":[1,true]}))
+        );
+        assert_eq!(
+            reloaded.value(&["malva", "futureStyle"]).unwrap(),
+            Some(json!("unchanged"))
+        );
+        assert_eq!(
+            reloaded.value(&["custom", "keep"]).unwrap(),
+            Some(json!(true))
+        );
+        assert_eq!(
+            reloaded.value(&["markup", "maxAttrsPerLine"]).unwrap(),
+            Some(json!(2))
+        );
+    }
+
+    #[test]
     fn primitive_validation_and_numeric_constraints_are_atomic() {
         let schema = schema(json!({
             "boolean":{"type":"boolean"},"string":{"type":"string"},
@@ -1759,6 +2147,7 @@ mod tests {
                     FieldKind::Boolean => json!(false),
                     FieldKind::Enum(choices) => choices[0].value.clone(),
                     FieldKind::Const(value) => value.clone(),
+                    FieldKind::NullableNumber(_) => Value::Null,
                     FieldKind::Number(constraints) => {
                         json!(constraints.minimum.unwrap_or(0.0))
                     }
