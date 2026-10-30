@@ -1,6 +1,7 @@
 //! File types supported by the bundled, version-pinned formatter plugins.
 pub const EXTENSIONS: &[&str] = &[
-    "ts", "tsx", "js", "jsx", "json", "jsonc", "md", "markdown", "toml", "py", "pyi", "rs",
+    "ts", "tsx", "js", "jsx", "json", "jsonc", "md", "markdown", "toml", "py", "pyi", "rs", "go",
+    "dart", "vue",
 ];
 pub const INDENT_WIDTHS: &[u8] = &[2, 4];
 pub const SEMICOLONS: &[&str] = &["always", "asi"];

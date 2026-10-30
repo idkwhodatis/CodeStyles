@@ -16,6 +16,10 @@ pub enum PinnedPlugin {
     Ruff,
     /// Managed native formatter; not a dprint WASM plugin.
     Rustfmt,
+    Gofmt,
+    Dartfmt,
+    Markup,
+    Malva,
 }
 
 impl PinnedPlugin {
@@ -35,6 +39,10 @@ impl PinnedPlugin {
             Self::Toml => "toml",
             Self::Ruff => "ruff",
             Self::Rustfmt => "rustfmt",
+            Self::Gofmt => "gofmt",
+            Self::Dartfmt => "dartfmt",
+            Self::Markup => "markup",
+            Self::Malva => "malva",
         }
     }
     pub fn title(self) -> &'static str {
@@ -45,6 +53,10 @@ impl PinnedPlugin {
             Self::Toml => "TOML",
             Self::Ruff => "Python (Ruff)",
             Self::Rustfmt => "Rust (managed rustfmt)",
+            Self::Gofmt => "Go (gofmt, fixed style)",
+            Self::Dartfmt => "Dart / Flutter",
+            Self::Markup => "Vue template",
+            Self::Malva => "Vue styles",
         }
     }
     pub fn version(self) -> &'static str {
@@ -55,6 +67,10 @@ impl PinnedPlugin {
             Self::Toml => "0.9.0",
             Self::Ruff => "0.11.3",
             Self::Rustfmt => "1.99.1",
+            Self::Gofmt => "1.27.3",
+            Self::Dartfmt => "3.13.7",
+            Self::Markup => "0.27.6",
+            Self::Malva => "0.16.0",
         }
     }
     pub fn url(self) -> &'static str {
@@ -64,7 +80,9 @@ impl PinnedPlugin {
             Self::Markdown => "https://plugins.dprint.dev/markdown-0.26.0.wasm",
             Self::Toml => "https://plugins.dprint.dev/toml-0.9.0.wasm",
             Self::Ruff => "https://plugins.dprint.dev/ruff-0.11.3.wasm",
-            Self::Rustfmt => "", // Native pack: never exported as a dprint plugin URL.
+            Self::Rustfmt | Self::Gofmt | Self::Dartfmt => "", // Not dprint plugins.
+            Self::Markup => "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.6.wasm",
+            Self::Malva => "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm",
         }
     }
 
@@ -76,21 +94,26 @@ impl PinnedPlugin {
             Self::Markdown => "markdown-0.26.0.wasm",
             Self::Toml => "toml-0.9.0.wasm",
             Self::Ruff => "ruff-0.11.3.wasm",
-            Self::Rustfmt => "", // Not present in the bundled WASM resource catalog.
+            Self::Rustfmt | Self::Gofmt | Self::Dartfmt => "",
+            Self::Markup => "markup-0.27.6.wasm",
+            Self::Malva => "malva-0.16.0.wasm",
         }
     }
 
     /// Identity must be unambiguous. Inherited configuration and unfamiliar
     /// plugins can replace a namespace, so we never guess from a filename.
     pub fn ensure_available(self, document: &ConfigDocument) -> Result<(), String> {
-        if self == Self::Rustfmt {
+        if matches!(
+            self,
+            Self::Rustfmt | Self::Gofmt | Self::Dartfmt | Self::Markup | Self::Malva
+        ) {
             if document.value(&["extends"])?.is_some()
                 || document
                     .value(&["inherit"])?
                     .is_some_and(|v| v != Value::Bool(false))
                 || document.value(&["overrides"])?.is_some()
             {
-                return Err("Native Rust settings do not resolve dprint inheritance or overrides. Use a separate explicit Rust configuration.".into());
+                return Err("Managed language settings do not resolve dprint inheritance or overrides. Use a separate explicit configuration.".into());
             }
             return Ok(());
         }
@@ -111,9 +134,12 @@ impl PinnedPlugin {
             );
         };
         if !plugins.iter().all(|value| {
-            value
-                .as_str()
-                .is_some_and(|url| Self::ALL.iter().any(|plugin| plugin.url() == url))
+            value.as_str().is_some_and(|url| {
+                Self::ALL
+                    .iter()
+                    .chain([Self::Markup, Self::Malva].iter())
+                    .any(|plugin| plugin.url() == url)
+            })
         }) {
             return Err("The plugin list includes an unknown identity or version. Use the raw JSONC editor.".into());
         }
@@ -607,7 +633,7 @@ impl PluginSchema {
 
 #[derive(Clone, Debug)]
 pub struct SchemaCatalog {
-    schemas: [PluginSchema; 6],
+    schemas: [PluginSchema; 10],
 }
 
 impl SchemaCatalog {
@@ -637,6 +663,26 @@ impl SchemaCatalog {
                 PluginSchema::from_json(PinnedPlugin::Toml, &toml)?,
                 PluginSchema::from_json(PinnedPlugin::Ruff, &ruff)?,
                 PluginSchema::from_json(PinnedPlugin::Rustfmt, &rustfmt)?,
+                PluginSchema::from_json(
+                    PinnedPlugin::Gofmt,
+                    &serde_json::from_str(include_str!("../resources/schemas/gofmt.json"))
+                        .map_err(|e| format!("Go schema: {e}"))?,
+                )?,
+                PluginSchema::from_json(
+                    PinnedPlugin::Dartfmt,
+                    &serde_json::from_str(include_str!("../resources/schemas/dartfmt.json"))
+                        .map_err(|e| format!("Dart schema: {e}"))?,
+                )?,
+                PluginSchema::from_json(
+                    PinnedPlugin::Markup,
+                    &serde_json::from_str(include_str!("../resources/schemas/markup-0.27.6.json"))
+                        .map_err(|e| format!("Vue schema: {e}"))?,
+                )?,
+                PluginSchema::from_json(
+                    PinnedPlugin::Malva,
+                    &serde_json::from_str(include_str!("../resources/schemas/malva-0.16.0.json"))
+                        .map_err(|e| format!("Style schema: {e}"))?,
+                )?,
             ],
         })
     }
@@ -649,6 +695,10 @@ impl SchemaCatalog {
             PinnedPlugin::Toml => 3,
             PinnedPlugin::Ruff => 4,
             PinnedPlugin::Rustfmt => 5,
+            PinnedPlugin::Gofmt => 6,
+            PinnedPlugin::Dartfmt => 7,
+            PinnedPlugin::Markup => 8,
+            PinnedPlugin::Malva => 9,
         }]
     }
 
@@ -663,7 +713,29 @@ impl SchemaCatalog {
     /// Validate only known, supported values under a provable pinned identity.
     /// Unknown keys/complex fields stay raw-editable and are left to dprint.
     pub fn validate_document(&self, document: &ConfigDocument) -> Result<(), String> {
-        for plugin in PinnedPlugin::ALL.into_iter().chain([PinnedPlugin::Rustfmt]) {
+        for (plugin, language) in [
+            (
+                PinnedPlugin::Gofmt,
+                crate::native_format::NativeLanguage::Go,
+            ),
+            (
+                PinnedPlugin::Dartfmt,
+                crate::native_format::NativeLanguage::Dart,
+            ),
+        ] {
+            if document.value(&[plugin.section()])?.is_some()
+                && self.available(document, plugin).is_ok()
+            {
+                crate::native_format::options(document.draft_text(), language)?;
+            }
+        }
+        for plugin in PinnedPlugin::ALL.into_iter().chain([
+            PinnedPlugin::Rustfmt,
+            PinnedPlugin::Gofmt,
+            PinnedPlugin::Dartfmt,
+            PinnedPlugin::Markup,
+            PinnedPlugin::Malva,
+        ]) {
             if self.available(document, plugin).is_err() {
                 continue;
             }
@@ -1094,7 +1166,7 @@ mod tests {
     #[test]
     fn broad_categories_cover_every_field_for_all_languages() {
         let catalog = SchemaCatalog::bundled().unwrap();
-        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 11);
+        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 14);
         for language in crate::comparison::SourceLanguage::ALL {
             let fields = catalog.fields(language.plugin());
             let mut seen = std::collections::HashSet::new();
@@ -1109,7 +1181,7 @@ mod tests {
                 }
             }
             assert_eq!(seen.len(), fields.len(), "{}", language.display_name());
-            assert!(!seen.is_empty());
+            assert_eq!(seen.is_empty(), language.plugin() == PinnedPlugin::Gofmt);
         }
     }
 
@@ -1119,7 +1191,16 @@ mod tests {
         for language in crate::comparison::SourceLanguage::ALL {
             let fields = catalog.fields(language.plugin());
             let categories = setting_categories(fields);
-            assert_eq!(categories.first(), Some(&"Tabs and Indents"));
+            if fields
+                .iter()
+                .any(|field| field.category() == "Tabs and Indents")
+            {
+                assert_eq!(categories.first(), Some(&"Tabs and Indents"));
+            }
+            assert_eq!(
+                categories.is_empty(),
+                language.plugin() == PinnedPlugin::Gofmt
+            );
             assert!(!categories.contains(&"All"));
             assert!(!categories.contains(&"General"));
             assert!(

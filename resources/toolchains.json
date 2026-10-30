@@ -998,6 +998,742 @@
           ]
         }
       }
+    },
+    "vue": {
+      "version": "markup-0.27.6-malva-0.16.0",
+      "distribution": "Reviewed optional WASM pack; unpublished candidate, no network install available.",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal Vue WASM candidate; transitive dependency license audit pending.",
+          "kind": "wasm",
+          "wasm_plugins": [
+            "plugins/markup-0.27.6.wasm",
+            "plugins/malva-0.16.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 3505053,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-vue-markup-0.27.6-malva-0.16.0.tar.gz",
+              "sha256": "99227ad3434223498497f6ad842707ca0e4575699673a78f8399d17e88632fdd",
+              "bytes": 972724,
+              "max_download_bytes": 972724,
+              "max_expanded_bytes": 3522461,
+              "members": [
+                {
+                  "path": "plugins/markup-0.27.6.wasm",
+                  "archive_path": "plugins/markup-0.27.6.wasm",
+                  "bytes": 2009404,
+                  "sha256": "93dd0c870b60431ceea59f055792fee4a353868223c813d3a44414b31d1df602",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/malva-0.16.0.wasm",
+                  "archive_path": "plugins/malva-0.16.0.wasm",
+                  "bytes": 1465125,
+                  "sha256": "1c1b31f972ef5aae052f97b6723aaf962e0175c5bbe4ba877e092512af354113",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/markup_fmt/LICENSE",
+                  "archive_path": "licenses/markup_fmt/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/malva/LICENSE",
+                  "archive_path": "licenses/malva/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/markup-0.27.6.json",
+                  "archive_path": "schemas/markup-0.27.6.json",
+                  "bytes": 13822,
+                  "sha256": "754d4869aff8a1b3bf1489a90181c08e39662bb84029ccf29d9eb9a595fd9d50",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/malva-0.16.0.json",
+                  "archive_path": "schemas/malva-0.16.0.json",
+                  "bytes": 11233,
+                  "sha256": "ead39a1236c079f5096e96854fa9ed3c682405a32157a638fdb191d071e11d9c",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3323,
+                  "sha256": "84c48540d5195e2dd448e8786c023fe1493411166f576dd58ceb95962642c663",
+                  "executable": false
+                }
+              ]
+            }
+          ],
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          }
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal Vue WASM candidate; transitive dependency license audit pending.",
+          "kind": "wasm",
+          "wasm_plugins": [
+            "plugins/markup-0.27.6.wasm",
+            "plugins/malva-0.16.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 3505053,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-vue-markup-0.27.6-malva-0.16.0.tar.gz",
+              "sha256": "99227ad3434223498497f6ad842707ca0e4575699673a78f8399d17e88632fdd",
+              "bytes": 972724,
+              "max_download_bytes": 972724,
+              "max_expanded_bytes": 3522461,
+              "members": [
+                {
+                  "path": "plugins/markup-0.27.6.wasm",
+                  "archive_path": "plugins/markup-0.27.6.wasm",
+                  "bytes": 2009404,
+                  "sha256": "93dd0c870b60431ceea59f055792fee4a353868223c813d3a44414b31d1df602",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/malva-0.16.0.wasm",
+                  "archive_path": "plugins/malva-0.16.0.wasm",
+                  "bytes": 1465125,
+                  "sha256": "1c1b31f972ef5aae052f97b6723aaf962e0175c5bbe4ba877e092512af354113",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/markup_fmt/LICENSE",
+                  "archive_path": "licenses/markup_fmt/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/malva/LICENSE",
+                  "archive_path": "licenses/malva/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/markup-0.27.6.json",
+                  "archive_path": "schemas/markup-0.27.6.json",
+                  "bytes": 13822,
+                  "sha256": "754d4869aff8a1b3bf1489a90181c08e39662bb84029ccf29d9eb9a595fd9d50",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/malva-0.16.0.json",
+                  "archive_path": "schemas/malva-0.16.0.json",
+                  "bytes": 11233,
+                  "sha256": "ead39a1236c079f5096e96854fa9ed3c682405a32157a638fdb191d071e11d9c",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3323,
+                  "sha256": "84c48540d5195e2dd448e8786c023fe1493411166f576dd58ceb95962642c663",
+                  "executable": false
+                }
+              ]
+            }
+          ],
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          }
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal Vue WASM candidate; transitive dependency license audit pending.",
+          "kind": "wasm",
+          "wasm_plugins": [
+            "plugins/markup-0.27.6.wasm",
+            "plugins/malva-0.16.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 3505053,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-vue-markup-0.27.6-malva-0.16.0.tar.gz",
+              "sha256": "99227ad3434223498497f6ad842707ca0e4575699673a78f8399d17e88632fdd",
+              "bytes": 972724,
+              "max_download_bytes": 972724,
+              "max_expanded_bytes": 3522461,
+              "members": [
+                {
+                  "path": "plugins/markup-0.27.6.wasm",
+                  "archive_path": "plugins/markup-0.27.6.wasm",
+                  "bytes": 2009404,
+                  "sha256": "93dd0c870b60431ceea59f055792fee4a353868223c813d3a44414b31d1df602",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/malva-0.16.0.wasm",
+                  "archive_path": "plugins/malva-0.16.0.wasm",
+                  "bytes": 1465125,
+                  "sha256": "1c1b31f972ef5aae052f97b6723aaf962e0175c5bbe4ba877e092512af354113",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/markup_fmt/LICENSE",
+                  "archive_path": "licenses/markup_fmt/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/malva/LICENSE",
+                  "archive_path": "licenses/malva/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/markup-0.27.6.json",
+                  "archive_path": "schemas/markup-0.27.6.json",
+                  "bytes": 13822,
+                  "sha256": "754d4869aff8a1b3bf1489a90181c08e39662bb84029ccf29d9eb9a595fd9d50",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/malva-0.16.0.json",
+                  "archive_path": "schemas/malva-0.16.0.json",
+                  "bytes": 11233,
+                  "sha256": "ead39a1236c079f5096e96854fa9ed3c682405a32157a638fdb191d071e11d9c",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3323,
+                  "sha256": "84c48540d5195e2dd448e8786c023fe1493411166f576dd58ceb95962642c663",
+                  "executable": false
+                }
+              ]
+            }
+          ],
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          }
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal Vue WASM candidate; transitive dependency license audit pending.",
+          "kind": "wasm",
+          "wasm_plugins": [
+            "plugins/markup-0.27.6.wasm",
+            "plugins/malva-0.16.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 3505053,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-vue-markup-0.27.6-malva-0.16.0.tar.gz",
+              "sha256": "99227ad3434223498497f6ad842707ca0e4575699673a78f8399d17e88632fdd",
+              "bytes": 972724,
+              "max_download_bytes": 972724,
+              "max_expanded_bytes": 3522461,
+              "members": [
+                {
+                  "path": "plugins/markup-0.27.6.wasm",
+                  "archive_path": "plugins/markup-0.27.6.wasm",
+                  "bytes": 2009404,
+                  "sha256": "93dd0c870b60431ceea59f055792fee4a353868223c813d3a44414b31d1df602",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/malva-0.16.0.wasm",
+                  "archive_path": "plugins/malva-0.16.0.wasm",
+                  "bytes": 1465125,
+                  "sha256": "1c1b31f972ef5aae052f97b6723aaf962e0175c5bbe4ba877e092512af354113",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/markup_fmt/LICENSE",
+                  "archive_path": "licenses/markup_fmt/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/malva/LICENSE",
+                  "archive_path": "licenses/malva/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/markup-0.27.6.json",
+                  "archive_path": "schemas/markup-0.27.6.json",
+                  "bytes": 13822,
+                  "sha256": "754d4869aff8a1b3bf1489a90181c08e39662bb84029ccf29d9eb9a595fd9d50",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/malva-0.16.0.json",
+                  "archive_path": "schemas/malva-0.16.0.json",
+                  "bytes": 11233,
+                  "sha256": "ead39a1236c079f5096e96854fa9ed3c682405a32157a638fdb191d071e11d9c",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3323,
+                  "sha256": "84c48540d5195e2dd448e8786c023fe1493411166f576dd58ceb95962642c663",
+                  "executable": false
+                }
+              ]
+            }
+          ],
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          }
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal Vue WASM candidate; transitive dependency license audit pending.",
+          "kind": "wasm",
+          "wasm_plugins": [
+            "plugins/markup-0.27.6.wasm",
+            "plugins/malva-0.16.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 3505053,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-vue-markup-0.27.6-malva-0.16.0.tar.gz",
+              "sha256": "99227ad3434223498497f6ad842707ca0e4575699673a78f8399d17e88632fdd",
+              "bytes": 972724,
+              "max_download_bytes": 972724,
+              "max_expanded_bytes": 3522461,
+              "members": [
+                {
+                  "path": "plugins/markup-0.27.6.wasm",
+                  "archive_path": "plugins/markup-0.27.6.wasm",
+                  "bytes": 2009404,
+                  "sha256": "93dd0c870b60431ceea59f055792fee4a353868223c813d3a44414b31d1df602",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/malva-0.16.0.wasm",
+                  "archive_path": "plugins/malva-0.16.0.wasm",
+                  "bytes": 1465125,
+                  "sha256": "1c1b31f972ef5aae052f97b6723aaf962e0175c5bbe4ba877e092512af354113",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/markup_fmt/LICENSE",
+                  "archive_path": "licenses/markup_fmt/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/malva/LICENSE",
+                  "archive_path": "licenses/malva/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/markup-0.27.6.json",
+                  "archive_path": "schemas/markup-0.27.6.json",
+                  "bytes": 13822,
+                  "sha256": "754d4869aff8a1b3bf1489a90181c08e39662bb84029ccf29d9eb9a595fd9d50",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/malva-0.16.0.json",
+                  "archive_path": "schemas/malva-0.16.0.json",
+                  "bytes": 11233,
+                  "sha256": "ead39a1236c079f5096e96854fa9ed3c682405a32157a638fdb191d071e11d9c",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3323,
+                  "sha256": "84c48540d5195e2dd448e8786c023fe1493411166f576dd58ceb95962642c663",
+                  "executable": false
+                }
+              ]
+            }
+          ],
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          }
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal Vue WASM candidate; transitive dependency license audit pending.",
+          "kind": "wasm",
+          "wasm_plugins": [
+            "plugins/markup-0.27.6.wasm",
+            "plugins/malva-0.16.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 3505053,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-vue-markup-0.27.6-malva-0.16.0.tar.gz",
+              "sha256": "99227ad3434223498497f6ad842707ca0e4575699673a78f8399d17e88632fdd",
+              "bytes": 972724,
+              "max_download_bytes": 972724,
+              "max_expanded_bytes": 3522461,
+              "members": [
+                {
+                  "path": "plugins/markup-0.27.6.wasm",
+                  "archive_path": "plugins/markup-0.27.6.wasm",
+                  "bytes": 2009404,
+                  "sha256": "93dd0c870b60431ceea59f055792fee4a353868223c813d3a44414b31d1df602",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/malva-0.16.0.wasm",
+                  "archive_path": "plugins/malva-0.16.0.wasm",
+                  "bytes": 1465125,
+                  "sha256": "1c1b31f972ef5aae052f97b6723aaf962e0175c5bbe4ba877e092512af354113",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/markup_fmt/LICENSE",
+                  "archive_path": "licenses/markup_fmt/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/malva/LICENSE",
+                  "archive_path": "licenses/malva/LICENSE",
+                  "bytes": 1073,
+                  "sha256": "fe85f268adfe7f3f30994c01093db77b96b917b730cba4275765b1ae97b1f471",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/markup-0.27.6.json",
+                  "archive_path": "schemas/markup-0.27.6.json",
+                  "bytes": 13822,
+                  "sha256": "754d4869aff8a1b3bf1489a90181c08e39662bb84029ccf29d9eb9a595fd9d50",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/malva-0.16.0.json",
+                  "archive_path": "schemas/malva-0.16.0.json",
+                  "bytes": 11233,
+                  "sha256": "ead39a1236c079f5096e96854fa9ed3c682405a32157a638fdb191d071e11d9c",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3323,
+                  "sha256": "84c48540d5195e2dd448e8786c023fe1493411166f576dd58ceb95962642c663",
+                  "executable": false
+                }
+              ]
+            }
+          ],
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          }
+        }
+      }
+    },
+    "gofmt": {
+      "version": "1.27.3",
+      "distribution": "Optional managed formatter, no PATH or SDK installation fallback.",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Local validation candidate only; not published. Cross-platform verification pending.",
+          "executable": "bin/gofmt",
+          "environment": {},
+          "max_installed_bytes": 3167207,
+          "validation": {
+            "archive_and_members": "verified",
+            "native_execution": "linux-x64-smoke-passed",
+            "network_syscall_audit": "blocked-ptrace-denied",
+            "license_audit": "upstream-and-vendored-notices-included"
+          },
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-gofmt-1.27.3-x86_64-unknown-linux-gnu-candidate.tar.gz",
+              "sha256": "5e9d82c0105c9825ccfee56b175d5578f7afa690bda4801c329e4349786859c2",
+              "bytes": 1336802,
+              "max_download_bytes": 1336802,
+              "max_expanded_bytes": 3191783,
+              "members": [
+                {
+                  "archive_path": "bin/gofmt",
+                  "path": "bin/gofmt",
+                  "sha256": "fd464d1c9098a6714d06bd3fcd2a1fedcdd291e710241160ebb663bf99adf2f8",
+                  "bytes": 3144728,
+                  "executable": true
+                },
+                {
+                  "archive_path": "licenses/LICENSE",
+                  "path": "licenses/LICENSE",
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "bytes": 1453,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/PATENTS",
+                  "path": "licenses/PATENTS",
+                  "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+                  "bytes": 1303,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/cmd/vendor/golang.org/x/sync/LICENSE",
+                  "path": "licenses/src/cmd/vendor/golang.org/x/sync/LICENSE",
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "bytes": 1453,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/cmd/vendor/golang.org/x/telemetry/LICENSE",
+                  "path": "licenses/src/cmd/vendor/golang.org/x/telemetry/LICENSE",
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "bytes": 1453,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/vendor/golang.org/x/crypto/LICENSE",
+                  "path": "licenses/src/vendor/golang.org/x/crypto/LICENSE",
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "bytes": 1453,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/vendor/golang.org/x/crypto/PATENTS",
+                  "path": "licenses/src/vendor/golang.org/x/crypto/PATENTS",
+                  "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+                  "bytes": 1303,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/vendor/golang.org/x/net/LICENSE",
+                  "path": "licenses/src/vendor/golang.org/x/net/LICENSE",
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "bytes": 1453,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/vendor/golang.org/x/net/PATENTS",
+                  "path": "licenses/src/vendor/golang.org/x/net/PATENTS",
+                  "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+                  "bytes": 1303,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/vendor/golang.org/x/sys/LICENSE",
+                  "path": "licenses/src/vendor/golang.org/x/sys/LICENSE",
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "bytes": 1453,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/vendor/golang.org/x/sys/PATENTS",
+                  "path": "licenses/src/vendor/golang.org/x/sys/PATENTS",
+                  "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+                  "bytes": 1303,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/vendor/golang.org/x/text/LICENSE",
+                  "path": "licenses/src/vendor/golang.org/x/text/LICENSE",
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "bytes": 1453,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/src/vendor/golang.org/x/text/PATENTS",
+                  "path": "licenses/src/vendor/golang.org/x/text/PATENTS",
+                  "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+                  "bytes": 1303,
+                  "executable": false
+                },
+                {
+                  "archive_path": "PROVENANCE.json",
+                  "path": "PROVENANCE.json",
+                  "sha256": "5d283032fe79c56b11241e57024c6ac20804a94a8835b383ad62e5ce07fc0744",
+                  "bytes": 5793,
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        }
+      }
+    },
+    "dartfmt": {
+      "version": "3.13.7",
+      "distribution": "Optional managed formatter, no PATH or SDK installation fallback.",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Local validation candidate only; not published. Dartdev transitive license audit incomplete.",
+          "executable": "bin/dart",
+          "environment": {},
+          "max_installed_bytes": 27798820,
+          "validation": {
+            "archive_and_members": "verified",
+            "native_execution": "linux-x64-smoke-passed",
+            "network_syscall_audit": "blocked-ptrace-denied",
+            "license_audit": "pending-transitive-dartdev-not-for-publication"
+          },
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-dartfmt-3.13.7-x86_64-unknown-linux-gnu-candidate.tar.gz",
+              "sha256": "0489363d0de2af8ea3b7860100cc7fea76262629838dceb2d69a965270d702b7",
+              "bytes": 10365657,
+              "max_download_bytes": 10365657,
+              "max_expanded_bytes": 27819300,
+              "members": [
+                {
+                  "archive_path": "README",
+                  "path": "README",
+                  "sha256": "badfd0f9c13687769e68a7f2f48f36d761e5f083f8822262aa45f6ebb46a7fe6",
+                  "bytes": 1271,
+                  "executable": false
+                },
+                {
+                  "archive_path": "bin/dart",
+                  "path": "bin/dart",
+                  "sha256": "01e869e4af277734b02ab8898b870c6b00c9bec61bbcf9c923cd14de7ed85fbb",
+                  "bytes": 4835712,
+                  "executable": true
+                },
+                {
+                  "archive_path": "bin/snapshots/dartdev_aot.dart.snapshot",
+                  "path": "bin/snapshots/dartdev_aot.dart.snapshot",
+                  "sha256": "3f675fe483acfb56e752121c2cf0b1505d4db0edf0fc16ca996d3d76eb252b55",
+                  "bytes": 22954416,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/AUDIT_STATUS.txt",
+                  "path": "licenses/AUDIT_STATUS.txt",
+                  "sha256": "71580e87e2cdb3d4016183a870f00fe0515a2fdd8f9d0009c701cd40c1d5a4e5",
+                  "bytes": 225,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/LICENSE",
+                  "path": "licenses/LICENSE",
+                  "sha256": "2cfa3ee8e7512e6d44c854b986510810fadc815f93f890373b3a81c1b6ccd256",
+                  "bytes": 1502,
+                  "executable": false
+                },
+                {
+                  "archive_path": "licenses/dart_style-LICENSE",
+                  "path": "licenses/dart_style-LICENSE",
+                  "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16",
+                  "bytes": 1504,
+                  "executable": false
+                },
+                {
+                  "archive_path": "revision",
+                  "path": "revision",
+                  "sha256": "768a9c944b0cf6db4e13cdedbd1498f1ab83bbebdb61fe769c6385c2cec07d88",
+                  "bytes": 41,
+                  "executable": false
+                },
+                {
+                  "archive_path": "sdk_packages.yaml",
+                  "path": "sdk_packages.yaml",
+                  "sha256": "f427dcf4f87473458fd4af3d065db5d3a76cd21b2663c242f2c06bf08632c000",
+                  "bytes": 160,
+                  "executable": false
+                },
+                {
+                  "archive_path": "version",
+                  "path": "version",
+                  "sha256": "3ce16e94590543a327d3e5ae412e663206e0ed1b46628ed3dd5ad29caa1ff5ac",
+                  "bytes": 7,
+                  "executable": false
+                },
+                {
+                  "archive_path": "PROVENANCE.json",
+                  "path": "PROVENANCE.json",
+                  "sha256": "6b48a821e53190b5811d6fe4650d15461d282d55fb405d7b1dbb017258432252",
+                  "bytes": 3982,
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Candidate package validation and separately approved GitHub publication are pending.",
+          "archives": []
+        }
+      }
     }
   }
 }

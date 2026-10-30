@@ -51,9 +51,28 @@ pub struct InstallProgress {
     pub total_bytes: Option<u64>,
 }
 
+/// Manifest payload sizes, not filesystem allocation or required free space.
+/// All values exclude manager receipts/pointers, filesystem overhead, and any
+/// previously installed runtimes retained until explicit uninstall.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackFootprint {
+    /// Exact compressed byte total only when every archive declares `bytes`.
+    pub download_bytes: Option<u64>,
+    /// Exact selected member byte total only when every member declares `bytes`.
+    pub installed_payload_bytes: Option<u64>,
+    pub installed_payload_limit_bytes: u64,
+    /// Sum of all compressed download limits plus the installed payload limit.
+    /// install_with retains ALL downloaded archives until its staging dir drops;
+    /// runtime activation is a rename, not a second payload copy. This is a
+    /// payload bound only, never a guarantee that this much free disk suffices.
+    pub staging_payload_limit_bytes: u64,
+}
+
 #[derive(Clone, Debug)]
 pub struct ResolvedToolchain {
+    /// Empty for a WASM-only pack; never launch WASM as an OS process.
     pub executable: PathBuf,
+    pub wasm_plugins: Vec<PathBuf>,
     pub root: PathBuf,
     pub version: String,
     pub environment: Vec<(OsString, OsString)>,
@@ -169,6 +188,14 @@ impl ToolchainManager {
             &progress,
             |archive, output, cancel, progress| download(archive, output, cancel, progress),
         )
+    }
+
+    /// Read only the embedded catalog: no network, disk traversal or free-space
+    /// probe. Unpublished pinned candidates may still have useful size metadata;
+    /// availability remains a separate check. No archives means no estimate.
+    pub fn footprint(&self, id: &str) -> Result<Option<PackFootprint>, String> {
+        let (_, spec) = self.spec(id)?;
+        footprint_from_spec(spec)
     }
 
     pub fn download_available(&self, id: &str) -> Result<(), String> {
@@ -482,7 +509,15 @@ impl ToolchainManager {
                 .map_err(|_| "Toolchain validation cache failed.")?
                 .insert(id.into(), (root.clone(), stamps));
         }
-        let executable = checked_join(&root, string(spec, "executable")?)?;
+        let (native, wasm) = runtime_entrypoints(spec)?;
+        let executable = native
+            .map(|path| checked_join(&root, &path))
+            .transpose()?
+            .unwrap_or_default();
+        let wasm_plugins = wasm
+            .iter()
+            .map(|path| checked_join(&root, path))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut environment = Vec::new();
         if let Some(values) = spec["environment"].as_object() {
             for (key, value) in values {
@@ -499,12 +534,86 @@ impl ToolchainManager {
         }
         Ok(ResolvedToolchain {
             executable,
+            wasm_plugins,
             root,
             version: version.into(),
             environment,
             _lease: None,
         })
     }
+}
+
+fn footprint_from_spec(spec: &Value) -> Result<Option<PackFootprint>, String> {
+    let Some(archives_value) = spec.get("archives").filter(|value| !value.is_null()) else {
+        return Ok(None);
+    };
+    let archives = archives_value
+        .as_array()
+        .ok_or("Invalid footprint archive list.")?;
+    if archives.is_empty() {
+        return Ok(None);
+    }
+    let installed_limit = number(spec, "max_installed_bytes")?;
+    if installed_limit == 0 {
+        return Err("Invalid zero installed payload limit.".into());
+    }
+    let mut download_total = 0_u64;
+    let mut download_known = true;
+    let mut download_limit = 0_u64;
+    let mut installed_total = 0_u64;
+    let mut installed_known = true;
+    let mut paths = BTreeSet::new();
+    let add = |a: u64, b: u64| a.checked_add(b).ok_or("Toolchain footprint size overflow.");
+    let optional_bytes = |value: &Value| -> Result<Option<u64>, String> {
+        match value.get("bytes") {
+            None | Some(Value::Null) => Ok(None),
+            Some(value) => value
+                .as_u64()
+                .map(Some)
+                .ok_or("Invalid footprint bytes.".into()),
+        }
+    };
+    for archive in archives {
+        let limit = number(archive, "max_download_bytes")?;
+        if limit == 0 {
+            return Err("Invalid zero compressed payload limit.".into());
+        }
+        download_limit = add(download_limit, limit)?;
+        if let Some(bytes) = optional_bytes(archive)? {
+            if bytes == 0 || bytes > limit {
+                return Err(
+                    "Compressed payload bytes exceed the manifest limit or are zero.".into(),
+                );
+            }
+            download_total = add(download_total, bytes)?;
+        } else {
+            download_known = false;
+        }
+        let members = array(archive, "members")?;
+        if members.is_empty() {
+            return Err("No member payload sizes are configured.".into());
+        }
+        for member in members {
+            let path = normalized_path(string(member, "path")?)?;
+            if !paths.insert(path) {
+                return Err("Duplicate installed footprint member.".into());
+            }
+            if let Some(bytes) = optional_bytes(member)? {
+                installed_total = add(installed_total, bytes)?;
+            } else {
+                installed_known = false;
+            }
+        }
+    }
+    if installed_total > installed_limit || (installed_known && installed_total == 0) {
+        return Err("Installed payload bytes exceed the manifest limit or are zero.".into());
+    }
+    Ok(Some(PackFootprint {
+        download_bytes: download_known.then_some(download_total),
+        installed_payload_bytes: installed_known.then_some(installed_total),
+        installed_payload_limit_bytes: installed_limit,
+        staging_payload_limit_bytes: add(download_limit, installed_limit)?,
+    }))
 }
 
 fn err(error: impl std::fmt::Display) -> String {
@@ -1183,15 +1292,83 @@ fn validate_runtime(
             }
         }
     }
-    let executable = normalized_path(string(spec, "executable")?)?;
-    if !records
-        .get(&executable)
-        .is_some_and(|record| record["executable"] == true)
+    let (native, wasm) = runtime_entrypoints(spec)?;
+    if let Some(executable) = native
+        && !records
+            .get(&executable)
+            .is_some_and(|record| record["executable"] == true)
     {
         return Err("Runtime executable is not allowlisted.".into());
     }
+    for plugin in wasm {
+        if !records
+            .get(&plugin)
+            .is_some_and(|record| record["executable"] == false)
+        {
+            return Err("WASM plugin is not a non-executable allowlisted member.".into());
+        }
+        let mut header = [0u8; 8];
+        File::open(checked_join(root, &plugin)?)
+            .map_err(err)?
+            .read_exact(&mut header)
+            .map_err(err)?;
+        if header != *b"\0asm\x01\0\0\0" {
+            return Err("Invalid WASM plugin header.".into());
+        }
+    }
     Ok(())
 }
+fn runtime_entrypoints(spec: &Value) -> Result<(Option<String>, Vec<String>), String> {
+    let kind = match spec.get("kind") {
+        None => "native",
+        Some(value) => value.as_str().ok_or("Invalid pack kind.")?,
+    };
+    match kind {
+        "native" => {
+            if spec.get("wasm_plugins").is_some() {
+                return Err("Native packs cannot declare WASM entrypoints.".into());
+            }
+            Ok((
+                Some(normalized_path(string(spec, "executable")?)?),
+                Vec::new(),
+            ))
+        }
+        "wasm" => {
+            if spec
+                .get("environment")
+                .is_some_and(|value| !value.is_object())
+            {
+                return Err("WASM environment must be an empty object.".into());
+            }
+            if spec.get("executable").is_some()
+                || spec
+                    .get("environment")
+                    .and_then(Value::as_object)
+                    .is_some_and(|env| !env.is_empty())
+            {
+                return Err(
+                    "WASM packs cannot supply native executables or loader environment.".into(),
+                );
+            }
+            let entries = spec["wasm_plugins"]
+                .as_array()
+                .ok_or("WASM entrypoints must be an array.")?;
+            if entries.is_empty() || entries.len() > 8 {
+                return Err("Invalid WASM entrypoint count.".into());
+            }
+            let mut paths = BTreeSet::new();
+            for entry in entries {
+                let path = normalized_path(entry.as_str().ok_or("Invalid WASM entrypoint.")?)?;
+                if !path.ends_with(".wasm") || !paths.insert(path) {
+                    return Err("Invalid or duplicate WASM entrypoint.".into());
+                }
+            }
+            Ok((None, paths.into_iter().collect()))
+        }
+        _ => Err("Unsupported language-pack kind.".into()),
+    }
+}
+
 fn remove_managed_runtime(root: &Path, spec: &Value) -> Result<(), String> {
     validate_removal(root, spec)?;
     // Scope has been checked against the built-in member list, and no links are
@@ -1241,6 +1418,141 @@ fn runtime_stamps(root: &Path, active: &Path) -> Result<BTreeMap<PathBuf, FileSt
 mod tests {
     use super::*;
     use std::io::Cursor;
+
+    fn footprint_fixture() -> Value {
+        json!({"max_installed_bytes": 30, "archives": [
+            {"bytes": 10, "max_download_bytes": 15, "members": [
+                {"path": "bin/rustfmt", "bytes": 20}, {"path": "licenses/empty", "bytes": 0}]},
+            {"bytes": 5, "max_download_bytes": 7, "members": [
+                {"path": "lib/driver", "bytes": 8}]}
+        ]})
+    }
+
+    #[test]
+    fn footprint_sums_all_retained_archives_not_largest_or_expansion_limit() {
+        let mut spec = footprint_fixture();
+        spec["archives"][0]["max_expanded_bytes"] = json!(u64::MAX);
+        assert_eq!(
+            footprint_from_spec(&spec).unwrap(),
+            Some(PackFootprint {
+                download_bytes: Some(15),
+                installed_payload_bytes: Some(28),
+                installed_payload_limit_bytes: 30,
+                staging_payload_limit_bytes: 52,
+            })
+        );
+    }
+
+    #[test]
+    fn footprint_unknown_exact_sizes_still_has_reviewed_limits() {
+        let mut spec = footprint_fixture();
+        spec["archives"][0].as_object_mut().unwrap().remove("bytes");
+        spec["archives"][1]["members"][0]["bytes"] = Value::Null;
+        let footprint = footprint_from_spec(&spec).unwrap().unwrap();
+        assert_eq!(footprint.download_bytes, None);
+        assert_eq!(footprint.installed_payload_bytes, None);
+        assert_eq!(footprint.staging_payload_limit_bytes, 52);
+        for spec in [
+            json!({}),
+            json!({"archives": null}),
+            json!({"archives": []}),
+        ] {
+            assert_eq!(footprint_from_spec(&spec).unwrap(), None);
+        }
+    }
+
+    #[test]
+    fn footprint_rejects_invalid_limits_sizes_paths_and_duplicates() {
+        for field in [
+            "limit",
+            "archive_limit",
+            "too_large",
+            "negative",
+            "boolean",
+            "duplicate",
+            "path",
+            "empty",
+            "zero",
+            "archive_list",
+        ] {
+            let mut spec = footprint_fixture();
+            match field {
+                "limit" => spec["max_installed_bytes"] = json!(1),
+                "archive_limit" => spec["archives"][0]["max_download_bytes"] = json!(0),
+                "too_large" => spec["archives"][0]["bytes"] = json!(16),
+                "negative" => spec["archives"][0]["members"][0]["bytes"] = json!(-1),
+                "boolean" => spec["archives"][0]["bytes"] = json!(true),
+                "duplicate" => spec["archives"][1]["members"][0]["path"] = json!("bin/rustfmt"),
+                "path" => spec["archives"][1]["members"][0]["path"] = json!("../outside"),
+                "empty" => spec["archives"][0]["members"] = json!([]),
+                "zero" => spec["archives"][0]["bytes"] = json!(0),
+                "archive_list" => spec["archives"] = json!(false),
+                _ => unreachable!(),
+            }
+            assert!(footprint_from_spec(&spec).is_err(), "{field}");
+        }
+    }
+
+    #[test]
+    fn footprint_overflow_fails_closed_for_archive_member_and_combined_sums() {
+        for field in ["archive", "member", "combined"] {
+            let mut spec = footprint_fixture();
+            match field {
+                "archive" => spec["archives"][0]["max_download_bytes"] = json!(u64::MAX),
+                "member" => spec["archives"][0]["members"][0]["bytes"] = json!(u64::MAX),
+                "combined" => spec["max_installed_bytes"] = json!(u64::MAX),
+                _ => unreachable!(),
+            }
+            assert!(
+                footprint_from_spec(&spec).unwrap_err().contains("overflow"),
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn footprint_is_pure_and_independent_of_publication_or_installation() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().join("must-not-be-created");
+        let mut spec = footprint_fixture();
+        spec["available"] = json!(false);
+        let manager = ToolchainManager {
+            root: root.clone(),
+            target: "test".into(),
+            verified: Default::default(),
+            catalog: json!({"toolchains":{"rustfmt":{"version":"test", "targets":{"test":spec}}}}),
+        };
+        assert!(manager.footprint("rustfmt").unwrap().is_some());
+        assert!(manager.download_available("rustfmt").is_err());
+        assert!(manager.footprint("unknown").is_err());
+        assert!(
+            !root.exists(),
+            "metadata must not create or probe installation directories"
+        );
+    }
+
+    #[test]
+    fn footprint_all_six_embedded_targets_match_exact_payload_pins() {
+        let catalog: Value =
+            serde_json::from_str(include_str!("../resources/toolchains.json")).unwrap();
+        let targets = catalog["toolchains"]["rustfmt"]["targets"]
+            .as_object()
+            .unwrap();
+        assert_eq!(targets.len(), 6);
+        for spec in targets.values() {
+            let footprint = footprint_from_spec(spec).unwrap().unwrap();
+            let archive = &spec["archives"][0];
+            assert_eq!(footprint.download_bytes, archive["bytes"].as_u64());
+            assert_eq!(
+                footprint.installed_payload_bytes,
+                spec["max_installed_bytes"].as_u64()
+            );
+            assert_eq!(
+                footprint.staging_payload_limit_bytes,
+                footprint.download_bytes.unwrap() + footprint.installed_payload_bytes.unwrap()
+            );
+        }
+    }
 
     fn archive(entries: &[(&str, u8, &[u8])]) -> Vec<u8> {
         let mut tar = tar::Builder::new(Vec::new());
@@ -1837,5 +2149,29 @@ mod tests {
             started: Instant::now(),
         };
         assert!(reader.read(&mut [0]).is_err());
+    }
+}
+
+#[cfg(test)]
+mod wasm_pack_contract_tests {
+    use super::*;
+    #[test]
+    fn wasm_entries_are_non_native_fixed_paths() {
+        let good = json!({"kind":"wasm", "wasm_plugins":["plugins/a.wasm", "plugins/b.wasm"]});
+        let (native, wasm) = runtime_entrypoints(&good).unwrap();
+        assert!(native.is_none());
+        assert_eq!(wasm.len(), 2);
+        for invalid in [
+            json!({"kind":false}),
+            json!({"kind":"shell"}),
+            json!({"kind":"wasm","wasm_plugins":[]}),
+            json!({"kind":"wasm","wasm_plugins":["../a.wasm"]}),
+            json!({"kind":"wasm","wasm_plugins":["a.exe"]}),
+            json!({"kind":"wasm","wasm_plugins":["a.wasm","a.wasm"]}),
+            json!({"kind":"wasm","wasm_plugins":["a.wasm"],"executable":"a.wasm"}),
+            json!({"kind":"wasm","wasm_plugins":["a.wasm"],"environment":{"LD_LIBRARY_PATH":"lib"}}),
+        ] {
+            assert!(runtime_entrypoints(&invalid).is_err(), "{invalid}");
+        }
     }
 }

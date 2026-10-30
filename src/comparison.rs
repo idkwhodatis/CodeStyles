@@ -18,10 +18,13 @@ pub enum SourceLanguage {
     Python,
     PythonStub,
     Rust,
+    Go,
+    Dart,
+    Vue,
 }
 
 impl SourceLanguage {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 14] = [
         Self::TypeScript,
         Self::JavaScript,
         Self::Tsx,
@@ -33,6 +36,9 @@ impl SourceLanguage {
         Self::Python,
         Self::PythonStub,
         Self::Rust,
+        Self::Go,
+        Self::Dart,
+        Self::Vue,
     ];
 
     pub fn label(self) -> &'static str {
@@ -48,6 +54,9 @@ impl SourceLanguage {
             Self::Python => "Python",
             Self::PythonStub => "Python Stub",
             Self::Rust => "Rust",
+            Self::Go => "Go",
+            Self::Dart => "Dart / Flutter",
+            Self::Vue => "Vue",
         }
     }
 
@@ -65,6 +74,9 @@ impl SourceLanguage {
             Self::Python => "Python",
             Self::PythonStub => "Python Stub",
             Self::Rust => "Rust",
+            Self::Go => "Go",
+            Self::Dart => "Dart / Flutter",
+            Self::Vue => "Vue",
         }
     }
 
@@ -75,7 +87,7 @@ impl SourceLanguage {
             Self::Markdown => "Documentation",
             Self::Python => "Code",
             Self::PythonStub => "Code",
-            Self::Rust => "Code",
+            Self::Rust | Self::Go | Self::Dart | Self::Vue => "Code",
         }
     }
 
@@ -94,6 +106,9 @@ impl SourceLanguage {
             Self::Python => include_str!("../resources/samples/sample.py"),
             Self::PythonStub => include_str!("../resources/samples/sample.pyi"),
             Self::Rust => include_str!("../resources/samples/sample.rs"),
+            Self::Go => include_str!("../resources/samples/sample.go"),
+            Self::Dart => include_str!("../resources/samples/sample.dart"),
+            Self::Vue => include_str!("../resources/samples/sample.vue"),
         }
     }
 
@@ -110,6 +125,9 @@ impl SourceLanguage {
             Self::Python => "py",
             Self::PythonStub => "pyi",
             Self::Rust => "rs",
+            Self::Go => "go",
+            Self::Dart => "dart",
+            Self::Vue => "vue",
         }
     }
 
@@ -122,12 +140,25 @@ impl SourceLanguage {
             Self::Python => PinnedPlugin::Ruff,
             Self::PythonStub => PinnedPlugin::Ruff,
             Self::Rust => PinnedPlugin::Rustfmt,
+            Self::Go => PinnedPlugin::Gofmt,
+            Self::Dart => PinnedPlugin::Dartfmt,
+            Self::Vue => PinnedPlugin::Markup,
         }
     }
 
     /// Optional downloaded engines must not be required by the offline bundle self-test.
     pub fn is_bundled(self) -> bool {
-        self != Self::Rust
+        self.pack_id().is_none()
+    }
+
+    pub fn pack_id(self) -> Option<&'static str> {
+        match self {
+            Self::Rust => Some("rustfmt"),
+            Self::Go => Some("gofmt"),
+            Self::Dart => Some("dartfmt"),
+            Self::Vue => Some("vue"),
+            _ => None,
+        }
     }
 
     pub fn is_json(self) -> bool {
@@ -147,6 +178,9 @@ impl SourceLanguage {
             (Self::Python, false) => "sample.py",
             (Self::PythonStub, false) => "sample.pyi",
             (Self::Rust, false) => "sample.rs",
+            (Self::Go, false) => "sample.go",
+            (Self::Dart, false) => "sample.dart",
+            (Self::Vue, false) => "sample.vue",
             (Self::TypeScript, true) => "custom.ts",
             (Self::JavaScript, true) => "custom.js",
             (Self::Tsx, true) => "custom.tsx",
@@ -158,6 +192,9 @@ impl SourceLanguage {
             (Self::Python, true) => "custom.py",
             (Self::PythonStub, true) => "custom.pyi",
             (Self::Rust, true) => "custom.rs",
+            (Self::Go, true) => "custom.go",
+            (Self::Dart, true) => "custom.dart",
+            (Self::Vue, true) => "custom.vue",
         }
     }
 }
@@ -213,7 +250,13 @@ impl BuiltinSample {
             (SourceLanguage::Toml, Self::Comments) => TOML_COMMENTS,
             (SourceLanguage::Python, _) => SourceLanguage::Python.builtin_source(),
             (SourceLanguage::PythonStub, _) => SourceLanguage::PythonStub.builtin_source(),
-            (SourceLanguage::Rust, _) => SourceLanguage::Rust.builtin_source(),
+            (
+                language @ (SourceLanguage::Rust
+                | SourceLanguage::Go
+                | SourceLanguage::Dart
+                | SourceLanguage::Vue),
+                _,
+            ) => language.builtin_source(),
             (SourceLanguage::Json, Self::Collections) => JSON_COLLECTIONS,
             (SourceLanguage::Json, Self::Comments) => JSON_DESCRIPTIONS,
             (SourceLanguage::Jsonc, Self::Collections) => JSONC_COLLECTIONS,
@@ -502,6 +545,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn new_optional_language_samples_are_distinct_and_not_offline_requirements() {
+        for (language, marker, extension) in [
+            (SourceLanguage::Go, "package main", "go"),
+            (SourceLanguage::Dart, "void main()", "dart"),
+            (SourceLanguage::Vue, "<template>", "vue"),
+        ] {
+            assert!(language.builtin_source().contains(marker));
+            assert_eq!(language.extension(), extension);
+            assert!(!language.is_bundled());
+            assert!(language.pack_id().is_some());
+        }
+        assert_eq!(SourceLanguage::ALL.len(), 14);
+    }
+
+    #[test]
     fn custom_input_survives_language_category_and_builtin_navigation() {
         let original = "// pasted source\nconst value = { untouched: true };\n";
         let mut source = SourceState::default();
@@ -535,6 +593,9 @@ mod tests {
                 SourceLanguage::Python => PinnedPlugin::Ruff,
                 SourceLanguage::PythonStub => PinnedPlugin::Ruff,
                 SourceLanguage::Rust => PinnedPlugin::Rustfmt,
+                SourceLanguage::Go => PinnedPlugin::Gofmt,
+                SourceLanguage::Dart => PinnedPlugin::Dartfmt,
+                SourceLanguage::Vue => PinnedPlugin::Markup,
             };
             assert_eq!(language.plugin(), expected);
             let mut source = SourceState::default();
@@ -763,7 +824,7 @@ mod tests {
                 ],
             ),
         ];
-        assert_eq!(coverage.len() + 3, SourceLanguage::ALL.len());
+        assert_eq!(coverage.len() + 6, SourceLanguage::ALL.len());
         for (language, tokens) in [
             (
                 SourceLanguage::Python,

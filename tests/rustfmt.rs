@@ -271,12 +271,21 @@ fn real_managed_rust_pack_preview_and_reviewed_project_end_to_end() {
     let a = preview(&backend, &config, source).unwrap();
     assert!(a.contains("    let items"));
     assert_eq!(preview(&backend, &config, &a).unwrap(), a);
-    config.set(&["rustfmt", "hard_tabs"], json!(true)).unwrap();
+    assert_eq!(
+        rustfmt::import_config(&mut config, "hard_tabs = true").unwrap(),
+        1
+    );
     let b = preview(&backend, &config, source).unwrap();
     assert!(b.contains("\tlet items"));
-    config.set(&["rustfmt", "hard_tabs"], json!(false)).unwrap();
+    let imported_draft = config.draft_text().to_owned();
+    assert!(
+        rustfmt::import_config(&mut config, "hard_tabs = false\nwrap_comments = true").is_err()
+    );
+    assert_eq!(config.draft_text(), imported_draft);
+    assert_eq!(preview(&backend, &config, source).unwrap(), b);
+    rustfmt::import_config(&mut config, "hard_tabs = false").unwrap();
     assert_eq!(preview(&backend, &config, source).unwrap(), a);
-    config.set(&["rustfmt", "edition"], json!("2015")).unwrap();
+    rustfmt::import_config(&mut config, "edition = '2015'").unwrap();
     assert!(
         preview(&backend, &config, source)
             .unwrap_err()

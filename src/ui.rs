@@ -12,12 +12,12 @@ use codestyles::{
     config::ConfigDocument,
     integration,
     preview::PreviewController,
-    project::{ProjectAction, ProjectReport, ProjectRequest},
+    project::{NativeLanguage, ProjectAction, ProjectReport, ProjectRequest},
     project_worker::ProjectController,
     resources,
     schema::{FieldKind, PinnedPlugin, SchemaCatalog, SchemaField, setting_categories},
     toolchain_worker::{PackAction, PackSnapshot, ToolchainController},
-    toolchains::ToolchainStatus,
+    toolchains::{PackFootprint, ToolchainStatus},
 };
 use gpui_kit::{
     component::{
@@ -61,6 +61,7 @@ pub struct PreviewWindow {
     subscriptions: Vec<Subscription>,
     selected_field: Option<String>,
     group: String,
+    vue_css_settings: bool,
     search: String,
     diff_mode: bool,
     baseline: Option<String>,
@@ -68,6 +69,7 @@ pub struct PreviewWindow {
     trusted: bool,
     document_version: u64,
     dialog_pending: bool,
+    rustfmt_import: ImportOperation,
     disk_warning: Option<String>,
     editor: Option<Entity<TextareaState>>,
     editor_subscription: Option<Subscription>,
@@ -132,6 +134,7 @@ impl PreviewWindow {
             subscriptions: Vec::new(),
             selected_field: None,
             group: String::new(),
+            vue_css_settings: false,
             search: String::new(),
             diff_mode: false,
             baseline: None,
@@ -139,6 +142,7 @@ impl PreviewWindow {
             trusted: true,
             document_version: 0,
             dialog_pending: false,
+            rustfmt_import: ImportOperation::default(),
             disk_warning: None,
             editor: None,
             editor_subscription: None,
@@ -171,13 +175,14 @@ impl PreviewWindow {
                         cx.notify();
                     }
                     if let Some(completed) = view.toolchain_controller.poll() {
+                        if completed.pack_id != view.toolchain_controller.pack_id() { return; }
                         let changed = !matches!(completed.action, PackAction::Refresh);
                         view.pack_error = completed.result.is_err();
                         view.pack_status = match completed.result {
                             Ok(()) => match completed.action {
                                 PackAction::Refresh => "Language-pack status refreshed.".into(),
-                                PackAction::Uninstall => "Rust language pack uninstalled. Bundled languages are unchanged.".into(),
-                                _ => "Verified Rust language pack installed.".into(),
+                                PackAction::Uninstall => "Selected language pack uninstalled. Bundled languages are unchanged.".into(),
+                                _ => "Verified language pack installed.".into(),
                             },
                             Err(error) => error,
                         };
@@ -185,11 +190,11 @@ impl PreviewWindow {
                             Ok(snapshot) => view.pack_snapshot = Some(snapshot),
                             Err(error) => { view.pack_snapshot = None; view.pack_error = true; view.pack_status.push_str(&format!("\nStatus unavailable: {error}")); }
                         }
-                        if changed {
+                        if changed && pack_matches_preview(view.source.language(), completed.pack_id) {
                             view.project_report = None;
                             view.project_selection.clear();
                         }
-                        if view.source.language() == SourceLanguage::Rust {
+                        if pack_matches_preview(view.source.language(), completed.pack_id) {
                             view.cancel_preview();
                             view.last_success = None;
                             view.output.clear();
@@ -252,6 +257,21 @@ impl PreviewWindow {
     }
 
     pub fn should_close(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        match self.rustfmt_import.cancel_for_close() {
+            ImportClose::Picker => {
+                self.status = "Import cancelled. Dismiss the native file picker, then close again. No imported settings will be applied.".into();
+                cx.notify();
+                return false;
+            }
+            ImportClose::Reading => {
+                // Invalidate only this import, then use the ordinary unsaved
+                // confirmation below. The OS read may still be pending.
+                self.dialog_pending = false;
+                self.status =
+                    "Import cancelled. Any late file-read result will be discarded.".into();
+            }
+            ImportClose::None => {}
+        }
         if self.toolchain_controller.is_running() {
             self.toolchain_controller.cancel();
             self.page = Page::Toolchains;
@@ -318,7 +338,7 @@ impl PreviewWindow {
 
     fn request_preview(&mut self, cx: &mut Context<Self>) {
         if self.project_busy()
-            || (self.source.language() == SourceLanguage::Rust
+            || (pack_matches_preview(self.source.language(), self.toolchain_controller.pack_id())
                 && self.toolchain_controller.is_running())
             || !self.trusted
             || self.raw_dirty
@@ -735,19 +755,170 @@ impl PreviewWindow {
     }
 }
 
+fn format_package_bytes(bytes: Option<u64>) -> String {
+    match bytes {
+        None => "Unknown (not recorded in the trusted catalog)".into(),
+        Some(bytes) if bytes < 1024 => format!("{bytes} bytes"),
+        Some(bytes) if bytes < 1024 * 1024 => {
+            format!("{:.1} KiB ({bytes} bytes)", bytes as f64 / 1024.0)
+        }
+        Some(bytes) if bytes < 1024 * 1024 * 1024 => format!(
+            "{:.1} MiB ({bytes} bytes)",
+            bytes as f64 / (1024.0 * 1024.0)
+        ),
+        Some(bytes) => format!(
+            "{:.1} GiB ({bytes} bytes)",
+            bytes as f64 / (1024.0 * 1024.0 * 1024.0)
+        ),
+    }
+}
+
+fn package_footprint_text(metadata: Option<&Result<Option<PackFootprint>, String>>) -> String {
+    match metadata {
+        Some(Ok(Some(size))) => {
+            let mut lines = vec![
+                format!(
+                    "Compressed download: {}",
+                    format_package_bytes(size.download_bytes)
+                ),
+                format!(
+                    "Installed file payload: {}",
+                    format_package_bytes(size.installed_payload_bytes)
+                ),
+            ];
+            if size.installed_payload_bytes != Some(size.installed_payload_limit_bytes) {
+                lines.push(format!(
+                    "Installed payload limit: {}",
+                    format_package_bytes(Some(size.installed_payload_limit_bytes))
+                ));
+            }
+            lines.push(format!(
+                "New staging payload limit: {}",
+                format_package_bytes(Some(size.staging_payload_limit_bytes))
+            ));
+            lines.join("\n")
+        }
+        Some(Ok(None)) => {
+            "Package sizes unknown: no archive metadata is recorded for this target.".into()
+        }
+        Some(Err(error)) => {
+            format!("Package size metadata error: {error}. No size estimate is shown.")
+        }
+        None => "Package size metadata is not yet available. Refresh / verify to check.".into(),
+    }
+}
+
+fn pack_matches_preview(language: SourceLanguage, pack_id: &str) -> bool {
+    language.pack_id() == Some(pack_id)
+}
+
+fn pack_mutation_affects_preview(
+    language: SourceLanguage,
+    pack_id: &str,
+    action: &PackAction,
+) -> bool {
+    !matches!(action, PackAction::Refresh) && pack_matches_preview(language, pack_id)
+}
+
+fn native_language(language: SourceLanguage) -> Option<NativeLanguage> {
+    match language {
+        SourceLanguage::Rust => Some(NativeLanguage::Rust),
+        SourceLanguage::Go => Some(NativeLanguage::Go),
+        SourceLanguage::Dart => Some(NativeLanguage::Dart),
+        SourceLanguage::Vue => Some(NativeLanguage::Vue),
+        _ => None,
+    }
+}
+
 fn has_unsaved_changes(document_dirty: bool, raw_dirty: bool) -> bool {
     document_dirty || raw_dirty
 }
 
 // A native dialog is asynchronous. The entire draft, including unapplied raw
 // text and successful saves, must still be the version the dialog reviewed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ImportClose {
+    None,
+    Picker,
+    Reading,
+}
+
+#[derive(Default)]
+struct ImportOperation {
+    generation: u64,
+    active: Option<(u64, ImportClose, bool)>,
+}
+impl ImportOperation {
+    fn begin(&mut self) -> u64 {
+        self.generation = self
+            .generation
+            .checked_add(1)
+            .expect("import operation IDs exhausted");
+        self.active = Some((self.generation, ImportClose::Picker, false));
+        self.generation
+    }
+    fn begin_read(&mut self, id: u64) -> bool {
+        match self.active.as_mut() {
+            Some((current, phase, false)) if *current == id => {
+                *phase = ImportClose::Reading;
+                true
+            }
+            _ => false,
+        }
+    }
+    fn finish(&mut self, id: u64) -> Option<bool> {
+        if self.active.is_some_and(|(current, _, _)| current == id) {
+            self.active.take().map(|(_, _, cancelled)| cancelled)
+        } else {
+            None
+        }
+    }
+    fn cancel_for_close(&mut self) -> ImportClose {
+        match self.active.as_mut() {
+            Some((_, ImportClose::Picker, cancelled)) => {
+                *cancelled = true;
+                ImportClose::Picker
+            }
+            Some(_) => {
+                self.active = None;
+                ImportClose::Reading
+            }
+            None => ImportClose::None,
+        }
+    }
+}
+
+fn rustfmt_import_allowed(
+    has_document: bool,
+    pending_input: bool,
+    busy: bool,
+    dialog_pending: bool,
+) -> bool {
+    has_document && !pending_input && !busy && !dialog_pending
+}
+
+fn rustfmt_import_is_current(
+    opened: u64,
+    current: u64,
+    pending_input: bool,
+    busy: bool,
+    rust_selected: bool,
+    cancelled: bool,
+) -> bool {
+    dialog_is_current(opened, current) && !pending_input && !busy && rust_selected && !cancelled
+}
+
 fn dialog_is_current(opened_version: u64, current_version: u64) -> bool {
     opened_version == current_version
 }
 
 impl PreviewWindow {
     fn plugin(&self) -> PinnedPlugin {
-        self.source.language().plugin()
+        if self.source.language() == SourceLanguage::Vue && self.vue_css_settings {
+            PinnedPlugin::Malva
+        } else {
+            self.source.language().plugin()
+        }
     }
 
     fn selected_schema_field(&self) -> Option<SchemaField> {
@@ -1240,6 +1411,11 @@ impl PreviewWindow {
             .h_full()
             .gap_2()
             .child(div().text_lg().child("Settings"))
+            .when(self.source.language() == SourceLanguage::Go, |panel| panel.child(div().text_sm().child("Go uses gofmt's canonical style. There are no style controls; CodeStyles does not expose gofmt rewrite or simplify flags.")))
+            .when(self.source.language() == SourceLanguage::Dart, |panel| panel.child(div().text_sm().child("Dart / Flutter source formatting only; no Flutter SDK, analyzer, pub tooling or widget generation. Dart preview uses plain text when no highlighting grammar is available.")))
+            .when(self.source.language() == SourceLanguage::Vue, |panel| panel.child(div().flex().gap_2().children([(false, "Template / SFC (markup_fmt)"), (true, "Styles (Malva)")].into_iter().map(|(css, label)| Button::new(("vue-setting-group", css as usize)).label(label).selected(self.vue_css_settings == css).disabled(self.raw_dirty || self.field_draft.is_dirty() || self.project_busy()).on_click(cx.listener(move |this, _, window, cx| {
+                if this.allow_field_transition(cx) && !this.raw_dirty { this.vue_css_settings = css; this.selected_field = None; this.group.clear(); this.sync_field(window, cx); cx.notify(); }
+            }))))))
             .child(
                 div()
                     .text_xs()
@@ -1288,7 +1464,7 @@ impl PreviewWindow {
                     .min_h_0()
                     .overflow_y_scroll()
                     .when(rows.is_empty(), |list| {
-                        list.child(div().py_3().text_sm().child("No matches in this tab"))
+                        list.child(div().py_3().text_sm().child(if self.source.language() == SourceLanguage::Go { "gofmt has no configurable style settings." } else { "No matches in this tab" }))
                     })
                     .children(rows),
             )
@@ -1296,6 +1472,9 @@ impl PreviewWindow {
     }
 
     fn open_language_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.toolchain_controller.is_running() || self.project_busy() || self.dialog_pending {
+            return;
+        }
         if !self.allow_field_transition(cx) {
             return;
         }
@@ -1329,10 +1508,12 @@ impl PreviewWindow {
                                                         .selected(selected == language)
                                                         .on_click(move |_, window, cx| {
                                                             let _ = view.update(cx, |this, cx| {
-                                                                if !this.allow_field_transition(cx)
+                                                                if this.toolchain_controller.is_running() || this.project_busy() || this.dialog_pending || !this.allow_field_transition(cx)
                                                                 {
                                                                     return;
                                                                 }
+                                                                this.switch_pack(language.pack_id().unwrap_or("rustfmt"), cx);
+                                                                this.vue_css_settings = false;
                                                                 this.source
                                                                     .select_language(language);
                                                                 this.project_report = None;
@@ -1451,7 +1632,8 @@ impl PreviewWindow {
         let document = self.document.as_ref().unwrap();
         let root = document.path().unwrap().parent().unwrap().to_path_buf();
         let version = self.document_version;
-        let rust_project = self.source.language() == SourceLanguage::Rust;
+        let native = native_language(self.source.language());
+        let native_project = native.is_some();
         let writes = matches!(
             action,
             ProjectAction::FormatProject | ProjectAction::FormatSelected(_)
@@ -1468,8 +1650,8 @@ impl PreviewWindow {
             ),
             _ => format!("Project directory: {}", root.display()),
         };
-        let engine_scope = if rust_project {
-            "Rust-only .rs files, using saved CodeStyles rustfmt settings and the installed verified toolchain. Honors local .gitignore/.ignore, skips target/.git and symlinks. Unsupported dprint discovery options and nested configs are rejected. This is not cargo fmt or a mixed-language check."
+        let engine_scope = if native_project {
+            "Only the selected language is included, using saved CodeStyles settings and its verified managed pack. Local ignore rules apply; symlinks and generated/build directories are skipped. Unsupported discovery options and nested configs are rejected. This is not mixed-language formatting; Vue does not read external src or arbitrary custom block languages."
         } else {
             "Uses dprint's normal nested configuration discovery. Review this project's nested configs, extends and plugin sources: they may download resources and execute process plugins with your account's permissions."
         };
@@ -1477,8 +1659,8 @@ impl PreviewWindow {
             "{scope}\n\n{engine_scope} {}",
             if writes {
                 "This operation writes source files. Review or back up your work first. Cancellation stops remaining work; files already written are not rolled back."
-            } else if rust_project {
-                "This operation checks Rust source without writing it. It uses the installed manifest-verified formatter, not executable commands from the project."
+            } else if native_project {
+                "This operation checks only the selected language without writing it. It uses manifest-verified formatters, not executable commands from the project."
             } else {
                 "This operation does not intentionally format source files. Plugin preparation may populate dprint's cache. Trust is not a sandbox."
             }
@@ -1488,8 +1670,8 @@ impl PreviewWindow {
             PromptLevel::Warning,
             if writes {
                 "Trust project and format files?"
-            } else if rust_project {
-                "Check Rust-only project scope?"
+            } else if native_project {
+                "Check selected-language-only project scope?"
             } else {
                 "Trust project configuration and plugins?"
             },
@@ -1509,18 +1691,18 @@ impl PreviewWindow {
             let _ = this.update(cx, |this, cx| {
                 this.dialog_pending = false;
                 if !accepted { cx.notify(); return; }
-                if !dialog_is_current(version, this.document_version) || !this.project_ready() || rust_project != (this.source.language() == SourceLanguage::Rust) {
+                if !dialog_is_current(version, this.document_version) || !this.project_ready() || native != native_language(this.source.language()) {
                     this.project_status = "Configuration changed during confirmation. Review it again before running.".into();
                     this.project_error = true;
                     cx.notify(); return;
                 }
                 let document = this.document.as_ref().unwrap();
                 let request = match (action, review) {
-                    (ProjectAction::FormatSelected(paths), Some(report)) if rust_project =>
-                        ProjectRequest::from_rust_review(root, document, paths, &report, true),
+                    (ProjectAction::FormatSelected(paths), Some(report)) if native_project =>
+                        ProjectRequest::from_native_review(root, document, paths, &report, true, native.unwrap()),
                     (ProjectAction::FormatSelected(paths), Some(report)) =>
                         ProjectRequest::from_review(root, document, paths, &report, true),
-                    (action, None) if rust_project => ProjectRequest::new_rust(root, document, action, true),
+                    (action, None) if native_project => ProjectRequest::new_native(root, document, action, true, native.unwrap()),
                     (action, None) => ProjectRequest::new(root, document, action, true),
                     _ => Err("Check the project again before formatting.".into()),
                 };
@@ -1531,7 +1713,7 @@ impl PreviewWindow {
                         this.project_selection.clear();
                         this.project_report = None;
                         this.project_error = false;
-                        this.project_status = if rust_project { "Running Rust-only project operation with the installed rustfmt…" } else { "Running bundled dprint with the saved project configuration…" }.into();
+                        this.project_status = if native_project { "Running selected-language-only project operation with the verified pack…" } else { "Running bundled dprint with the saved project configuration…" }.into();
                     }
                     Err(error) => { this.project_status = error; this.project_error = true; }
                 }
@@ -1642,11 +1824,11 @@ impl PreviewWindow {
             .collect();
         div().flex().flex_col().flex_1().min_h_0().gap_3()
             .child(div().text_sm().child(format!("Project root · {root_label}")))
-            .when(self.source.language() == SourceLanguage::Rust, |panel| panel.child(div().text_sm().child("Rust-only .rs scope · local .gitignore/.ignore · target/.git and symlinks excluded. Unsupported dprint discovery options/nested configs are rejected; not cargo fmt or mixed-language discovery.")))
+            .when(native_language(self.source.language()).is_some(), |panel| panel.child(div().text_sm().child(format!("{}-only scope · local ignore files · no symlinks or unsupported nested configuration. Not mixed-language discovery. Vue external src/custom block languages are rejected.", self.source.language().display_name()))))
             .when(self.dirty(), |panel| panel.child(div().text_color(cx.theme().warning).child("Save or discard pending configuration edits before checking or formatting.")))
             .child(div().flex().flex_wrap().gap_2()
                 .child(Button::new("project-check").label("Check project…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::Check, window, cx))))
-                .child(Button::new("project-prepare").label("Prepare plugins…").disabled(disabled || self.source.language() == SourceLanguage::Rust).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::PreparePlugins, window, cx))))
+                .child(Button::new("project-prepare").label("Prepare plugins…").disabled(disabled || native_language(self.source.language()).is_some()).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::PreparePlugins, window, cx))))
                 .child(Button::new("project-format-selected").label(format!("Format selected ({selected})…")).disabled(disabled || selected == 0).on_click(cx.listener(|this, _, window, cx| {
                     let paths = this.project_selection.paths(&this.project_paths());
                     this.project_action(ProjectAction::FormatSelected(paths), window, cx);
@@ -1675,6 +1857,16 @@ impl PreviewWindow {
     fn render_integration(&mut self, cx: &mut Context<Self>) -> AnyElement {
         if self.source.language() == SourceLanguage::Rust {
             return self.render_rust_integration(cx);
+        }
+        if !self.source.language().is_bundled() {
+            return div().flex().flex_col().gap_3()
+                .child(div().text_lg().child(format!("{} editor & CI", self.source.language().display_name())))
+                .child(div().text_sm().child("This optional language uses a verified managed pack. Installing it does not change editor settings or add project plugin URLs. Configure external editor/CI tools explicitly; the bundled offline dprint config alone does not provide this language."))
+                .child(div().text_sm().child(match self.source.language() {
+                    SourceLanguage::Go => "Go uses canonical gofmt with no style settings. Configure your normal Go editor tooling separately.",
+                    SourceLanguage::Dart => "Dart / Flutter source uses the pinned Dart formatter. This does not install Flutter or run pub/analyzer commands. Only explicit languageVersion and lineWidth settings are supported.",
+                    _ => "Vue support is Vue-only SFC formatting with pinned markup_fmt / Malva and bundled script formatters. External src and unsupported custom block languages fail closed. It is not a Vue build system or arbitrary embedded-language runner.",
+                })).into_any_element();
         }
         let guide = self
             .executable
@@ -1756,11 +1948,38 @@ impl PreviewWindow {
 }
 
 impl PreviewWindow {
+    fn switch_pack(&mut self, id: &str, cx: &mut Context<Self>) {
+        if id == self.toolchain_controller.pack_id()
+            || self.toolchain_controller.is_running()
+            || self.project_busy()
+            || self.dialog_pending
+        {
+            return;
+        }
+        match ToolchainController::for_pack(id) {
+            Ok(controller) => {
+                self.toolchain_controller = controller;
+                self.pack_snapshot = None;
+                self.pack_error = false;
+                self.pack_action(PackAction::Refresh, cx);
+            }
+            Err(error) => {
+                self.pack_status = error;
+                self.pack_error = true;
+                cx.notify();
+            }
+        }
+    }
+
     fn pack_action(&mut self, action: PackAction, cx: &mut Context<Self>) {
         if self.toolchain_controller.is_running() || self.project_busy() || self.dialog_pending {
             return;
         }
-        if !matches!(action, PackAction::Refresh) {
+        if pack_mutation_affects_preview(
+            self.source.language(),
+            self.toolchain_controller.pack_id(),
+            &action,
+        ) {
             self.cancel_preview();
             self.project_report = None;
             self.project_selection.clear();
@@ -1771,7 +1990,7 @@ impl PreviewWindow {
             PackAction::InstallLocal(_) => {
                 "Verifying the selected archive against the built-in package digest…"
             }
-            PackAction::Uninstall => "Removing only the managed Rust language pack…",
+            PackAction::Uninstall => "Removing only the selected managed language pack…",
         }
         .into();
         self.pack_error = false;
@@ -1786,12 +2005,15 @@ impl PreviewWindow {
         if self.toolchain_controller.is_running() || self.project_busy() || self.dialog_pending {
             return;
         }
+        let pack_id = self.toolchain_controller.pack_id();
         self.dialog_pending = true;
         let selection = cx.prompt_for_paths(PathPromptOptions {
             files: true,
             directories: false,
             multiple: false,
-            prompt: Some("Install Rust pack matching the built-in verified digest".into()),
+            prompt: Some(
+                "Install selected language pack matching the built-in verified digest".into(),
+            ),
         });
         cx.spawn_in(window, async move |this, cx| {
             let selected = match selection.await {
@@ -1801,6 +2023,9 @@ impl PreviewWindow {
                 Err(error) => Err(format!("File picker closed: {error}")),
             };
             let _ = this.update(cx, |this, cx| {
+                if this.toolchain_controller.pack_id() != pack_id {
+                    return;
+                }
                 this.dialog_pending = false;
                 match selected {
                     Ok(Some(path)) => this.pack_action(PackAction::InstallLocal(path), cx),
@@ -1825,6 +2050,7 @@ impl PreviewWindow {
         if self.toolchain_controller.is_running() || self.project_busy() || self.dialog_pending {
             return;
         }
+        let pack_id = self.toolchain_controller.pack_id();
         self.dialog_pending = true;
         let location = self
             .pack_snapshot
@@ -1832,18 +2058,22 @@ impl PreviewWindow {
             .map(|snapshot| snapshot.root.display().to_string())
             .unwrap_or_else(|| "the dedicated managed directory".into());
         let explanation = format!(
-            "Remove only the managed Rust pack under {location}? Bundled Python and other languages, project source files, and saved configuration are not removed. Rust formatting will require installing the verified pack again."
+            "Remove only the managed {} pack under {location}? Other language packs, bundled languages, project source files, and saved configuration are not removed. Formatting this language will require reinstalling its verified pack.",
+            self.toolchain_controller.pack_id()
         );
         let prompt = window.prompt(
             PromptLevel::Warning,
-            "Uninstall Rust language support?",
+            "Uninstall selected language support?",
             Some(&explanation),
-            &["Cancel", "Uninstall Rust pack"],
+            &["Cancel", "Uninstall selected pack"],
             cx,
         );
         cx.spawn_in(window, async move |this, cx| {
             let accepted = prompt.await == Ok(1);
             let _ = this.update(cx, |this, cx| {
+                if this.toolchain_controller.pack_id() != pack_id {
+                    return;
+                }
                 this.dialog_pending = false;
                 if accepted {
                     this.pack_action(PackAction::Uninstall, cx);
@@ -1858,6 +2088,15 @@ impl PreviewWindow {
     fn render_toolchains(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let busy = self.toolchain_controller.is_running();
         let blocked = busy || self.project_busy() || self.dialog_pending;
+        let footprint = package_footprint_text(
+            self.pack_snapshot
+                .as_ref()
+                .map(|snapshot| &snapshot.footprint),
+        );
+        let footprint_error = self
+            .pack_snapshot
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.footprint.is_err());
         let (state, root, publication, remote, local, installed) = match &self.pack_snapshot {
             Some(snapshot) => (
                 match &snapshot.status {
@@ -1882,17 +2121,20 @@ impl PreviewWindow {
                 false,
             ),
         };
-        div().flex().flex_col().flex_1().min_h_0().gap_3()
+        div().id("language-support-content").flex().flex_col().flex_1().min_h_0().overflow_y_scroll().gap_3()
             .child(div().text_lg().child("Language support"))
+            .child(div().flex().flex_wrap().gap_2().children([("rustfmt", "Rust"), ("gofmt", "Go"), ("dartfmt", "Dart / Flutter"), ("vue", "Vue")].into_iter().enumerate().map(|(index, (id, label))| Button::new(("pack-choice", index)).label(label).selected(self.toolchain_controller.pack_id() == id).disabled(blocked).on_click(cx.listener(move |this, _, _, cx| this.switch_pack(id, cx))))))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
                 .child(div().child(if self.controller.is_some() { "Built in · resources verified" } else { "Built in · resource verification unavailable" }))
                 .child(div().text_sm().child("TypeScript / JavaScript / JSX / TSX · JSON / JSONC · Markdown · TOML · Python / Python Stub"))
                 .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Existing pinned dprint and five WASM plugins remain bundled. This page does not remove or upgrade existing project plugin references.")))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
-                .child(div().child("Rust · downloadable verified rustfmt runtime"))
+                .child(div().child(format!("{} · verified optional language pack", self.toolchain_controller.pack_id())))
                 .child(div().text_sm().child(state))
                 .child(div().text_sm().child(format!("Managed directory: {root}")))
                 .child(div().text_sm().text_color(cx.theme().muted_foreground).child(publication))
+                .child(div().text_sm().text_color(if footprint_error { cx.theme().warning } else { cx.theme().muted_foreground }).child(footprint))
+                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Catalog payload sizes, not measured disk usage. New staging limit = compressed archive limits + installed payload limit; excludes receipts, filesystem overhead and existing/retained runtimes. Existing versions need additional space. Free disk space is not checked. Size metadata does not mean an unpublished download is available."))
                 .child(div().flex().flex_wrap().gap_2()
                     .child(Button::new("pack-refresh").label("Refresh / verify").disabled(blocked).on_click(cx.listener(|this, _, _, cx| this.pack_action(PackAction::Refresh, cx))))
                     .child(Button::new("pack-install").label(if installed { "Repair from GitHub" } else { "Install from GitHub" }).disabled(blocked || !remote).on_click(cx.listener(|this, _, _, cx| this.pack_action(PackAction::Install, cx))))
@@ -1902,11 +2144,98 @@ impl PreviewWindow {
                         this.toolchain_controller.cancel();
                         this.pack_status = "Cancellation requested; waiting for cleanup. A previously activated version is retained unless uninstall already completed.".into(); cx.notify();
                     }))))
-                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("No preinstalled Rust required. Only the built-in manifest's exact package digest is accepted, including for local archives. Unpublished releases cannot be downloaded; local installation does not imply a release was published.")))
+                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("No preinstalled language toolchain required. Only the built-in manifest's exact package digest is accepted, including for local archives. Unpublished releases cannot be downloaded; local installation does not imply a release was published.")))
             .child(div().id("pack-status").overflow_y_scroll().max_h(px(140.0)).text_sm().text_color(if self.pack_error { cx.theme().danger } else { cx.theme().muted_foreground }).child(self.pack_status.clone()))
             .child(div().text_sm().child("Install location: a dedicated directory in the application's installation directory (outside a macOS .app) by default; if it is not writable, the OS user-data directory is used. Archive/translocated launches cannot always be detected. Launch with CODESTYLES_TRANSIENT_LAUNCH=1 to explicitly use user data, or CODESTYLES_TOOLCHAINS_DIR to select a dedicated managed root."))
             .child(div().text_sm().child("Download and verification run in the background. Keep the application open until completion or cancellation; failed installation does not replace the previous active version."))
             .into_any_element()
+    }
+
+    fn import_rustfmt_config(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let pending = self.raw_dirty || self.field_draft.is_dirty();
+        let busy = self.project_busy() || self.toolchain_controller.is_running();
+        if !rustfmt_import_allowed(self.document.is_some(), pending, busy, self.dialog_pending) {
+            self.fail("Apply or discard pending editor input and wait for active operations before importing rustfmt settings.".into());
+            cx.notify();
+            return;
+        }
+        if self.source.language() != SourceLanguage::Rust {
+            return;
+        }
+        let Some(mut document) = self.document.clone() else {
+            return;
+        };
+        let version = self.document_version;
+        self.dialog_pending = true;
+        let operation = self.rustfmt_import.begin();
+        let selection = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some("Import rustfmt.toml or .rustfmt.toml into the unsaved draft".into()),
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let selected = match selection.await {
+                Ok(Ok(Some(paths))) => paths.into_iter().next().map(Ok),
+                Ok(Ok(None)) => None,
+                Ok(Err(error)) => Some(Err(format!("Cannot select rustfmt configuration: {error}"))),
+                Err(error) => Some(Err(format!("File picker closed: {error}"))),
+            };
+            // Cancel while the native picker was open must not start I/O.
+            // A detached old operation must never clear a newer dialog.
+            let may_read = this.update_in(cx, |this, _, cx| {
+                if this.rustfmt_import.begin_read(operation) { return true; }
+                if this.rustfmt_import.finish(operation).is_some() {
+                    this.dialog_pending = false;
+                    this.status = "Import cancelled. Configuration unchanged.".into();
+                    this.error = false;
+                    cx.notify();
+                }
+                false
+            }).unwrap_or(false);
+            if !may_read { return; }
+            let imported = match selected {
+                Some(Ok(path)) => Some(cx.background_executor().spawn(async move {
+                    let text = codestyles::rustfmt::read_import_config(&path)?;
+                    let count = codestyles::rustfmt::import_config(&mut document, &text)?;
+                    Ok::<_, String>((document, count))
+                }).await),
+                Some(Err(error)) => Some(Err(error)),
+                None => None,
+            };
+            let _ = this.update_in(cx, |this, window, cx| {
+                let Some(cancelled) = this.rustfmt_import.finish(operation) else { return };
+                this.dialog_pending = false;
+                if !rustfmt_import_is_current(version, this.document_version,
+                    this.raw_dirty || this.field_draft.is_dirty(),
+                    this.project_busy() || this.toolchain_controller.is_running(),
+                    this.source.language() == SourceLanguage::Rust, cancelled) {
+                    this.fail("Import cancelled or not applied: the draft, pending input, or active view changed. Your current configuration was kept.".into());
+                } else {
+                    match imported {
+                        Some(Ok((document, count))) => {
+                            this.cancel_preview();
+                            this.document = Some(document);
+                            this.document_version += 1;
+                            this.project_report = None;
+                            this.project_selection.clear();
+                            this.project_status = "Rust settings imported. Check again to refresh project results.".into();
+                            this.last_success = None;
+                            this.output.clear();
+                            this.sync_editor(window, cx);
+                            this.sync_field(window, cx);
+                            this.request_preview(cx);
+                            this.status = format!("Imported {count} rustfmt setting(s) into the draft. Neither the selected TOML file nor your configuration was saved.{}", if this.trusted { "" } else { " Review and trust the configuration to enable preview." });
+                            this.error = false;
+                        }
+                        Some(Err(error)) => this.fail(format!("Rustfmt import rejected; current configuration kept: {error}")),
+                        None => { this.status = "Import cancelled. Configuration unchanged.".into(); this.error = false; }
+                    }
+                }
+                cx.notify();
+            });
+        }).detach();
+        cx.notify();
     }
 
     fn render_rust_integration(&mut self, cx: &mut Context<Self>) -> AnyElement {
@@ -1919,16 +2248,24 @@ impl PreviewWindow {
         let text =
             config.unwrap_or_else(|error| format!("Cannot export rustfmt configuration: {error}"));
         let pending = self.raw_dirty || self.field_draft.is_dirty();
+        let import_disabled = !rustfmt_import_allowed(
+            self.document.is_some(),
+            pending,
+            self.project_busy() || self.toolchain_controller.is_running(),
+            self.dialog_pending,
+        );
         div().flex().flex_col().flex_1().min_h_0().gap_3()
             .child(div().text_lg().child("Rust editor & CI"))
             .child(div().text_sm().child("Rust formatting is native to CodeStyles, not a dprint WASM plugin. The dprint CLI and dprint VS Code settings do not use the rustfmt section in this JSONC file."))
             .child(div().text_sm().child("Export this configuration to rustfmt.toml and configure rust-analyzer / your Rust toolchain separately. CodeStyles does not read Cargo.toml, rustfmt.toml, or .rustfmt.toml automatically. Edition and style edition are explicit; cargo fmt may select a broader module/workspace scope than CodeStyles."))
+            .child(div().text_sm().child("Explicitly import rustfmt.toml / .rustfmt.toml to merge supported stable settings into this draft. Unknown options reject the whole import. Existing comments and unrelated settings are kept; no files are saved automatically."))
+            .child(Button::new("import-rustfmt-config").label("Import rustfmt.toml…").disabled(import_disabled).on_click(cx.listener(|this, _, window, cx| this.import_rustfmt_config(window, cx))))
             .child(Button::new("copy-rustfmt-config").label("Copy rustfmt.toml").disabled(copy.is_none() || pending).on_click(cx.listener(move |this, _, _, cx| {
                 if !this.raw_dirty && !this.field_draft.is_dirty() && let Some(config) = &copy {
                     cx.write_to_clipboard(ClipboardItem::new_string(config.clone())); this.status = "rustfmt.toml copied from the current applied draft. No project file or editor setting was changed.".into(); cx.notify();
                 }
             })))
-            .when(pending, |panel| panel.child(div().text_color(cx.theme().warning).child("Apply or discard pending editor input before exporting.")))
+            .when(pending, |panel| panel.child(div().text_color(cx.theme().warning).child("Apply or discard pending editor input before importing or exporting.")))
             .child(code_pane("rustfmt-export", "Current applied draft · rustfmt.toml".into(), &text, cx))
             .into_any_element()
     }
@@ -2049,6 +2386,9 @@ fn highlight_language(language: SourceLanguage) -> &'static str {
         SourceLanguage::Toml => "toml",
         SourceLanguage::Python | SourceLanguage::PythonStub => "python",
         SourceLanguage::Rust => "rust",
+        SourceLanguage::Go => "go",
+        SourceLanguage::Dart => "text",
+        SourceLanguage::Vue => "html",
     }
 }
 
@@ -2332,13 +2672,180 @@ impl Render for PreviewWindow {
 #[cfg(test)]
 mod tests {
     use super::{
-        FieldDraft, comparison_is_current, dialog_is_current, field_input_text,
-        has_unsaved_changes, project_can_start, visible_diff,
+        FieldDraft, ImportClose, ImportOperation, comparison_is_current, dialog_is_current,
+        field_input_text, format_package_bytes, has_unsaved_changes, package_footprint_text,
+        project_can_start, rustfmt_import_allowed, rustfmt_import_is_current, visible_diff,
     };
     use codestyles::{
         config::ConfigDocument,
         schema::{PinnedPlugin, SchemaCatalog},
+        toolchains::PackFootprint,
     };
+
+    #[test]
+    fn unrelated_pack_mutations_never_cancel_or_block_the_current_preview() {
+        use codestyles::{comparison::SourceLanguage, toolchain_worker::PackAction};
+        for action in [
+            PackAction::Install,
+            PackAction::Uninstall,
+            PackAction::InstallLocal("candidate.tar.gz".into()),
+        ] {
+            assert!(!super::pack_mutation_affects_preview(
+                SourceLanguage::Vue,
+                "gofmt",
+                &action
+            ));
+            assert!(!super::pack_mutation_affects_preview(
+                SourceLanguage::TypeScript,
+                "gofmt",
+                &action
+            ));
+            assert!(super::pack_mutation_affects_preview(
+                SourceLanguage::Go,
+                "gofmt",
+                &action
+            ));
+        }
+        assert!(!super::pack_mutation_affects_preview(
+            SourceLanguage::Go,
+            "gofmt",
+            &PackAction::Refresh
+        ));
+        assert!(!super::pack_matches_preview(SourceLanguage::Vue, "gofmt"));
+        assert!(!super::pack_matches_preview(
+            SourceLanguage::TypeScript,
+            "gofmt"
+        ));
+        assert!(super::pack_matches_preview(SourceLanguage::Go, "gofmt"));
+    }
+
+    #[test]
+    fn optional_languages_bind_to_distinct_pack_and_project_scopes() {
+        use codestyles::comparison::SourceLanguage;
+        use codestyles::project::NativeLanguage;
+        for (language, id, native) in [
+            (SourceLanguage::Rust, "rustfmt", NativeLanguage::Rust),
+            (SourceLanguage::Go, "gofmt", NativeLanguage::Go),
+            (SourceLanguage::Dart, "dartfmt", NativeLanguage::Dart),
+            (SourceLanguage::Vue, "vue", NativeLanguage::Vue),
+        ] {
+            assert_eq!(language.pack_id(), Some(id));
+            assert_eq!(super::native_language(language), Some(native));
+            assert!(!language.is_bundled());
+        }
+        assert_eq!(super::native_language(SourceLanguage::TypeScript), None);
+        assert_eq!(SourceLanguage::TypeScript.pack_id(), None);
+    }
+
+    #[test]
+    fn reading_close_detaches_import_and_old_result_cannot_take_new_dialog() {
+        let mut state = ImportOperation::default();
+        let old = state.begin();
+        assert!(state.begin_read(old));
+        // Reading does not block the caller's normal dirty/close prompt.
+        assert_eq!(state.cancel_for_close(), ImportClose::Reading);
+        assert_eq!(state.finish(old), None);
+        assert_eq!(state.cancel_for_close(), ImportClose::None);
+        let new = state.begin();
+        assert_ne!(old, new);
+        assert!(!state.begin_read(old));
+        assert_eq!(state.finish(old), None);
+        assert!(state.begin_read(new));
+        assert_eq!(state.finish(new), Some(false));
+    }
+
+    #[test]
+    fn picker_close_requires_dismissal_and_never_starts_a_cancelled_read() {
+        let mut state = ImportOperation::default();
+        let id = state.begin();
+        assert_eq!(state.cancel_for_close(), ImportClose::Picker);
+        assert_eq!(state.cancel_for_close(), ImportClose::Picker);
+        assert!(!state.begin_read(id));
+        assert_eq!(state.finish(id), Some(true));
+        assert_eq!(state.cancel_for_close(), ImportClose::None);
+    }
+
+    #[test]
+    fn rustfmt_import_blocks_pending_input_repeated_dialogs_and_busy_operations() {
+        assert!(rustfmt_import_allowed(true, false, false, false));
+        assert!(!rustfmt_import_allowed(false, false, false, false));
+        assert!(!rustfmt_import_allowed(true, true, false, false));
+        assert!(!rustfmt_import_allowed(true, false, true, false));
+        assert!(!rustfmt_import_allowed(true, false, false, true));
+        // A saved or already-dirty applied draft is allowed; only unapplied
+        // input blocks merging, and the import never performs a save.
+    }
+
+    #[test]
+    fn rustfmt_import_late_result_cannot_replace_new_input_or_another_scope() {
+        assert!(rustfmt_import_is_current(3, 3, false, false, true, false));
+        assert!(!rustfmt_import_is_current(3, 3, false, false, true, true));
+        assert!(!rustfmt_import_is_current(3, 4, false, false, true, false));
+        assert!(!rustfmt_import_is_current(3, 3, true, false, true, false));
+        assert!(!rustfmt_import_is_current(3, 3, false, true, true, false));
+        assert!(!rustfmt_import_is_current(3, 3, false, false, false, false));
+    }
+
+    #[test]
+    fn package_size_units_preserve_exact_bytes_and_never_turn_unknown_into_zero() {
+        assert_eq!(format_package_bytes(Some(0)), "0 bytes");
+        assert_eq!(format_package_bytes(Some(1023)), "1023 bytes");
+        assert_eq!(format_package_bytes(Some(1024)), "1.0 KiB (1024 bytes)");
+        assert_eq!(
+            format_package_bytes(Some(1_048_576)),
+            "1.0 MiB (1048576 bytes)"
+        );
+        assert_eq!(
+            format_package_bytes(Some(1_073_741_824)),
+            "1.0 GiB (1073741824 bytes)"
+        );
+        assert!(format_package_bytes(Some(u64::MAX)).contains(&u64::MAX.to_string()));
+        assert!(format_package_bytes(None).starts_with("Unknown"));
+        assert!(!format_package_bytes(None).contains("0 bytes"));
+    }
+
+    #[test]
+    fn package_footprint_keeps_unknown_and_error_distinct_from_available_sizes() {
+        assert!(package_footprint_text(None).contains("not yet available"));
+        assert!(package_footprint_text(Some(&Ok(None))).contains("no archive metadata"));
+        let invalid = Err("invalid size bounds".into());
+        let error = package_footprint_text(Some(&invalid));
+        assert!(error.contains("invalid size bounds"));
+        assert!(error.contains("No size estimate"));
+        assert!(!error.contains("0 bytes"));
+        // A pinned unpublished candidate has the same size metadata as a
+        // published bundle; publication gating remains independent.
+        let metadata = Ok(Some(PackFootprint {
+            download_bytes: None,
+            installed_payload_bytes: Some(2048),
+            installed_payload_limit_bytes: 4096,
+            staging_payload_limit_bytes: 8192,
+        }));
+        let text = package_footprint_text(Some(&metadata));
+        assert!(text.contains("Compressed download: Unknown"));
+        assert!(text.contains("Installed file payload: 2.0 KiB (2048 bytes)"));
+        assert!(text.contains("Installed payload limit: 4.0 KiB (4096 bytes)"));
+        assert!(text.contains("New staging payload limit: 8.0 KiB (8192 bytes)"));
+        assert!(!text.contains("available"));
+        let equal = Ok(Some(PackFootprint {
+            download_bytes: Some(1024),
+            installed_payload_bytes: Some(4096),
+            installed_payload_limit_bytes: 4096,
+            staging_payload_limit_bytes: 8192,
+        }));
+        let text = package_footprint_text(Some(&equal));
+        assert_eq!(text.lines().count(), 3);
+        assert!(!text.contains("Installed payload limit"));
+        let unknown = Ok(Some(PackFootprint {
+            download_bytes: None,
+            installed_payload_bytes: None,
+            installed_payload_limit_bytes: 4096,
+            staging_payload_limit_bytes: 8192,
+        }));
+        let text = package_footprint_text(Some(&unknown));
+        assert!(text.contains("Installed file payload: Unknown"));
+        assert!(text.contains("Installed payload limit: 4.0 KiB (4096 bytes)"));
+    }
 
     #[test]
     fn raw_setting_help_preserves_explicit_value_and_default_distinction() {
@@ -2411,7 +2918,7 @@ mod tests {
     }
 
     #[test]
-    fn every_preview_language_has_real_syntax_highlighting() {
+    fn installed_preview_grammars_have_real_highlighting_and_optional_languages_allow_plain_text() {
         use codestyles::comparison::SourceLanguage;
         use gpui_kit::component::{
             highlighter::{HighlightTheme, LanguageRegistry, SyntaxHighlighter},
@@ -2419,6 +2926,15 @@ mod tests {
         };
         for language in SourceLanguage::ALL {
             let grammar = super::highlight_language(language);
+            if matches!(
+                language,
+                SourceLanguage::Go | SourceLanguage::Dart | SourceLanguage::Vue
+            ) && !LanguageRegistry::singleton()
+                .language(grammar)
+                .is_some_and(|config| config.has_grammar())
+            {
+                continue; // Formatter support does not imply an installed display grammar.
+            }
             assert!(
                 LanguageRegistry::singleton()
                     .language(grammar)

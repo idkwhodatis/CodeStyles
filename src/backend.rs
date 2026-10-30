@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     thread,
@@ -26,6 +26,8 @@ pub struct Backend {
     plugins: Vec<PathBuf>,
     timeout: Duration,
     rustfmt: crate::rustfmt::RustfmtRuntime,
+    native: crate::native_format::NativeRuntime,
+    managed: Arc<Mutex<Option<crate::toolchains::ToolchainManager>>>,
 }
 
 impl Backend {
@@ -35,6 +37,8 @@ impl Backend {
             plugins,
             timeout: Duration::from_secs(30),
             rustfmt: Default::default(),
+            native: Default::default(),
+            managed: Default::default(),
         }
     }
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
@@ -45,7 +49,9 @@ impl Backend {
     /// Select an already validated managed-pack location, never an arbitrary
     /// executable or catalog. Useful for explicit portable installations.
     pub fn with_toolchain_manager(mut self, manager: crate::toolchains::ToolchainManager) -> Self {
-        self.rustfmt = crate::rustfmt::RustfmtRuntime::with_manager(manager);
+        self.rustfmt = crate::rustfmt::RustfmtRuntime::with_manager(manager.clone());
+        self.native = crate::native_format::NativeRuntime::with_manager(manager.clone());
+        self.managed = Arc::new(Mutex::new(Some(manager)));
         self
     }
 
@@ -72,6 +78,9 @@ impl Backend {
         if cancelled.load(Ordering::Acquire) {
             return Err("Formatting cancelled.".into());
         }
+        if request.source.len() > 32 * 1024 * 1024 {
+            return Err("Source exceeds the 32 MiB limit.".into());
+        }
         if request
             .source_path
             .extension()
@@ -79,7 +88,39 @@ impl Backend {
         {
             return self.rustfmt.format(request, cancelled, self.timeout);
         }
-        let draft = DraftConfig::for_preview(&request.config, &self.plugins)?;
+        let extension = request
+            .source_path
+            .extension()
+            .and_then(|value| value.to_str());
+        if matches!(extension, Some("go" | "dart")) {
+            return self.native.format(request, cancelled, self.timeout);
+        }
+        // Retain the shared pack lease until every formatter pipe has exited.
+        let _vue_runtime;
+        let draft = if extension == Some("vue") {
+            crate::vue::validate_source(&request.source)?;
+            let manager = {
+                let mut slot = self
+                    .managed
+                    .lock()
+                    .map_err(|_| "Managed formatter state failed.")?;
+                if slot.is_none() {
+                    *slot = Some(crate::toolchains::ToolchainManager::discover()?);
+                }
+                slot.as_ref().expect("initialized").clone()
+            };
+            _vue_runtime = Some(manager.resolve_cancellable("vue", &cancelled)?);
+            let runtime = _vue_runtime.as_ref().expect("resolved");
+            if !runtime.executable.as_os_str().is_empty() || runtime.wasm_plugins.len() != 2 {
+                return Err("Vue support requires the complete verified WASM pack.".into());
+            }
+            let mut plugins = self.plugins.clone();
+            plugins.extend(runtime.wasm_plugins.iter().cloned());
+            DraftConfig::for_vue(&request.config, &plugins)?
+        } else {
+            _vue_runtime = None;
+            DraftConfig::for_preview(&request.config, &self.plugins)?
+        };
         let cache = cache_directory(std::env::consts::OS, |key| std::env::var_os(key))?;
         std::fs::create_dir_all(&cache)
             .map_err(|e| format!("Cannot create dprint cache {}: {e}", cache.display()))?;
@@ -110,20 +151,14 @@ impl Backend {
             )
         })?;
         let mut stdin = child.stdin.take().expect("piped stdin");
-        let mut stdout = child.stdout.take().expect("piped stdout");
-        let mut stderr = child.stderr.take().expect("piped stderr");
+        let stdout = child.stdout.take().expect("piped stdout");
+        let stderr = child.stderr.take().expect("piped stderr");
         let source = request.source.clone();
         // All three pipes are serviced concurrently. Large input or diagnostics
         // cannot deadlock the process before cancellation/timeout is checked.
         let writer = thread::spawn(move || stdin.write_all(source.as_bytes()));
-        let output_reader = thread::spawn(move || {
-            let mut out = Vec::new();
-            stdout.read_to_end(&mut out).map(|_| out)
-        });
-        let error_reader = thread::spawn(move || {
-            let mut out = Vec::new();
-            stderr.read_to_end(&mut out).map(|_| out)
-        });
+        let output_reader = thread::spawn(move || bounded_formatter_output(stdout));
+        let error_reader = thread::spawn(move || bounded_formatter_output(stderr));
         let started = Instant::now();
         let mut failure = None;
         let status = loop {
@@ -175,6 +210,29 @@ impl Backend {
             return Err("Formatting cancelled.".into());
         }
         String::from_utf8(output).map_err(|e| format!("dprint returned invalid UTF-8: {e}"))
+    }
+}
+
+fn bounded_formatter_output(mut stream: impl Read) -> std::io::Result<Vec<u8>> {
+    const LIMIT: usize = 32 * 1024 * 1024;
+    let mut bytes = Vec::new();
+    let mut buffer = [0u8; 8192];
+    let mut overflow = false;
+    loop {
+        let count = stream.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        let remaining = LIMIT.saturating_sub(bytes.len());
+        bytes.extend_from_slice(&buffer[..count.min(remaining)]);
+        overflow |= count > remaining;
+    }
+    if overflow {
+        Err(std::io::Error::other(
+            "Formatter output exceeds the 32 MiB limit.",
+        ))
+    } else {
+        Ok(bytes)
     }
 }
 
@@ -238,5 +296,17 @@ mod cache_tests {
             PathBuf::from("/override")
         );
         assert!(cache_directory("linux", |_| None).is_err());
+    }
+}
+
+#[cfg(test)]
+mod output_limit_tests {
+    use super::*;
+    #[test]
+    fn formatter_output_is_drained_but_never_kept_above_limit() {
+        assert_eq!(bounded_formatter_output(&b"ok"[..]).unwrap(), b"ok");
+        assert!(
+            bounded_formatter_output(std::io::repeat(b'x').take(32 * 1024 * 1024 + 1)).is_err()
+        );
     }
 }
