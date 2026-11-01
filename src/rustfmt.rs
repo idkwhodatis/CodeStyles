@@ -104,53 +104,7 @@ pub fn validate_option(name: &str, value: &Value) -> Result<(), String> {
 /// symlink/reparse point or blocking on a FIFO swapped in before open. The
 /// handle is checked after open and the streaming limit also covers file growth.
 pub fn read_import_config(path: &Path) -> Result<String, String> {
-    fn regular(metadata: &fs::Metadata) -> bool {
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::MetadataExt;
-            if metadata.file_attributes() & 0x400 != 0 {
-                return false;
-            } // FILE_ATTRIBUTE_REPARSE_POINT
-        }
-        metadata.is_file() && !metadata.file_type().is_symlink()
-    }
-    let before = fs::symlink_metadata(path)
-        .map_err(|error| format!("Cannot inspect rustfmt.toml: {error}"))?;
-    if !regular(&before) {
-        return Err("Rust configuration import requires a regular non-symlink file.".into());
-    }
-    if before.len() > IMPORT_LIMIT as u64 {
-        return Err("Rust configuration import exceeds the 1 MiB limit.".into());
-    }
-    let mut options = fs::OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::OpenOptionsExt;
-        options.custom_flags(0x0020_0000); // FILE_FLAG_OPEN_REPARSE_POINT
-    }
-    let file = options
-        .open(path)
-        .map_err(|error| format!("Cannot open rustfmt.toml safely: {error}"))?;
-    let opened = file
-        .metadata()
-        .map_err(|error| format!("Cannot inspect opened rustfmt.toml: {error}"))?;
-    if !regular(&opened) {
-        return Err("Rust configuration import requires a regular non-symlink file.".into());
-    }
-    let mut bytes = Vec::new();
-    file.take(IMPORT_LIMIT as u64 + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|error| format!("Cannot read rustfmt.toml: {error}"))?;
-    if bytes.len() > IMPORT_LIMIT {
-        return Err("Rust configuration import exceeds the 1 MiB limit.".into());
-    }
-    String::from_utf8(bytes).map_err(|_| "rustfmt.toml is not valid UTF-8.".into())
+    crate::config_import::read_utf8(path, "rustfmt.toml")
 }
 
 const IMPORT_LIMIT: usize = 1024 * 1024;

@@ -97,3 +97,38 @@ subprocesses. They cover deterministic builds, corrupt input/archive/metadata,
 invalid plan hashes, unsafe paths, isolated restoration, missing toolchain,
 wrong host/commit, and zero-test rejection. They are **not native acceptance
 results** and do not supply missing third-party notice review.
+
+### Java and CSharpier candidate acceptance
+
+The same isolated-clone gate also supports `google-java-format` and its exact
+ignored test `real_java_pack_preview_review_write_and_uninstall`. It requires a
+clean, exact local application commit containing the adapter/test, a SHA-256-bound
+review plan with fixed Java native binary and notice members, and its matching
+pipeline-produced archive/manifest. The fixed member plan in
+`resources/extended-formatter-sources.json` can supply those member pins, but the
+generic extended-builder receipt is a different schema and must **not** be fed
+to this validator. Produce a pipeline review plan with `available: false`,
+`release_clearance: false`, and explicit provenance/caveats, then use
+`build_candidate.py` as for Go/Dart. The acceptance runner installs only the
+matching archive into a temporary managed root and exercises preview,
+idempotence, syntax failure, project review/write, uninstall and missing-runtime
+behavior. Its output is native acceptance evidence, not publication approval or
+a license audit. No catalog override is introduced into the production API.
+
+CSharpier uses the same isolated gate and exact
+`real_csharp_pack_preview_review_write_and_uninstall` test with its pinned
+managed .NET runtime + fixed DLL payload. Its production baseline entry point
+is `dotnet/dotnet` (`.exe` on Windows); no SDK install or user runtime discovery
+is allowed. Runtime and transitive license audits remain separate gates.
+
+
+### C/C++ candidate acceptance
+
+`clang-format` uses `CODESTYLES_TEST_CLANG_PACK` with the single combined exact
+ignored test `real_clang_pack_c_and_cpp_preview_review_write_and_uninstall`.
+Both C and C++ must complete preview/idempotence, reviewed writes, uninstall and
+missing-runtime checks. The parser's incomplete-format failure fixture is not
+proof of general syntax validation. The currently recorded upstream Linux x64
+binary needs GLIBC 2.34 / GLIBCXX 3.4.29 and does not meet the application's
+GLIBC 2.28 baseline. Local managed acceptance cannot override that ABI blocker,
+license auditing, unavailable catalog entries or separate publication approval.

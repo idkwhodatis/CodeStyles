@@ -64,6 +64,9 @@ impl ToolchainController {
             "gofmt" => "gofmt",
             "dartfmt" => "dartfmt",
             "vue" => "vue",
+            "google-java-format" => "google-java-format",
+            "csharpier" => "csharpier",
+            "clang-format" => "clang-format",
             _ => return Err("Unknown language pack. Only built-in pack IDs are allowed.".into()),
         };
         // Pin both pack and managed root for the lifetime of this worker.
@@ -311,5 +314,32 @@ mod tests {
         assert_eq!(result.action, PackAction::Refresh);
         assert_eq!(controller.progress().unwrap().downloaded_bytes, 999);
         assert!(controller.progress().is_none());
+    }
+}
+
+#[cfg(test)]
+mod extended_pack_tests {
+    use super::*;
+
+    #[test]
+    fn extended_pack_ids_are_explicit_and_unpublished() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = ToolchainManager::at_managed_root(dir.path().join("managed")).unwrap();
+        for id in ["google-java-format", "csharpier", "clang-format"] {
+            let worker = ToolchainController::for_pack(id).unwrap();
+            assert_eq!(worker.pack_id(), id);
+            assert_eq!(manager.status(id).unwrap(), ToolchainStatus::Missing);
+            assert!(manager.download_available(id).is_err());
+            assert!(manager.footprint(id).unwrap().is_none());
+        }
+        for id in [
+            "java",
+            "googleJavaFormat",
+            "clangFormat",
+            "dotnet",
+            "../../clang-format",
+        ] {
+            assert!(ToolchainController::for_pack(id).is_err());
+        }
     }
 }

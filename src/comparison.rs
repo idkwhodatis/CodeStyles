@@ -21,10 +21,14 @@ pub enum SourceLanguage {
     Go,
     Dart,
     Vue,
+    Java,
+    CSharp,
+    C,
+    Cpp,
 }
 
 impl SourceLanguage {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 18] = [
         Self::TypeScript,
         Self::JavaScript,
         Self::Tsx,
@@ -39,6 +43,10 @@ impl SourceLanguage {
         Self::Go,
         Self::Dart,
         Self::Vue,
+        Self::Java,
+        Self::CSharp,
+        Self::C,
+        Self::Cpp,
     ];
 
     pub fn label(self) -> &'static str {
@@ -57,6 +65,10 @@ impl SourceLanguage {
             Self::Go => "Go",
             Self::Dart => "Dart / Flutter",
             Self::Vue => "Vue",
+            Self::Java => "Java",
+            Self::CSharp => "C#",
+            Self::C => "C",
+            Self::Cpp => "C++",
         }
     }
 
@@ -77,6 +89,10 @@ impl SourceLanguage {
             Self::Go => "Go",
             Self::Dart => "Dart / Flutter",
             Self::Vue => "Vue",
+            Self::Java => "Java",
+            Self::CSharp => "C#",
+            Self::C => "C",
+            Self::Cpp => "C++",
         }
     }
 
@@ -87,7 +103,14 @@ impl SourceLanguage {
             Self::Markdown => "Documentation",
             Self::Python => "Code",
             Self::PythonStub => "Code",
-            Self::Rust | Self::Go | Self::Dart | Self::Vue => "Code",
+            Self::Rust
+            | Self::Go
+            | Self::Dart
+            | Self::Vue
+            | Self::Java
+            | Self::CSharp
+            | Self::C
+            | Self::Cpp => "Code",
         }
     }
 
@@ -108,6 +131,10 @@ impl SourceLanguage {
             Self::Rust => include_str!("../resources/samples/sample.rs"),
             Self::Go => include_str!("../resources/samples/sample.go"),
             Self::Dart => include_str!("../resources/samples/sample.dart"),
+            Self::Java => include_str!("../resources/samples/sample.java"),
+            Self::CSharp => include_str!("../resources/samples/sample.cs"),
+            Self::C => include_str!("../resources/samples/sample.c"),
+            Self::Cpp => include_str!("../resources/samples/sample.cpp"),
             Self::Vue => include_str!("../resources/samples/sample.vue"),
         }
     }
@@ -127,6 +154,10 @@ impl SourceLanguage {
             Self::Rust => "rs",
             Self::Go => "go",
             Self::Dart => "dart",
+            Self::Java => "java",
+            Self::CSharp => "cs",
+            Self::C => "c",
+            Self::Cpp => "cpp",
             Self::Vue => "vue",
         }
     }
@@ -142,6 +173,10 @@ impl SourceLanguage {
             Self::Rust => PinnedPlugin::Rustfmt,
             Self::Go => PinnedPlugin::Gofmt,
             Self::Dart => PinnedPlugin::Dartfmt,
+            Self::Java => PinnedPlugin::GoogleJavaFormat,
+            Self::CSharp => PinnedPlugin::CSharpier,
+            Self::C => PinnedPlugin::ClangFormat,
+            Self::Cpp => PinnedPlugin::ClangFormat,
             Self::Vue => PinnedPlugin::Markup,
         }
     }
@@ -156,6 +191,10 @@ impl SourceLanguage {
             Self::Rust => Some("rustfmt"),
             Self::Go => Some("gofmt"),
             Self::Dart => Some("dartfmt"),
+            Self::Java => Some("google-java-format"),
+            Self::CSharp => Some("csharpier"),
+            Self::C => Some("clang-format"),
+            Self::Cpp => Some("clang-format"),
             Self::Vue => Some("vue"),
             _ => None,
         }
@@ -180,6 +219,10 @@ impl SourceLanguage {
             (Self::Rust, false) => "sample.rs",
             (Self::Go, false) => "sample.go",
             (Self::Dart, false) => "sample.dart",
+            (Self::Java, false) => "sample.java",
+            (Self::CSharp, false) => "sample.cs",
+            (Self::C, false) => "sample.c",
+            (Self::Cpp, false) => "sample.cpp",
             (Self::Vue, false) => "sample.vue",
             (Self::TypeScript, true) => "custom.ts",
             (Self::JavaScript, true) => "custom.js",
@@ -194,6 +237,10 @@ impl SourceLanguage {
             (Self::Rust, true) => "custom.rs",
             (Self::Go, true) => "custom.go",
             (Self::Dart, true) => "custom.dart",
+            (Self::Java, true) => "custom.java",
+            (Self::CSharp, true) => "custom.cs",
+            (Self::C, true) => "custom.c",
+            (Self::Cpp, true) => "custom.cpp",
             (Self::Vue, true) => "custom.vue",
         }
     }
@@ -254,6 +301,10 @@ impl BuiltinSample {
                 language @ (SourceLanguage::Rust
                 | SourceLanguage::Go
                 | SourceLanguage::Dart
+                | SourceLanguage::Java
+                | SourceLanguage::CSharp
+                | SourceLanguage::C
+                | SourceLanguage::Cpp
                 | SourceLanguage::Vue),
                 _,
             ) => language.builtin_source(),
@@ -550,13 +601,17 @@ mod tests {
             (SourceLanguage::Go, "package main", "go"),
             (SourceLanguage::Dart, "void main()", "dart"),
             (SourceLanguage::Vue, "<template>", "vue"),
+            (SourceLanguage::Java, "class Example", "java"),
+            (SourceLanguage::CSharp, "public record Item", "cs"),
+            (SourceLanguage::C, "struct item", "c"),
+            (SourceLanguage::Cpp, "template<class Items>", "cpp"),
         ] {
             assert!(language.builtin_source().contains(marker));
             assert_eq!(language.extension(), extension);
             assert!(!language.is_bundled());
             assert!(language.pack_id().is_some());
         }
-        assert_eq!(SourceLanguage::ALL.len(), 14);
+        assert_eq!(SourceLanguage::ALL.len(), 18);
     }
 
     #[test]
@@ -595,6 +650,10 @@ mod tests {
                 SourceLanguage::Rust => PinnedPlugin::Rustfmt,
                 SourceLanguage::Go => PinnedPlugin::Gofmt,
                 SourceLanguage::Dart => PinnedPlugin::Dartfmt,
+                SourceLanguage::Java => PinnedPlugin::GoogleJavaFormat,
+                SourceLanguage::CSharp => PinnedPlugin::CSharpier,
+                SourceLanguage::C => PinnedPlugin::ClangFormat,
+                SourceLanguage::Cpp => PinnedPlugin::ClangFormat,
                 SourceLanguage::Vue => PinnedPlugin::Markup,
             };
             assert_eq!(language.plugin(), expected);
@@ -646,6 +705,40 @@ mod tests {
                 assert!(!sample.source(language).is_empty());
             }
             serde_json::from_str::<serde_json::Value>(sample.source(SourceLanguage::Json)).unwrap();
+        }
+    }
+
+    #[test]
+    fn every_language_sample_switch_roundtrips_deterministically() {
+        let mut state = SourceState::default();
+        for language in SourceLanguage::ALL {
+            state.select_language(language);
+            for sample in BuiltinSample::ALL {
+                state.select_sample(sample);
+                state.use_builtin();
+                let expected = sample.source(language);
+                assert!(!expected.is_empty());
+                assert_eq!(state.source(), expected);
+                state.select_language(SourceLanguage::TypeScript);
+                state.select_sample(BuiltinSample::Overview);
+                state.select_language(language);
+                state.select_sample(sample);
+                assert_eq!(state.source(), expected);
+                assert_eq!(
+                    state.source_path(),
+                    format!("sample.{}", language.extension())
+                );
+            }
+        }
+        for language in [
+            SourceLanguage::Java,
+            SourceLanguage::CSharp,
+            SourceLanguage::C,
+            SourceLanguage::Cpp,
+        ] {
+            for sample in BuiltinSample::ALL {
+                assert_eq!(sample.source(language), language.builtin_source());
+            }
         }
     }
 
@@ -824,7 +917,7 @@ mod tests {
                 ],
             ),
         ];
-        assert_eq!(coverage.len() + 6, SourceLanguage::ALL.len());
+        assert_eq!(coverage.len() + 10, SourceLanguage::ALL.len());
         for (language, tokens) in [
             (
                 SourceLanguage::Python,

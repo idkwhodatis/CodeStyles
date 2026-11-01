@@ -137,3 +137,10 @@ and strict desktop Clippy. An initial dependency compilation was SIGKILL-limited
 after resources were freed, the bounded incremental check succeeded. Desktop-only
 tests were compiled, not linked/executed locally; no manual visual acceptance is
 claimed from these checks. The UI changes do not enable or publish language packs.
+
+## Java, C# and C/C++ extension
+
+See [JAVA_CSHARP_CPP_SUPPORT.md](JAVA_CSHARP_CPP_SUPPORT.md) for the pinned engines,
+source-only formatting boundaries, offline candidate packaging, license/runtime
+blockers and honest per-platform availability. Go's existing integration is
+retained rather than duplicated. No new runtime download is enabled by that work.

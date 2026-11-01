@@ -71,6 +71,7 @@ pub struct PreviewWindow {
     trusted: bool,
     document_version: u64,
     dialog_pending: bool,
+    // Shared by Rustfmt and native formatter imports: only one picker/read may own the dialog.
     rustfmt_import: ImportOperation,
     disk_warning: Option<String>,
     editor: Option<Entity<TextareaState>>,
@@ -906,6 +907,10 @@ fn native_language(language: SourceLanguage) -> Option<NativeLanguage> {
         SourceLanguage::Go => Some(NativeLanguage::Go),
         SourceLanguage::Dart => Some(NativeLanguage::Dart),
         SourceLanguage::Vue => Some(NativeLanguage::Vue),
+        SourceLanguage::Java => Some(NativeLanguage::Java),
+        SourceLanguage::CSharp => Some(NativeLanguage::CSharp),
+        SourceLanguage::C => Some(NativeLanguage::C),
+        SourceLanguage::Cpp => Some(NativeLanguage::Cpp),
         _ => None,
     }
 }
@@ -966,6 +971,36 @@ impl ImportOperation {
             None => ImportClose::None,
         }
     }
+}
+
+fn native_config_kind(
+    language: SourceLanguage,
+) -> Option<codestyles::native_config::NativeConfigKind> {
+    use codestyles::native_config::NativeConfigKind;
+    match language {
+        SourceLanguage::CSharp => Some(NativeConfigKind::CSharpier),
+        SourceLanguage::C | SourceLanguage::Cpp => Some(NativeConfigKind::ClangFormat),
+        _ => None,
+    }
+}
+
+fn native_import_is_current(
+    opened_version: u64,
+    current_version: u64,
+    opened_language: SourceLanguage,
+    current_language: SourceLanguage,
+    pending_input: bool,
+    busy: bool,
+    cancelled: bool,
+) -> bool {
+    rustfmt_import_is_current(
+        opened_version,
+        current_version,
+        pending_input,
+        busy,
+        opened_language == current_language && native_config_kind(current_language).is_some(),
+        cancelled,
+    )
 }
 
 fn rustfmt_import_allowed(
@@ -1530,6 +1565,9 @@ impl PreviewWindow {
             .gap_2()
             .child(div().text_lg().child("Settings"))
             .when(self.source.language() == SourceLanguage::Go, |panel| panel.child(div().text_sm().child("Go uses gofmt's canonical style. There are no style controls; CodeStyles does not expose gofmt rewrite or simplify flags.")))
+            .when(self.source.language() == SourceLanguage::Java, |panel| panel.child(div().text_sm().child("Java source formatting uses google-java-format with Google or AOSP style. Imports are preserved; no JDK, classpath or build discovery. Plain-text preview highlighting.")))
+            .when(self.source.language() == SourceLanguage::CSharp, |panel| panel.child(div().text_sm().child("C# source formatting only, with explicit CSharpier settings. No solution/project evaluation, restore, analyzers, .editorconfig inheritance or generated-file discovery. Plain-text preview highlighting.")))
+            .when(matches!(self.source.language(), SourceLanguage::C | SourceLanguage::Cpp), |panel| panel.child(div().text_sm().child("C and C++ share explicit clangFormat settings. No .clang-format discovery or compilation database; .h headers follow the selected C or C++ project scope; C++ suffixes use C++ mode. Direct .h formatting defaults to C. Plain-text preview highlighting.")))
             .when(self.source.language() == SourceLanguage::Dart, |panel| panel.child(div().text_sm().child("Dart / Flutter source formatting: languageVersion, pageWidth, trailingCommas. No Flutter SDK, analyzer, pub tooling or widget generation. Dart preview uses plain text when no highlighting grammar is available.")))
             .when(self.source.language() == SourceLanguage::Vue, |panel| panel.child(div().text_xs().child("Template → markup (markup_fmt) · Script → shared typescript settings (also affect JS/TS previews) · Styles → malva. JSONC and unknown options are preserved. Settings can be edited before installing support; download availability follows the language-pack catalog.")))
             .when(self.source.language() == SourceLanguage::Vue, |panel| panel.child(div().flex().gap_2().children(VueSettingsGroup::ALL.into_iter().enumerate().map(|(index, group)| Button::new(("vue-setting-group", index)).label(group.label()).selected(self.vue_settings == group).disabled(!vue_group_can_change(self.raw_dirty, self.field_draft.is_dirty(), self.project_busy(), self.dialog_pending)).on_click(cx.listener(move |this, _, window, cx| {
@@ -1977,11 +2015,17 @@ impl PreviewWindow {
         if self.source.language() == SourceLanguage::Rust {
             return self.render_rust_integration(cx);
         }
+        if let Some(kind) = native_config_kind(self.source.language()) {
+            return self.render_native_integration(kind, cx);
+        }
         if !self.source.language().is_bundled() {
             return div().flex().flex_col().gap_3()
                 .child(div().text_lg().child(format!("{} editor & CI", self.source.language().display_name())))
                 .child(div().text_sm().child("This optional language uses a verified managed pack. Installing it does not change editor settings or add project plugin URLs. Configure external editor/CI tools explicitly; the bundled offline dprint config alone does not provide this language."))
                 .child(div().text_sm().child(match self.source.language() {
+                    SourceLanguage::Java => "Java uses google-java-format with Google or AOSP style and preserves imports. CodeStyles JSONC is not a native formatter config; configure external editor/CI tooling explicitly.",
+                    SourceLanguage::CSharp => "C# uses CSharpier with isolated source formatting, not dotnet format: no solution loading, restore or analyzers. CodeStyles JSONC is not .csharpierrc; copy the supported settings to your external tooling explicitly.",
+                    SourceLanguage::C | SourceLanguage::Cpp => "C/C++ use clang-format with explicit settings, not project .clang-format discovery. CodeStyles JSONC is not a .clang-format YAML file; configure external editor/CI tooling explicitly.",
                     SourceLanguage::Go => "Go uses canonical gofmt with no style settings. Configure your normal Go editor tooling separately.",
                     SourceLanguage::Dart => "Dart / Flutter source uses the pinned Dart formatter. This does not install Flutter or run pub/analyzer commands. The three supported options are languageVersion, pageWidth, and trailingCommas.",
                     _ => "Vue support is Vue-only SFC formatting with pinned markup_fmt / Malva and bundled script formatters. External src and unsupported custom block languages fail closed. It is not a Vue build system or arbitrary embedded-language runner.",
@@ -2242,13 +2286,13 @@ impl PreviewWindow {
         };
         div().id("language-support-content").flex().flex_col().flex_1().min_h_0().overflow_y_scroll().gap_3()
             .child(div().text_lg().child("Language support"))
-            .child(div().flex().flex_wrap().gap_2().children([("rustfmt", "Rust"), ("gofmt", "Go"), ("dartfmt", "Dart / Flutter"), ("vue", "Vue")].into_iter().enumerate().map(|(index, (id, label))| Button::new(("pack-choice", index)).label(label).selected(self.toolchain_controller.pack_id() == id).disabled(blocked).on_click(cx.listener(move |this, _, _, cx| this.switch_pack(id, cx))))))
+            .child(div().flex().flex_wrap().gap_2().children([("rustfmt", "Rust"), ("gofmt", "Go"), ("dartfmt", "Dart / Flutter"), ("vue", "Vue"), ("google-java-format", "Java"), ("csharpier", "C#"), ("clang-format", "C / C++")].into_iter().enumerate().map(|(index, (id, label))| Button::new(("pack-choice", index)).label(label).selected(self.toolchain_controller.pack_id() == id).disabled(blocked).on_click(cx.listener(move |this, _, _, cx| this.switch_pack(id, cx))))))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
                 .child(div().child(if self.controller.is_some() { "Built in · resources verified" } else { "Built in · resource verification unavailable" }))
                 .child(div().text_sm().child("TypeScript / JavaScript / JSX / TSX · JSON / JSONC · Markdown · TOML · Python / Python Stub"))
                 .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Existing pinned dprint and five WASM plugins remain bundled. This page does not remove or upgrade existing project plugin references.")))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
-                .child(div().child(format!("{} · verified optional language pack", self.toolchain_controller.pack_id())))
+                .child(div().child(format!("{} · managed optional language pack", self.toolchain_controller.pack_id())))
                 .child(div().text_sm().child(state))
                 .child(div().text_sm().child(format!("Managed directory: {root}")))
                 .child(div().text_sm().text_color(cx.theme().muted_foreground).child(publication))
@@ -2269,6 +2313,104 @@ impl PreviewWindow {
             .child(div().text_sm().child("Install location: a dedicated directory in the application's installation directory (outside a macOS .app) by default; if it is not writable, the OS user-data directory is used. Archive/translocated launches cannot always be detected. Launch with CODESTYLES_TRANSIENT_LAUNCH=1 to explicitly use user data, or CODESTYLES_TOOLCHAINS_DIR to select a dedicated managed root."))
             .child(div().text_sm().child("Download and verification run in the background. Keep the application open until completion or cancellation; failed installation does not replace the previous active version."))
             .into_any_element()
+    }
+
+    fn import_native_config(
+        &mut self,
+        kind: codestyles::native_config::NativeConfigKind,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let pending = self.raw_dirty || self.field_draft.is_dirty();
+        let busy = self.project_busy() || self.toolchain_controller.is_running();
+        if !rustfmt_import_allowed(self.document.is_some(), pending, busy, self.dialog_pending) {
+            self.fail("Apply or discard pending editor input and wait for active operations before importing native formatter settings.".into());
+            cx.notify();
+            return;
+        }
+        let language = self.source.language();
+        if native_config_kind(language) != Some(kind) {
+            return;
+        }
+        let Some(mut document) = self.document.clone() else {
+            return;
+        };
+        let version = self.document_version;
+        self.dialog_pending = true;
+        let operation = self.rustfmt_import.begin();
+        let selection = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some(
+                format!(
+                    "Import {} supported settings into the unsaved draft",
+                    kind.filename()
+                )
+                .into(),
+            ),
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let selected = match selection.await {
+                Ok(Ok(Some(paths))) => paths.into_iter().next().map(Ok),
+                Ok(Ok(None)) => None,
+                Ok(Err(error)) => Some(Err(format!("Cannot select native formatter configuration: {error}"))),
+                Err(error) => Some(Err(format!("File picker closed: {error}"))),
+            };
+            // Cancel while the native picker was open must not start I/O.
+            // A detached old operation must never clear a newer dialog.
+            let may_read = this.update_in(cx, |this, _, cx| {
+                if this.rustfmt_import.begin_read(operation) { return true; }
+                if this.rustfmt_import.finish(operation).is_some() {
+                    this.dialog_pending = false;
+                    this.status = "Import cancelled. Configuration unchanged.".into();
+                    this.error = false;
+                    cx.notify();
+                }
+                false
+            }).unwrap_or(false);
+            if !may_read { return; }
+            let imported = match selected {
+                Some(Ok(path)) => Some(cx.background_executor().spawn(async move {
+                    let text = codestyles::native_config::read_import_config(&path)?;
+                    let count = codestyles::native_config::import_config(&mut document, &text, kind)?;
+                    Ok::<_, String>((document, count))
+                }).await),
+                Some(Err(error)) => Some(Err(error)),
+                None => None,
+            };
+            let _ = this.update_in(cx, |this, window, cx| {
+                let Some(cancelled) = this.rustfmt_import.finish(operation) else { return };
+                this.dialog_pending = false;
+                if !native_import_is_current(version, this.document_version, language, this.source.language(),
+                    this.raw_dirty || this.field_draft.is_dirty(),
+                    this.project_busy() || this.toolchain_controller.is_running(), cancelled) {
+                    this.fail("Import cancelled or not applied: the draft, pending input, or active view changed. Your current configuration was kept.".into());
+                } else {
+                    match imported {
+                        Some(Ok((document, count))) => {
+                            this.cancel_preview();
+                            this.document = Some(document);
+                            this.document_version += 1;
+                            this.project_report = None;
+                            this.project_selection.clear();
+                            this.project_status = format!("{} settings imported. Check again to refresh project results.", kind.title());
+                            this.last_success = None;
+                            this.output.clear();
+                            this.sync_editor(window, cx);
+                            this.sync_field(window, cx);
+                            this.request_preview(cx);
+                            this.status = format!("Imported {count} {} setting(s) into the draft. Native comments were not copied; existing JSONC comments and unrelated settings were kept. Neither file was saved.{}", kind.title(), if this.trusted { "" } else { " Review and trust the configuration to enable preview." });
+                            this.error = false;
+                        }
+                        Some(Err(error)) => this.fail(format!("{} import rejected; current configuration kept: {error}", kind.title())),
+                        None => { this.status = "Import cancelled. Configuration unchanged.".into(); this.error = false; }
+                    }
+                }
+                cx.notify();
+            });
+        }).detach();
+        cx.notify();
     }
 
     fn import_rustfmt_config(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -2356,6 +2498,59 @@ impl PreviewWindow {
             });
         }).detach();
         cx.notify();
+    }
+
+    fn render_native_integration(
+        &mut self,
+        kind: codestyles::native_config::NativeConfigKind,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        use codestyles::native_config::NativeConfigKind;
+        let config = self
+            .document
+            .as_ref()
+            .ok_or_else(|| "Open a configuration first.".to_owned())
+            .and_then(|doc| codestyles::native_config::export_config(&doc.snapshot(), kind));
+        let copy = config.as_ref().ok().cloned();
+        let text = config.unwrap_or_else(|error| {
+            format!("Cannot export {} configuration: {error}", kind.title())
+        });
+        let language = self.source.language();
+        let version = self.document_version;
+        let pending = self.raw_dirty || self.field_draft.is_dirty();
+        let import_disabled = !rustfmt_import_allowed(
+            self.document.is_some(),
+            pending,
+            self.project_busy() || self.toolchain_controller.is_running(),
+            self.dialog_pending,
+        );
+        let help = match kind {
+            NativeConfigKind::CSharpier => {
+                "Explicit .csharpierrc.json import supports only printWidth, useTabs, indentSize and endOfLine in strict JSON. YAML, .editorconfig, overrides and unknown options reject the whole import. No solution/project evaluation, restore or analyzers."
+            }
+            NativeConfigKind::ClangFormat => {
+                "Explicit .clang-format import supports only the displayed scalar settings as flat YAML or JSON. Nested values, anchors, aliases, tags, multiple documents, language overrides and unknown options reject the whole import. Include sorting stays disabled (SortIncludes: Never) to preserve include order."
+            }
+        };
+        div().flex().flex_col().flex_1().min_h_0().gap_3()
+            .child(div().text_lg().child(format!("{} editor & CI", language.display_name())))
+            .child(div().text_sm().child("Export the applied draft to the native formatter configuration shown below, then configure your editor/CI tool separately. CodeStyles JSONC itself is not a native formatter config. No files, editor settings or runtime installations change automatically."))
+            .child(div().text_sm().child(help))
+            .child(div().text_sm().child("Import merges supported values into the unsaved draft. Missing settings are kept. Native-file comments are not copied; existing JSONC comments and unrelated settings are preserved. No automatic configuration discovery."))
+            .child(Button::new("import-native-config").label(format!("Import {}…", kind.filename())).disabled(import_disabled).on_click(cx.listener(move |this, _, window, cx| this.import_native_config(kind, window, cx))))
+            .child(Button::new("copy-native-config").label(format!("Copy {}", kind.filename())).disabled(copy.is_none() || import_disabled).on_click(cx.listener(move |this, _, _, cx| {
+                if native_import_is_current(version, this.document_version, language, this.source.language(),
+                    this.raw_dirty || this.field_draft.is_dirty(), this.project_busy() || this.toolchain_controller.is_running(), this.dialog_pending)
+                    && let Some(config) = &copy {
+                    cx.write_to_clipboard(ClipboardItem::new_string(config.clone()));
+                    this.status = format!("{} copied from the current applied draft. No project file or editor setting was changed.", kind.filename());
+                    this.error = false;
+                    cx.notify();
+                }
+            })))
+            .when(pending, |panel| panel.child(div().text_color(cx.theme().warning).child("Apply or discard pending editor input before importing or exporting.")))
+            .child(code_pane("native-config-export", format!("Current applied draft · {}", kind.filename()), &text, cx))
+            .into_any_element()
     }
 
     fn render_rust_integration(&mut self, cx: &mut Context<Self>) -> AnyElement {
@@ -2517,7 +2712,11 @@ fn highlight_language(language: SourceLanguage) -> &'static str {
         SourceLanguage::Python | SourceLanguage::PythonStub => "python",
         SourceLanguage::Rust => "rust",
         SourceLanguage::Go => "go",
-        SourceLanguage::Dart => "text",
+        SourceLanguage::Dart
+        | SourceLanguage::Java
+        | SourceLanguage::CSharp
+        | SourceLanguage::C
+        | SourceLanguage::Cpp => "text",
         SourceLanguage::Vue => "html",
     }
 }
@@ -2952,6 +3151,33 @@ mod tests {
     }
 
     #[test]
+    fn shared_clang_pack_invalidates_both_dialects_but_not_other_languages() {
+        use codestyles::{comparison::SourceLanguage, toolchain_worker::PackAction};
+        for language in [SourceLanguage::C, SourceLanguage::Cpp] {
+            for action in [PackAction::Install, PackAction::Uninstall] {
+                assert!(super::pack_mutation_affects_preview(
+                    language,
+                    "clang-format",
+                    &action
+                ));
+                assert!(!super::pack_mutation_affects_preview(
+                    language,
+                    "csharpier",
+                    &action
+                ));
+            }
+        }
+        assert!(!super::pack_matches_preview(
+            SourceLanguage::Java,
+            "clang-format"
+        ));
+        assert!(!super::pack_matches_preview(
+            SourceLanguage::CSharp,
+            "clang-format"
+        ));
+    }
+
+    #[test]
     fn optional_languages_bind_to_distinct_pack_and_project_scopes() {
         use codestyles::comparison::SourceLanguage;
         use codestyles::project::NativeLanguage;
@@ -2960,6 +3186,14 @@ mod tests {
             (SourceLanguage::Go, "gofmt", NativeLanguage::Go),
             (SourceLanguage::Dart, "dartfmt", NativeLanguage::Dart),
             (SourceLanguage::Vue, "vue", NativeLanguage::Vue),
+            (
+                SourceLanguage::Java,
+                "google-java-format",
+                NativeLanguage::Java,
+            ),
+            (SourceLanguage::CSharp, "csharpier", NativeLanguage::CSharp),
+            (SourceLanguage::C, "clang-format", NativeLanguage::C),
+            (SourceLanguage::Cpp, "clang-format", NativeLanguage::Cpp),
         ] {
             assert_eq!(language.pack_id(), Some(id));
             assert_eq!(super::native_language(language), Some(native));
@@ -2995,6 +3229,69 @@ mod tests {
         assert!(!state.begin_read(id));
         assert_eq!(state.finish(id), Some(true));
         assert_eq!(state.cancel_for_close(), ImportClose::None);
+    }
+
+    #[test]
+    fn native_import_requires_exact_language_even_for_shared_clang_kind() {
+        use super::{native_config_kind, native_import_is_current};
+        use codestyles::comparison::SourceLanguage;
+        assert_eq!(
+            native_config_kind(SourceLanguage::C),
+            native_config_kind(SourceLanguage::Cpp)
+        );
+        assert_ne!(
+            native_config_kind(SourceLanguage::CSharp),
+            native_config_kind(SourceLanguage::Cpp)
+        );
+        assert!(native_config_kind(SourceLanguage::Java).is_none());
+        for language in [
+            SourceLanguage::C,
+            SourceLanguage::Cpp,
+            SourceLanguage::CSharp,
+        ] {
+            assert!(native_import_is_current(
+                3, 3, language, language, false, false, false
+            ));
+            assert!(!native_import_is_current(
+                3, 4, language, language, false, false, false
+            ));
+            assert!(!native_import_is_current(
+                3, 3, language, language, true, false, false
+            ));
+            assert!(!native_import_is_current(
+                3, 3, language, language, false, true, false
+            ));
+            assert!(!native_import_is_current(
+                3, 3, language, language, false, false, true
+            ));
+        }
+        assert!(!native_import_is_current(
+            3,
+            3,
+            SourceLanguage::C,
+            SourceLanguage::Cpp,
+            false,
+            false,
+            false
+        ));
+        assert!(!native_import_is_current(
+            3,
+            3,
+            SourceLanguage::Cpp,
+            SourceLanguage::C,
+            false,
+            false,
+            false
+        ));
+        assert!(!native_import_is_current(
+            3,
+            3,
+            SourceLanguage::Java,
+            SourceLanguage::Java,
+            false,
+            false,
+            false
+        ));
     }
 
     #[test]
@@ -3160,7 +3457,13 @@ mod tests {
             let grammar = super::highlight_language(language);
             if matches!(
                 language,
-                SourceLanguage::Go | SourceLanguage::Dart | SourceLanguage::Vue
+                SourceLanguage::Go
+                    | SourceLanguage::Dart
+                    | SourceLanguage::Vue
+                    | SourceLanguage::Java
+                    | SourceLanguage::CSharp
+                    | SourceLanguage::C
+                    | SourceLanguage::Cpp
             ) && !LanguageRegistry::singleton()
                 .language(grammar)
                 .is_some_and(|config| config.has_grammar())

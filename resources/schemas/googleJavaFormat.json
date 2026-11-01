@@ -1,0 +1,16 @@
+{
+  "title": "googleJavaFormat (managed formatter)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "style": {
+      "type": "string",
+      "enum": [
+        "google",
+        "aosp"
+      ],
+      "default": "google",
+      "description": "Google Java style or Android Open Source Project style. Imports are preserved; no classpath or project discovery."
+    }
+  }
+}

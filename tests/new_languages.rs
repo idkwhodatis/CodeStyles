@@ -23,7 +23,7 @@ fn acceptance(
     language: NativeLanguage,
     extension: &str,
     source: &str,
-    invalid: &str,
+    invalid: Option<&str>,
 ) {
     let archive = std::env::var_os(env).expect("explicit pinned archive path required");
     let dir = tempfile::tempdir().unwrap();
@@ -40,13 +40,47 @@ fn acceptance(
     let project = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(project.path()).unwrap();
     fs::write(root.join("dprint.jsonc"), "{}\n").unwrap();
-    let config = ConfigDocument::load(&root.join("dprint.jsonc")).unwrap();
+    let mut config = ConfigDocument::load(&root.join("dprint.jsonc")).unwrap();
+    // Exercise explicit native import/export through the actual managed engine,
+    // not merely parser round-trips. Only this test's private config is saved.
+    let interoperability = match language {
+        NativeLanguage::CSharp => Some((
+            codestyles::native_config::NativeConfigKind::CSharpier,
+            r#"{"printWidth":80,"indentSize":2,"useTabs":true,"endOfLine":"lf"}"#,
+        )),
+        NativeLanguage::C | NativeLanguage::Cpp => Some((
+            codestyles::native_config::NativeConfigKind::ClangFormat,
+            "BasedOnStyle: Google\nIndentWidth: 4\nColumnLimit: 100\nBreakBeforeBraces: Allman\nSortIncludes: Never\n",
+        )),
+        _ => None,
+    };
+    if let Some((kind, input)) = interoperability {
+        codestyles::native_config::import_config(&mut config, input, kind).unwrap();
+        let exported = codestyles::native_config::export_config(&config.snapshot(), kind).unwrap();
+        let mut reimported = ConfigDocument::standalone(&[]).unwrap();
+        codestyles::native_config::import_config(&mut reimported, &exported, kind).unwrap();
+        assert_eq!(
+            codestyles::native_config::export_config(&reimported.snapshot(), kind).unwrap(),
+            exported
+        );
+        config.save().unwrap();
+    }
     let original_config = fs::read(config.path().unwrap()).unwrap();
     let format = |text: &str| {
         backend.format(
             &FormatRequest {
                 source: text.into(),
-                source_path: root.join(format!("preview.{extension}")),
+                // The UI's selected C++ preview uses a .cpp stdin hint even
+                // when project files use shared .h names. Direct .h requests
+                // intentionally default to C and are not equivalent here.
+                source_path: root.join(format!(
+                    "preview.{}",
+                    if language == NativeLanguage::Cpp && extension == "h" {
+                        "cpp"
+                    } else {
+                        extension
+                    }
+                )),
                 config: config.snapshot(),
             },
             cancel(),
@@ -55,7 +89,9 @@ fn acceptance(
     let formatted = format(source).unwrap();
     assert_ne!(formatted, source);
     assert_eq!(format(&formatted).unwrap(), formatted);
-    assert!(format(invalid).is_err());
+    if let Some(invalid) = invalid {
+        assert!(format(invalid).is_err());
+    }
     assert_eq!(fs::read(config.path().unwrap()).unwrap(), original_config);
 
     let selected = root.join(format!("selected.{extension}"));
@@ -108,7 +144,7 @@ fn real_go_pack_preview_review_write_and_uninstall() {
         NativeLanguage::Go,
         "go",
         "package main\nfunc main( ){println(1)}\n",
-        "package main\nfunc main( {\n",
+        Some("package main\nfunc main( {\n"),
     );
 }
 
@@ -121,7 +157,7 @@ fn real_dart_pack_preview_review_write_and_uninstall() {
         NativeLanguage::Dart,
         "dart",
         "void main( ){print('hello');}\n",
-        "void main( {\n",
+        Some("void main( {\n"),
     );
 }
 
@@ -134,6 +170,77 @@ fn real_vue_pack_preview_review_write_and_uninstall() {
         NativeLanguage::Vue,
         "vue",
         "<template><div>{{ message }}</div></template>\n<script setup>const message='hello'</script>\n<style>.card{color:red}</style>\n",
-        "<template><div>unclosed",
+        Some("<template><div>unclosed"),
+    );
+}
+
+#[test]
+#[ignore = "requires CODESTYLES_TEST_JAVA_PACK matching a reviewed embedded candidate digest"]
+fn real_java_pack_preview_review_write_and_uninstall() {
+    acceptance(
+        "CODESTYLES_TEST_JAVA_PACK",
+        "google-java-format",
+        NativeLanguage::Java,
+        "java",
+        "class Example{void run(){System.out.println(1);}}\n",
+        Some("class Broken { void method( {"),
+    );
+}
+
+#[test]
+#[ignore = "requires CODESTYLES_TEST_CSHARP_PACK matching a reviewed embedded candidate digest"]
+fn real_csharp_pack_preview_review_write_and_uninstall() {
+    acceptance(
+        "CODESTYLES_TEST_CSHARP_PACK",
+        "csharpier",
+        NativeLanguage::CSharp,
+        "cs",
+        "class Example{void Run(){System.Console.WriteLine(1);}}\n",
+        Some("class Broken { void Method( {"),
+    );
+}
+
+#[test]
+#[ignore = "requires CODESTYLES_TEST_CLANG_PACK matching a reviewed embedded candidate digest"]
+fn real_c_pack_preview_review_write_and_uninstall() {
+    acceptance(
+        "CODESTYLES_TEST_CLANG_PACK",
+        "clang-format",
+        NativeLanguage::C,
+        "c",
+        "int main(void){int value=1;return value;}\n",
+        // Verified incomplete-format rejection, not general compiler validation.
+        Some("int main( {"),
+    );
+}
+
+#[test]
+#[ignore = "requires CODESTYLES_TEST_CLANG_PACK matching a reviewed embedded candidate digest"]
+fn real_cpp_pack_preview_review_write_and_uninstall() {
+    acceptance(
+        "CODESTYLES_TEST_CLANG_PACK",
+        "clang-format",
+        NativeLanguage::Cpp,
+        "cpp",
+        "class Example{public:int value(){return 1;}};\n",
+        // Verified incomplete-format rejection, not general compiler validation.
+        Some("int main( {"),
+    );
+}
+
+#[test]
+#[ignore = "requires CODESTYLES_TEST_CLANG_PACK matching a reviewed embedded candidate digest"]
+fn real_clang_pack_c_and_cpp_preview_review_write_and_uninstall() {
+    real_c_pack_preview_review_write_and_uninstall();
+    real_cpp_pack_preview_review_write_and_uninstall();
+    // C++ project mode includes the common shared .h suffix without changing
+    // the real source/diff/write identity to its synthetic stdin hint.
+    acceptance(
+        "CODESTYLES_TEST_CLANG_PACK",
+        "clang-format",
+        NativeLanguage::Cpp,
+        "h",
+        "class Example{public:int value(){return 1;}};\n",
+        Some("int main( {"),
     );
 }

@@ -22,6 +22,25 @@ Flutter SDK. Go uses fixed gofmt style; Vue uses WASM, not Node/npm. New packs a
 **not published**: download stays disabled until their separate release gates are
 met. See [scope, tested paths and remaining gates](NEW_LANGUAGE_SUPPORT.md).
 
+## Java, C# and C/C++ (managed candidates)
+
+The language picker also offers Java, C#, C and C++ with built-in samples,
+explicit visual settings, JSONC save/load/export and reviewed project formatting.
+Java uses google-java-format (Google/AOSP style); C# uses CSharpier with a pinned
+managed .NET runtime **without an SDK**; C/C++ uses clang-format. No user JDK,
+.NET SDK, compiler, PATH discovery, solution build or dependency restore is used.
+Java imports and C/C++ include order are preserved. These new previews use
+plain-text highlighting; they require a verified optional pack to format.
+
+**Downloads and local installation remain disabled in the production catalog**
+until candidate acceptance, redistribution and platform-baseline gates are met.
+In particular, the upstream Linux Java and clang binaries require glibc 2.34,
+exceeding the supported glibc 2.28 baseline. Working files remain CodeStyles JSONC. Editor & CI now supports explicit import
+and copy/export of the displayed `.clang-format` scalar subset (flat YAML/JSON)
+and `.csharpierrc.json` options (strict JSON); unsupported constructs reject the
+whole import. There is no automatic config discovery or IDE settings rewrite. See the
+[exact settings, runtime contracts and validation boundaries](JAVA_CSHARP_CPP_SUPPORT.md).
+
 ## Python formatting
 
 Python `.py` and type-stub `.pyi` files use the bundled, checksummed

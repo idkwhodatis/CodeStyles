@@ -1,7 +1,8 @@
 //! File types supported by the bundled, version-pinned formatter plugins.
 pub const EXTENSIONS: &[&str] = &[
     "ts", "tsx", "js", "jsx", "json", "jsonc", "md", "markdown", "toml", "py", "pyi", "rs", "go",
-    "dart", "vue",
+    "dart", "vue", "java", "cs", "c", "h", "cc", "cpp", "cxx", "c++", "hh", "hpp", "hxx", "h++",
+    "C", "H",
 ];
 pub const INDENT_WIDTHS: &[u8] = &[2, 4];
 pub const SEMICOLONS: &[&str] = &["always", "asi"];
@@ -25,6 +26,13 @@ mod tests {
                 "sample.{}",
                 language.extension()
             ))));
+        }
+        for extension in [
+            "java", "cs", "c", "h", "cc", "cpp", "cxx", "c++", "hh", "hpp", "hxx", "h++", "C", "H",
+        ] {
+            let path = format!("source.{extension}");
+            assert!(supports(Path::new(&path)));
+            assert!(crate::native_format::NativeLanguage::from_path(Path::new(&path)).is_some());
         }
         assert!(supports(Path::new("README.markdown")));
         assert!(!supports(Path::new("sample.yaml")));

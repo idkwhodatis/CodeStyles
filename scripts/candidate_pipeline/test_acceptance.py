@@ -108,6 +108,11 @@ class AcceptanceTests(unittest.TestCase):
             if failure in ('commit', 'host', 'toolchain'):
                 self.assertFalse(any(Path(x[0]).stem == 'cargo' for x in calls))
 
+    def test_clang_uses_one_combined_c_and_cpp_acceptance_test(self):
+        self.assertEqual(acceptance.TESTS['clang-format'], (
+            'CODESTYLES_TEST_CLANG_PACK',
+            'real_clang_pack_c_and_cpp_preview_review_write_and_uninstall'))
+
     def test_success_for_each_fixed_test(self):
         for tool in acceptance.TESTS:
             with self.subTest(tool=tool):

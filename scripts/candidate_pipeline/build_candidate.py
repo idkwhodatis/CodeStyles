@@ -16,7 +16,7 @@ sys.path.insert(0, str(HELPERS))
 from build_language_pack import EPOCH, digest_file, safe_path, write_bundle
 TARGETS = frozenset({'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu', 'x86_64-apple-darwin', 'aarch64-apple-darwin', 'x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'})
 # Vue is a WASM adapter with a different target schema; use build_vue_pack.
-TOOLS = frozenset({'gofmt', 'dartfmt'})
+TOOLS = frozenset({'gofmt', 'dartfmt', 'google-java-format', 'csharpier', 'clang-format'})
 MAX_MEMBERS = 10000
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
 MAX_PAYLOAD_BYTES = 1024 * 1024 * 1024

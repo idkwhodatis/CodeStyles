@@ -26,6 +26,9 @@ except ImportError:  # Direct CLI invocation.
 TESTS = {
     'gofmt': ('CODESTYLES_TEST_GO_PACK', 'real_go_pack_preview_review_write_and_uninstall'),
     'dartfmt': ('CODESTYLES_TEST_DART_PACK', 'real_dart_pack_preview_review_write_and_uninstall'),
+    'google-java-format': ('CODESTYLES_TEST_JAVA_PACK', 'real_java_pack_preview_review_write_and_uninstall'),
+    'csharpier': ('CODESTYLES_TEST_CSHARP_PACK', 'real_csharp_pack_preview_review_write_and_uninstall'),
+    'clang-format': ('CODESTYLES_TEST_CLANG_PACK', 'real_clang_pack_c_and_cpp_preview_review_write_and_uninstall'),
 }
 MIN_FREE = 2 * 1024 ** 3
 

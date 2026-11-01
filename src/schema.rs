@@ -18,6 +18,9 @@ pub enum PinnedPlugin {
     Rustfmt,
     Gofmt,
     Dartfmt,
+    GoogleJavaFormat,
+    CSharpier,
+    ClangFormat,
     Markup,
     Malva,
 }
@@ -40,6 +43,9 @@ impl PinnedPlugin {
             Self::Ruff => "ruff",
             Self::Rustfmt => "rustfmt",
             Self::Gofmt => "gofmt",
+            Self::GoogleJavaFormat => "googleJavaFormat",
+            Self::CSharpier => "csharpier",
+            Self::ClangFormat => "clangFormat",
             Self::Dartfmt => "dartfmt",
             Self::Markup => "markup",
             Self::Malva => "malva",
@@ -54,6 +60,9 @@ impl PinnedPlugin {
             Self::Ruff => "Python (Ruff)",
             Self::Rustfmt => "Rust (managed rustfmt)",
             Self::Gofmt => "Go (gofmt, fixed style)",
+            Self::GoogleJavaFormat => "Java (google-java-format)",
+            Self::CSharpier => "C# (CSharpier)",
+            Self::ClangFormat => "C / C++ (clang-format)",
             Self::Dartfmt => "Dart / Flutter",
             Self::Markup => "Vue template",
             Self::Malva => "Vue styles",
@@ -68,6 +77,9 @@ impl PinnedPlugin {
             Self::Ruff => "0.11.3",
             Self::Rustfmt => "1.99.1",
             Self::Gofmt => "1.27.3",
+            Self::GoogleJavaFormat => "1.37.0",
+            Self::CSharpier => "1.3.0",
+            Self::ClangFormat => "23.1.4",
             Self::Dartfmt => "3.13.7",
             Self::Markup => "0.27.6",
             Self::Malva => "0.16.0",
@@ -80,7 +92,12 @@ impl PinnedPlugin {
             Self::Markdown => "https://plugins.dprint.dev/markdown-0.26.0.wasm",
             Self::Toml => "https://plugins.dprint.dev/toml-0.9.0.wasm",
             Self::Ruff => "https://plugins.dprint.dev/ruff-0.11.3.wasm",
-            Self::Rustfmt | Self::Gofmt | Self::Dartfmt => "", // Not dprint plugins.
+            Self::Rustfmt
+            | Self::Gofmt
+            | Self::Dartfmt
+            | Self::GoogleJavaFormat
+            | Self::CSharpier
+            | Self::ClangFormat => "", // Not dprint plugins.
             Self::Markup => "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.6.wasm",
             Self::Malva => "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm",
         }
@@ -94,7 +111,12 @@ impl PinnedPlugin {
             Self::Markdown => "markdown-0.26.0.wasm",
             Self::Toml => "toml-0.9.0.wasm",
             Self::Ruff => "ruff-0.11.3.wasm",
-            Self::Rustfmt | Self::Gofmt | Self::Dartfmt => "",
+            Self::Rustfmt
+            | Self::Gofmt
+            | Self::Dartfmt
+            | Self::GoogleJavaFormat
+            | Self::CSharpier
+            | Self::ClangFormat => "",
             Self::Markup => "markup-0.27.6.wasm",
             Self::Malva => "malva-0.16.0.wasm",
         }
@@ -105,7 +127,14 @@ impl PinnedPlugin {
     pub fn ensure_available(self, document: &ConfigDocument) -> Result<(), String> {
         if matches!(
             self,
-            Self::Rustfmt | Self::Gofmt | Self::Dartfmt | Self::Markup | Self::Malva
+            Self::Rustfmt
+                | Self::Gofmt
+                | Self::Dartfmt
+                | Self::GoogleJavaFormat
+                | Self::CSharpier
+                | Self::ClangFormat
+                | Self::Markup
+                | Self::Malva
         ) {
             if document.value(&["extends"])?.is_some()
                 || document
@@ -375,7 +404,10 @@ impl SchemaField {
             "Imports"
         } else if option == "reorder_modules" {
             "Arrangement"
-        } else if matches!(option.as_str(), "edition" | "style_edition") {
+        } else if matches!(
+            option.as_str(),
+            "edition" | "style_edition" | "style" | "basedonstyle"
+        ) {
             "Other"
         } else if option.contains("sort") {
             if name.contains("import") || name.contains("export") {
@@ -395,7 +427,10 @@ impl SchemaField {
         {
             "Other"
         } else if option.contains("indent")
-            || matches!(option.as_str(), "usetabs" | "hard_tabs" | "tab_spaces")
+            || matches!(
+                option.as_str(),
+                "usetabs" | "usetab" | "hard_tabs" | "tab_spaces"
+            )
         {
             "Tabs and Indents"
         } else if option.contains("blankline") {
@@ -669,6 +704,13 @@ impl PluginSchema {
                 {
                     constraints.unsigned_integer_encoding = true;
                 }
+                if matches!(
+                    plugin,
+                    PinnedPlugin::Dartfmt | PinnedPlugin::CSharpier | PinnedPlugin::ClangFormat
+                ) && let FieldKind::Number(constraints) = &mut field.kind
+                {
+                    constraints.unsigned_integer_encoding = true;
+                }
                 if field.kind.is_supported()
                     && let Some(default) = &field.default
                     && let Err(error) = field.validate(default)
@@ -710,7 +752,7 @@ impl PluginSchema {
 
 #[derive(Clone, Debug)]
 pub struct SchemaCatalog {
-    schemas: [PluginSchema; 10],
+    schemas: [PluginSchema; 13],
 }
 
 impl SchemaCatalog {
@@ -760,6 +802,23 @@ impl SchemaCatalog {
                     &serde_json::from_str(include_str!("../resources/schemas/malva-0.16.0.json"))
                         .map_err(|e| format!("Style schema: {e}"))?,
                 )?,
+                PluginSchema::from_json(
+                    PinnedPlugin::GoogleJavaFormat,
+                    &serde_json::from_str(include_str!(
+                        "../resources/schemas/googleJavaFormat.json"
+                    ))
+                    .map_err(|e| format!("googleJavaFormat schema: {e}"))?,
+                )?,
+                PluginSchema::from_json(
+                    PinnedPlugin::CSharpier,
+                    &serde_json::from_str(include_str!("../resources/schemas/csharpier.json"))
+                        .map_err(|e| format!("csharpier schema: {e}"))?,
+                )?,
+                PluginSchema::from_json(
+                    PinnedPlugin::ClangFormat,
+                    &serde_json::from_str(include_str!("../resources/schemas/clangFormat.json"))
+                        .map_err(|e| format!("clangFormat schema: {e}"))?,
+                )?,
             ],
         })
     }
@@ -776,6 +835,9 @@ impl SchemaCatalog {
             PinnedPlugin::Dartfmt => 7,
             PinnedPlugin::Markup => 8,
             PinnedPlugin::Malva => 9,
+            PinnedPlugin::GoogleJavaFormat => 10,
+            PinnedPlugin::CSharpier => 11,
+            PinnedPlugin::ClangFormat => 12,
         }]
     }
 
@@ -808,6 +870,18 @@ impl SchemaCatalog {
                 PinnedPlugin::Dartfmt,
                 crate::native_format::NativeLanguage::Dart,
             ),
+            (
+                PinnedPlugin::GoogleJavaFormat,
+                crate::native_format::NativeLanguage::Java,
+            ),
+            (
+                PinnedPlugin::CSharpier,
+                crate::native_format::NativeLanguage::CSharp,
+            ),
+            (
+                PinnedPlugin::ClangFormat,
+                crate::native_format::NativeLanguage::Cpp,
+            ),
         ] {
             if document.value(&[plugin.section()])?.is_some()
                 && self.available(document, plugin).is_ok()
@@ -821,6 +895,9 @@ impl SchemaCatalog {
             PinnedPlugin::Dartfmt,
             PinnedPlugin::Markup,
             PinnedPlugin::Malva,
+            PinnedPlugin::GoogleJavaFormat,
+            PinnedPlugin::CSharpier,
+            PinnedPlugin::ClangFormat,
         ]) {
             if self.available(document, plugin).is_err() {
                 continue;
@@ -1256,6 +1333,54 @@ mod tests {
     }
 
     #[test]
+    fn managed_java_csharp_and_clang_settings_roundtrip_without_downloads() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let mut doc = document(json!({"unknown": {"keep": true}}));
+        for (plugin, key, value) in [
+            (PinnedPlugin::GoogleJavaFormat, "style", json!("aosp")),
+            (PinnedPlugin::CSharpier, "printWidth", json!(120)),
+            (PinnedPlugin::ClangFormat, "BasedOnStyle", json!("Google")),
+        ] {
+            assert!(catalog.available(&doc, plugin).is_ok());
+            assert!(plugin.url().is_empty());
+            assert!(!PinnedPlugin::ALL.contains(&plugin));
+            let field = catalog.schema(plugin).field(key).unwrap();
+            field.validate(&value).unwrap();
+            doc.set(&[plugin.section(), key], value.clone()).unwrap();
+            assert_eq!(field.state(&doc, plugin).unwrap().explicit, Some(value));
+            catalog.validate_document(&doc).unwrap();
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.jsonc");
+        doc.save_as(&path).unwrap();
+        let imported = ConfigDocument::load(&path).unwrap();
+        assert_eq!(imported.draft_text(), doc.draft_text());
+        assert_eq!(
+            imported.value(&["unknown", "keep"]).unwrap(),
+            Some(json!(true))
+        );
+        for (section, options) in [
+            ("googleJavaFormat", json!({"style":"custom"})),
+            ("csharpier", json!({"printWidth":1.0})),
+            ("csharpier", json!({"indentSize":17})),
+            ("clangFormat", json!({"ColumnLimit":-1})),
+            ("clangFormat", json!({"BasedOnStyle":"file"})),
+            ("clangFormat", json!({"unknown":true})),
+        ] {
+            let invalid = document(json!({section: options}));
+            assert!(catalog.validate_document(&invalid).is_err(), "{section}");
+        }
+        for plugin in [
+            PinnedPlugin::GoogleJavaFormat,
+            PinnedPlugin::CSharpier,
+            PinnedPlugin::ClangFormat,
+        ] {
+            let inherited = document(json!({"extends":"base.json"}));
+            assert!(catalog.available(&inherited, plugin).is_err());
+        }
+    }
+
+    #[test]
     fn native_rust_settings_are_explicit_stable_and_do_not_require_a_wasm_url() {
         let catalog = SchemaCatalog::bundled().unwrap();
         let doc = document(json!({"plugins": PinnedPlugin::ALL.map(PinnedPlugin::url)}));
@@ -1286,7 +1411,7 @@ mod tests {
     #[test]
     fn broad_categories_cover_every_field_for_all_languages() {
         let catalog = SchemaCatalog::bundled().unwrap();
-        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 14);
+        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 18);
         for language in crate::comparison::SourceLanguage::ALL {
             let fields = catalog.fields(language.plugin());
             let mut seen = std::collections::HashSet::new();

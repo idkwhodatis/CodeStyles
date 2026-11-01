@@ -1,0 +1,36 @@
+{
+  "title": "csharpier (managed formatter)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "printWidth": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 100,
+      "description": "Preferred line width; CSharpier may exceed this for unbreakable content."
+    },
+    "useTabs": {
+      "type": "boolean",
+      "default": false,
+      "description": "Use tabs instead of spaces for indentation."
+    },
+    "indentSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 4,
+      "description": "Indentation size."
+    },
+    "endOfLine": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "lf",
+        "crlf"
+      ],
+      "default": "auto",
+      "description": "Line endings. No project or solution evaluation; settings are explicit and do not inherit .editorconfig."
+    }
+  }
+}

@@ -92,7 +92,7 @@ impl Backend {
             .source_path
             .extension()
             .and_then(|value| value.to_str());
-        if matches!(extension, Some("go" | "dart")) {
+        if crate::native_format::NativeLanguage::from_path(&request.source_path).is_some() {
             return self.native.format(request, cancelled, self.timeout);
         }
         // Retain the shared pack lease until every formatter pipe has exited.

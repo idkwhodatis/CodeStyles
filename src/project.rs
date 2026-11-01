@@ -54,6 +54,10 @@ pub enum NativeLanguage {
     Go,
     Dart,
     Vue,
+    Java,
+    CSharp,
+    C,
+    Cpp,
 }
 impl NativeLanguage {
     pub fn label(self) -> &'static str {
@@ -61,6 +65,10 @@ impl NativeLanguage {
             Self::Rust => "Rust",
             Self::Go => "Go",
             Self::Dart => "Dart",
+            Self::Java => "Java",
+            Self::CSharp => "C#",
+            Self::C => "C",
+            Self::Cpp => "C++",
             Self::Vue => "Vue",
         }
     }
@@ -69,7 +77,31 @@ impl NativeLanguage {
             Self::Rust => "rs",
             Self::Go => "go",
             Self::Dart => "dart",
+            Self::Java => "java",
+            Self::CSharp => "cs",
+            Self::C => "c",
+            Self::Cpp => "cpp",
             Self::Vue => "vue",
+        }
+    }
+    fn supports_extension(self, extension: &std::ffi::OsStr) -> bool {
+        match self {
+            Self::C => matches!(extension.to_str(), Some("c" | "h")),
+            Self::Cpp => matches!(
+                extension.to_str(),
+                Some("h" | "cc" | "cpp" | "cxx" | "c++" | "hh" | "hpp" | "hxx" | "h++" | "C" | "H")
+            ),
+            _ => extension == self.extension(),
+        }
+    }
+    /// The selected project language disambiguates shared .h headers. This is
+    /// only an stdin language hint: reads, fingerprints, diffs and writes retain
+    /// the reviewed real path, and native formatters never discover this path.
+    fn formatting_path(self, path: &Path) -> PathBuf {
+        if self == Self::Cpp && path.extension().is_some_and(|extension| extension == "h") {
+            path.with_extension("cpp")
+        } else {
+            path.to_path_buf()
         }
     }
     fn formatter(self) -> &'static str {
@@ -77,6 +109,10 @@ impl NativeLanguage {
             Self::Rust => "rustfmt",
             Self::Go => "gofmt",
             Self::Dart => "dart format",
+            Self::Java => "google-java-format",
+            Self::CSharp => "CSharpier",
+            Self::C => "clang-format",
+            Self::Cpp => "clang-format",
             Self::Vue => "dprint Vue WASM",
         }
     }
@@ -85,6 +121,9 @@ impl NativeLanguage {
             || match self {
                 Self::Rust => name == "target",
                 Self::Go => name == "vendor",
+                Self::Java => matches!(name, "target" | "build" | ".gradle"),
+                Self::CSharp => matches!(name, "bin" | "obj"),
+                Self::C | Self::Cpp => matches!(name, "build" | "CMakeFiles"),
                 Self::Dart => matches!(name, "build" | ".dart_tool"),
                 Self::Vue => matches!(name, "node_modules" | "dist" | ".nuxt"),
             }
@@ -108,6 +147,34 @@ impl NativeLanguage {
                 "go.sum",
                 "go.work",
                 "go.work.sum",
+            ],
+            Self::Java => &[
+                ".gitignore",
+                ".ignore",
+                "pom.xml",
+                "build.gradle",
+                "build.gradle.kts",
+                "settings.gradle",
+                "settings.gradle.kts",
+            ],
+            Self::CSharp => &[
+                ".gitignore",
+                ".ignore",
+                ".editorconfig",
+                ".csharpierrc",
+                ".csharpierrc.json",
+                ".csharpierrc.yaml",
+                "Directory.Build.props",
+                "Directory.Build.targets",
+                "global.json",
+            ],
+            Self::C | Self::Cpp => &[
+                ".gitignore",
+                ".ignore",
+                ".clang-format",
+                "_clang-format",
+                "CMakeLists.txt",
+                "compile_commands.json",
             ],
             Self::Vue => &[
                 ".gitignore",
@@ -750,7 +817,7 @@ impl Backend {
             let output = self.format(
                 &crate::backend::FormatRequest {
                     source: source.clone(),
-                    source_path: path.clone(),
+                    source_path: language.formatting_path(path),
                     config: request.config.clone(),
                 },
                 cancelled.clone(),
@@ -853,6 +920,9 @@ impl Backend {
             files: differences,
             diagnostics: match language {
                 NativeLanguage::Rust => "Rust-only project mode respects local .gitignore/.ignore, skips target/.git and symlinks. It uses the explicit rustfmt section, not Cargo.toml or rustfmt.toml discovery. Other languages use the dprint project mode.",
+                NativeLanguage::Java => "Java-only source formatting with explicit Google/AOSP style; imports are preserved. No Maven/Gradle/JDK discovery or dependency resolution. Skips target/build/.gradle and symlinks.",
+                NativeLanguage::CSharp => "C#-only source formatting with isolated CSharpier settings. No csproj/sln evaluation, restore, analyzers or .editorconfig inheritance. Skips bin/obj and symlinks; generated .cs files outside these folders are not automatically detected.",
+                NativeLanguage::C | NativeLanguage::Cpp => "C/C++ source formatting uses explicit clangFormat settings, not .clang-format or compilation database discovery. C mode includes .c/.h; C++ mode includes C++ source/header suffixes and shared .h headers, interpreted as C++ by the selected project scope. Skips build/CMakeFiles and symlinks.",
                 NativeLanguage::Go => "Go-only project mode respects local .gitignore/.ignore and skips vendor/.git and symlinks. Fixed gofmt behavior; no module discovery, dependency downloads or configurable style rules.",
                 NativeLanguage::Vue => "Vue-only project mode uses verified markup/TypeScript/JSON/style WASM with explicit settings. It excludes node_modules/dist/.nuxt; external src and unsupported SFC blocks are rejected, not silently skipped.",
                 NativeLanguage::Dart => "Dart-only project mode respects local .gitignore/.ignore and skips build/.dart_tool/.git and symlinks. Explicit snapshot formatting settings only; protected project metadata is not automatically inherited. Flutter support means Dart source only.",
@@ -1255,6 +1325,15 @@ fn validate_native_project_config(text: &str, language: NativeLanguage) -> Resul
         crate::native_format::options(text, crate::native_format::NativeLanguage::Dart)?;
     } else if language == NativeLanguage::Vue {
         crate::config::validate_vue_config(text)?;
+    } else {
+        let formatter_language = match language {
+            NativeLanguage::Java => crate::native_format::NativeLanguage::Java,
+            NativeLanguage::CSharp => crate::native_format::NativeLanguage::CSharp,
+            NativeLanguage::C => crate::native_format::NativeLanguage::C,
+            NativeLanguage::Cpp => crate::native_format::NativeLanguage::Cpp,
+            _ => unreachable!(),
+        };
+        crate::native_format::options(text, formatter_language)?;
     }
     let value = jsonc_parser::parse_to_serde_value(text, &jsonc_parser::ParseOptions::default())
         .map_err(|e| e.to_string())?
@@ -1398,7 +1477,7 @@ fn native_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<Nati
         } else if kind.is_some_and(|kind| kind.is_file())
             && path
                 .extension()
-                .is_some_and(|extension| extension == language.extension())
+                .is_some_and(|extension| language.supports_extension(extension))
         {
             files.insert(request.safe_file(path)?);
         }
@@ -1773,10 +1852,14 @@ mod tests {
             NativeLanguage::Rust,
             NativeLanguage::Go,
             NativeLanguage::Dart,
+            NativeLanguage::Java,
+            NativeLanguage::CSharp,
+            NativeLanguage::C,
+            NativeLanguage::Cpp,
         ] {
             let (_dir, _document, request) = native_fixture(language);
             let root = request.root();
-            for extension in ["rs", "go", "dart", "vue"] {
+            for extension in ["rs", "go", "dart", "vue", "java", "cs", "c", "cpp"] {
                 fs::write(root.join(format!("source.{extension}")), "source").unwrap();
             }
             let skipped = match language {
@@ -1784,6 +1867,9 @@ mod tests {
                 NativeLanguage::Go => "vendor",
                 NativeLanguage::Dart => "build",
                 NativeLanguage::Vue => "node_modules",
+                NativeLanguage::Java => "target",
+                NativeLanguage::CSharp => "obj",
+                NativeLanguage::C | NativeLanguage::Cpp => "build",
             };
             fs::create_dir(root.join(skipped)).unwrap();
             fs::write(
@@ -1813,6 +1899,77 @@ mod tests {
             fs::remove_file(metadata).unwrap();
             assert_ne!(native_scope(&request, &cancel).unwrap().1, configs);
             assert!(native_scope(&request, &AtomicBool::new(true)).is_err());
+        }
+    }
+
+    #[test]
+    fn c_and_cpp_scopes_share_h_headers_but_route_by_selected_project_language() {
+        for language in [NativeLanguage::C, NativeLanguage::Cpp] {
+            let (_dir, _document, request) = native_fixture(language);
+            for extension in [
+                "c", "h", "cc", "cpp", "cxx", "c++", "hh", "hpp", "hxx", "h++", "C", "H", "java",
+                "cs",
+            ] {
+                fs::write(request.root().join(format!("source.{extension}")), "source").unwrap();
+            }
+            let (files, _) = native_scope(&request, &AtomicBool::new(false)).unwrap();
+            assert_eq!(
+                files.len(),
+                if language == NativeLanguage::C { 2 } else { 11 }
+            );
+            assert!(files.contains(&request.root().join("source.h")));
+            assert_eq!(
+                files.contains(&request.root().join("source.c")),
+                language == NativeLanguage::C
+            );
+            for path in files {
+                let formatting_path = language.formatting_path(&path);
+                assert!(path.is_file(), "the reviewed path must remain real");
+                if language == NativeLanguage::Cpp && path.extension().unwrap() == "h" {
+                    assert_eq!(formatting_path, path.with_extension("cpp"));
+                    assert_eq!(
+                        crate::native_format::NativeLanguage::from_path(&path),
+                        Some(crate::native_format::NativeLanguage::C)
+                    );
+                } else {
+                    assert_eq!(formatting_path, path);
+                }
+                assert_eq!(
+                    crate::native_format::NativeLanguage::from_path(&formatting_path),
+                    Some(if language == NativeLanguage::C {
+                        crate::native_format::NativeLanguage::C
+                    } else {
+                        crate::native_format::NativeLanguage::Cpp
+                    })
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn cpp_header_hint_never_changes_original_file_or_diff_identity() {
+        let (_dir, _document, request) = native_fixture(NativeLanguage::Cpp);
+        let original = request.root().join("only-header.h");
+        fs::write(&original, "struct Item{int count;};").unwrap();
+        let hint = NativeLanguage::Cpp.formatting_path(&original);
+        assert_eq!(hint, request.root().join("only-header.cpp"));
+        assert!(!hint.exists());
+        let (files, _) = native_scope(&request, &AtomicBool::new(false)).unwrap();
+        assert_eq!(files, BTreeSet::from([original.clone()]));
+        let diff = native_diff(&original, "before", "after", NativeLanguage::Cpp);
+        assert!(diff.contains("only-header.h"));
+        assert!(!diff.contains("only-header.cpp"));
+        assert_eq!(
+            fs::read_to_string(&original).unwrap(),
+            "struct Item{int count;};"
+        );
+        for language in [
+            NativeLanguage::C,
+            NativeLanguage::Go,
+            NativeLanguage::Java,
+            NativeLanguage::CSharp,
+        ] {
+            assert_eq!(language.formatting_path(&original), original);
         }
     }
 
@@ -1881,6 +2038,10 @@ mod tests {
             NativeLanguage::Rust,
             NativeLanguage::Go,
             NativeLanguage::Dart,
+            NativeLanguage::Java,
+            NativeLanguage::CSharp,
+            NativeLanguage::C,
+            NativeLanguage::Cpp,
         ] {
             for config in [
                 r#"{"extends":"base.json"}"#,

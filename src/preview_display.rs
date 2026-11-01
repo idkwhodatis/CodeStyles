@@ -81,7 +81,11 @@ fn highlight_language(language: SourceLanguage) -> &'static str {
         SourceLanguage::Toml => "toml",
         SourceLanguage::Rust => "rust",
         SourceLanguage::Go => "go",
-        SourceLanguage::Dart => "text",
+        SourceLanguage::Dart
+        | SourceLanguage::Java
+        | SourceLanguage::CSharp
+        | SourceLanguage::C
+        | SourceLanguage::Cpp => "text",
         SourceLanguage::Vue => "html",
         SourceLanguage::Python | SourceLanguage::PythonStub => "python",
     }
@@ -110,7 +114,13 @@ mod tests {
                     .styles(&(0..language.builtin_source().len()), theme.as_ref());
                 if !matches!(
                     language,
-                    SourceLanguage::Go | SourceLanguage::Dart | SourceLanguage::Vue
+                    SourceLanguage::Go
+                        | SourceLanguage::Dart
+                        | SourceLanguage::Vue
+                        | SourceLanguage::Java
+                        | SourceLanguage::CSharp
+                        | SourceLanguage::C
+                        | SourceLanguage::Cpp
                 ) {
                     assert!(
                         spans.iter().any(|(_, style)| style.color.is_some()),

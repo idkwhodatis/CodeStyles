@@ -1,0 +1,62 @@
+{
+  "title": "clangFormat (managed formatter)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "BasedOnStyle": {
+      "type": "string",
+      "enum": [
+        "LLVM",
+        "Google",
+        "Chromium",
+        "Mozilla",
+        "WebKit",
+        "Microsoft",
+        "GNU"
+      ],
+      "default": "LLVM",
+      "description": "Explicit base style; never discover .clang-format from a project."
+    },
+    "IndentWidth": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 2,
+      "description": "Spaces per indentation level. Unset inherits the selected base style."
+    },
+    "ColumnLimit": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000,
+      "default": 80,
+      "description": "Line width; 0 disables the column limit. Unset inherits the selected base style."
+    },
+    "UseTab": {
+      "type": "string",
+      "enum": [
+        "Never",
+        "ForIndentation",
+        "ForContinuationAndIndentation",
+        "AlignWithSpaces",
+        "Always"
+      ],
+      "default": "Never",
+      "description": "Tab policy. Unset inherits the selected base style."
+    },
+    "BreakBeforeBraces": {
+      "type": "string",
+      "enum": [
+        "Attach",
+        "Linux",
+        "Mozilla",
+        "Stroustrup",
+        "Allman",
+        "Whitesmiths",
+        "GNU",
+        "WebKit"
+      ],
+      "default": "Attach",
+      "description": "Brace wrapping style. Unset inherits the selected base style."
+    }
+  }
+}
