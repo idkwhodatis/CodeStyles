@@ -1910,7 +1910,13 @@ mod tests {
                 "c", "h", "cc", "cpp", "cxx", "c++", "hh", "hpp", "hxx", "h++", "C", "H", "java",
                 "cs",
             ] {
-                fs::write(request.root().join(format!("source.{extension}")), "source").unwrap();
+                // Distinct basenames preserve .C/.H fixtures on case-insensitive filesystems.
+                let stem = if matches!(extension, "C" | "H") {
+                    "source-upper"
+                } else {
+                    "source"
+                };
+                fs::write(request.root().join(format!("{stem}.{extension}")), "source").unwrap();
             }
             let (files, _) = native_scope(&request, &AtomicBool::new(false)).unwrap();
             assert_eq!(
@@ -1918,6 +1924,12 @@ mod tests {
                 if language == NativeLanguage::C { 2 } else { 11 }
             );
             assert!(files.contains(&request.root().join("source.h")));
+            for extension in ["C", "H"] {
+                assert_eq!(
+                    files.contains(&request.root().join(format!("source-upper.{extension}"))),
+                    language == NativeLanguage::Cpp
+                );
+            }
             assert_eq!(
                 files.contains(&request.root().join("source.c")),
                 language == NativeLanguage::C
