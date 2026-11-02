@@ -509,6 +509,20 @@ fn unique_property(object: &CstObject, key: &str) -> Result<Option<CstObjectProp
     Ok(first)
 }
 
+fn unique_section_options(root: &CstObject, section: &str) -> Result<(), String> {
+    if let Some(options) = unique_property(root, section)?.and_then(|prop| prop.object_value()) {
+        for prop in options.properties() {
+            let key = prop
+                .name()
+                .ok_or("Missing configuration property name.")?
+                .decoded_value()
+                .map_err(|e| format!("Invalid configuration property: {e:?}"))?;
+            unique_property(&options, &key)?;
+        }
+    }
+    Ok(())
+}
+
 fn has_pinned_typescript_schema(object: &CstObject) -> bool {
     let (Ok(plugins), Ok(extends), Ok(inherit)) = (
         unique_property(object, "plugins"),
@@ -660,6 +674,9 @@ pub(crate) fn validate_vue_config(text: &str) -> Result<Value, String> {
     ] {
         unique_property(&root, key)?;
     }
+    for section in ["markup", "malva", "typescript", "json"] {
+        unique_section_options(&root, section)?;
+    }
     let value = jsonc_parser::parse_to_serde_value(text, &jsonc_parser::ParseOptions::default())
         .map_err(|e| e.to_string())?
         .ok_or("Empty Vue configuration.")?;
@@ -690,6 +707,68 @@ pub(crate) fn validate_vue_config(text: &str) -> Result<Value, String> {
             "Managed Vue requires markup.scriptFormatter = dprint for complete script formatting."
                 .into(),
         );
+    }
+    Ok(value)
+}
+
+/// Explicit single-language WASM mode. User plugin references are preserved in
+/// the saved document but never executed by this isolated managed pipeline.
+pub(crate) fn validate_managed_language_config(
+    text: &str,
+    extension: &str,
+) -> Result<Value, String> {
+    if matches!(extension, "html" | "htm") {
+        return validate_vue_config(text);
+    }
+    let section = match extension {
+        "css" | "scss" => "malva",
+        "yaml" | "yml" => "yaml",
+        "sql" => "sql",
+        _ => return Err("Unsupported managed WASM language.".into()),
+    };
+    let cst = parse_object(text)?;
+    let root = cst.object_value().expect("validated root");
+    for key in ["extends", "overrides", "inherit", section] {
+        unique_property(&root, key)?;
+    }
+    unique_section_options(&root, section)?;
+    let value = jsonc_parser::parse_to_serde_value(text, &jsonc_parser::ParseOptions::default())
+        .map_err(|e| e.to_string())?
+        .ok_or("Empty managed language configuration.")?;
+    let object = value
+        .as_object()
+        .ok_or("Managed language configuration must be an object.")?;
+    if object.contains_key("extends")
+        || object.contains_key("overrides")
+        || object
+            .get("inherit")
+            .is_some_and(|v| v != &Value::Bool(false))
+    {
+        return Err(
+            "Managed language mode requires explicit settings without inheritance or overrides."
+                .into(),
+        );
+    }
+    if object.get(section).is_some_and(|v| !v.is_object()) {
+        return Err(format!("{section} must be an object."));
+    }
+    if section == "yaml"
+        && value["yaml"]
+            .get("trimTrailingWhitespaces")
+            .is_some_and(|v| v != &Value::Bool(false))
+    {
+        return Err(
+            "YAML trimTrailingWhitespaces must be false: trimming can change block scalar values."
+                .into(),
+        );
+    }
+    if section == "sql"
+        && !matches!(
+            value["sql"]["dialect"].as_str(),
+            Some("postgresql" | "mysql" | "sqlite")
+        )
+    {
+        return Err("Select sql.dialect = postgresql, mysql, or sqlite before formatting SQL. Generic/automatic and other dialects are unsupported.".into());
     }
     Ok(value)
 }
@@ -794,6 +873,46 @@ impl DraftConfig {
             })
             .collect::<Result<Vec<_>, String>>()?;
         object.insert("plugins".into(), Value::Array(paths));
+        object.insert("incremental".into(), Value::Bool(false));
+        for key in ["includes", "excludes", "inherit"] {
+            object.remove(key);
+        }
+        Self::from_snapshot(&ConfigSnapshot {
+            source_text: serde_json::to_string(&value).map_err(|e| e.to_string())?,
+            original_path: None,
+        })
+    }
+
+    pub fn for_managed_language(
+        snapshot: &ConfigSnapshot,
+        plugins: &[PathBuf],
+        extension: &str,
+    ) -> Result<Self, String> {
+        if matches!(extension, "html" | "htm") {
+            return Self::for_vue(snapshot, plugins);
+        }
+        let mut value = validate_managed_language_config(snapshot.source_text(), extension)?;
+        let plugin = match extension {
+            "css" | "scss" => crate::schema::PinnedPlugin::Malva,
+            "yaml" | "yml" => crate::schema::PinnedPlugin::PrettyYaml,
+            "sql" => crate::schema::PinnedPlugin::Sql,
+            _ => return Err("Unsupported managed WASM language.".into()),
+        };
+        let path = plugins
+            .iter()
+            .find(|path| path.file_name() == Some(std::ffi::OsStr::new(plugin.filename())))
+            .ok_or_else(|| format!("Managed language dependency missing: {}", plugin.filename()))?;
+        let canonical = fs::canonicalize(path).map_err(|e| e.to_string())?;
+        let object = value.as_object_mut().expect("validated object");
+        if matches!(extension, "yaml" | "yml") {
+            object
+                .entry("yaml")
+                .or_insert_with(|| serde_json::json!({}))
+                .as_object_mut()
+                .expect("validated YAML section")
+                .insert("trimTrailingWhitespaces".into(), Value::Bool(false));
+        }
+        object.insert("plugins".into(), serde_json::json!([canonical]));
         object.insert("incremental".into(), Value::Bool(false));
         for key in ["includes", "excludes", "inherit"] {
             object.remove(key);
@@ -1612,6 +1731,82 @@ mod managed_vue_config_tests {
                 original_path: None,
             };
             assert!(DraftConfig::for_vue(&snapshot, &paths).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod managed_web_config_tests {
+    use super::*;
+    #[test]
+    fn explicit_wasm_configs_reject_ambiguous_and_inherited_values() {
+        for extension in ["html", "htm", "css", "scss", "yaml", "yml", "sql"] {
+            for source in [
+                r#"{"extends":"other.json"}"#,
+                r#"{"inherit":true}"#,
+                r#"{"overrides":[]}"#,
+            ] {
+                assert!(validate_managed_language_config(source, extension).is_err());
+            }
+        }
+        for source in [
+            "{}",
+            r#"{"sql":{"dialect":"generic"}}"#,
+            r#"{"sql":{"dialect":"unknown"}}"#,
+            r#"{"sql":{"dialect":"postgresql","dialect":"mysql"}}"#,
+            r#"{"sql":{},"sql":{"dialect":"mysql"}}"#,
+        ] {
+            assert!(validate_managed_language_config(source, "sql").is_err());
+        }
+        for dialect in ["postgresql", "mysql", "sqlite"] {
+            validate_managed_language_config(
+                &format!(r#"{{"sql":{{"dialect":"{dialect}"}}}}"#),
+                "sql",
+            )
+            .unwrap();
+        }
+        for (extension, section) in [("css", "malva"), ("yaml", "yaml"), ("sql", "sql")] {
+            assert!(
+                validate_managed_language_config(&format!(r#"{{"{section}":[]}}"#), extension)
+                    .is_err()
+            );
+        }
+    }
+    #[test]
+    fn isolated_data_drafts_execute_only_the_named_verified_plugin() {
+        let dir = tempfile::tempdir().unwrap();
+        for (extension, plugin) in [
+            ("css", crate::schema::PinnedPlugin::Malva),
+            ("yaml", crate::schema::PinnedPlugin::PrettyYaml),
+            ("sql", crate::schema::PinnedPlugin::Sql),
+        ] {
+            let path = dir.path().join(plugin.filename());
+            fs::write(&path, b"fixture").unwrap();
+            let source_text = r#"{ // preserved
+              "plugins":["https://untrusted.invalid/a.wasm"],"includes":["**/*"],
+              "sql":{"dialect":"postgresql"},"unknown":{"keep":true}}
+            "#
+            .to_owned();
+            let snapshot = ConfigSnapshot {
+                source_text: source_text.clone(),
+                original_path: None,
+            };
+            let draft = DraftConfig::for_managed_language(
+                &snapshot,
+                std::slice::from_ref(&path),
+                extension,
+            )
+            .unwrap();
+            let value: Value =
+                serde_json::from_str(&fs::read_to_string(draft.path()).unwrap()).unwrap();
+            assert_eq!(
+                value["plugins"],
+                serde_json::json!([fs::canonicalize(path).unwrap()])
+            );
+            assert!(value.get("includes").is_none());
+            assert_eq!(value["unknown"]["keep"], true);
+            assert_eq!(snapshot.source_text(), source_text);
+            assert!(DraftConfig::for_managed_language(&snapshot, &[], extension).is_err());
         }
     }
 }

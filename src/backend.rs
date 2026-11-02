@@ -136,14 +136,39 @@ impl Backend {
         if crate::native_format::NativeLanguage::from_path(&request.source_path).is_some() {
             return self.native.format(request, cancelled, self.timeout);
         }
+        if let Some(extension @ ("html" | "htm" | "css" | "scss" | "yaml" | "yml" | "sql")) =
+            extension
+        {
+            crate::web_source::validate_source(extension, &request.source)?;
+            let settings = crate::config::validate_managed_language_config(
+                request.config.source_text(),
+                extension,
+            )?;
+            if extension == "sql" {
+                crate::sql_scope::validate_source(
+                    &request.source,
+                    settings["sql"]["dialect"]
+                        .as_str()
+                        .expect("validated dialect"),
+                )?;
+            }
+        }
         if self.managed_dprint {
             let (backend, _lease) = self.resolve_dprint(&cancelled)?;
             return backend.format(request, cancelled);
         }
         // Retain the shared pack lease until every formatter pipe has exited.
         let _vue_runtime;
-        let draft = if extension == Some("vue") {
-            crate::vue::validate_source(&request.source)?;
+        let pack = match extension {
+            Some("vue" | "html" | "htm" | "css" | "scss") => Some("vue"),
+            Some("yaml" | "yml") => Some("yaml"),
+            Some("sql") => Some("sql"),
+            _ => None,
+        };
+        let draft = if let Some(pack) = pack {
+            if extension == Some("vue") {
+                crate::vue::validate_source(&request.source)?;
+            }
             let manager = {
                 let mut slot = self
                     .managed
@@ -154,14 +179,24 @@ impl Backend {
                 }
                 slot.as_ref().expect("initialized").clone()
             };
-            _vue_runtime = Some(manager.resolve_cancellable("vue", &cancelled)?);
+            _vue_runtime = Some(manager.resolve_cancellable(pack, &cancelled)?);
             let runtime = _vue_runtime.as_ref().expect("resolved");
-            if !runtime.executable.as_os_str().is_empty() || runtime.wasm_plugins.len() != 2 {
-                return Err("Vue support requires the complete verified WASM pack.".into());
+            let expected = if pack == "vue" { 2 } else { 1 };
+            if !runtime.executable.as_os_str().is_empty() || runtime.wasm_plugins.len() != expected
+            {
+                return Err("Language support requires the complete verified WASM pack.".into());
             }
             let mut plugins = self.plugins.clone();
             plugins.extend(runtime.wasm_plugins.iter().cloned());
-            DraftConfig::for_vue(&request.config, &plugins)?
+            if extension == Some("vue") {
+                DraftConfig::for_vue(&request.config, &plugins)?
+            } else {
+                DraftConfig::for_managed_language(
+                    &request.config,
+                    &plugins,
+                    extension.expect("managed extension"),
+                )?
+            }
         } else {
             _vue_runtime = None;
             DraftConfig::for_preview(&request.config, &self.plugins)?
@@ -179,7 +214,13 @@ impl Backend {
         // Keep the path within one option value so names starting with a dash
         // cannot be interpreted as CLI flags. OsString preserves native paths.
         let mut stdin_path = std::ffi::OsString::from("--stdin=");
-        stdin_path.push(&request.source_path);
+        // markup_fmt's pinned matcher recognizes .html, not .htm. This is an
+        // stdin hint only; project reads/review/writes retain the actual path.
+        if extension == Some("htm") {
+            stdin_path.push(request.source_path.with_extension("html"));
+        } else {
+            stdin_path.push(&request.source_path);
+        }
         command
             .arg("fmt")
             .arg("--config-discovery=false")

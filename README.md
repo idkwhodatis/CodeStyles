@@ -41,6 +41,22 @@ and `.csharpierrc.json` options (strict JSON); unsupported constructs reject the
 whole import. There is no automatic config discovery or IDE settings rewrite. See the
 [exact settings, runtime contracts and validation boundaries](JAVA_CSHARP_CPP_SUPPORT.md).
 
+## HTML, CSS, SCSS, YAML and SQL (local candidates)
+
+Standalone Web/config languages now have offline samples/settings, managed
+preview/Diff and selected-language project Check/review/apply. HTML/CSS/SCSS reuse
+the unchanged Vue/Web WASM pack; YAML uses Pretty YAML **0.6.0** and SQL uses
+**0.4.1** in separate optional packs. All depend on the unchanged managed dprint
+`0.63.0-p1` pack. Downloads remain disabled pending separate release acceptance.
+
+Templates fail closed, including marker-like literal strings. SQL requires an
+explicit supported dialect, excludes procedural/client scripts, and is formatting
+—not SQL validation or database execution. No OS file-open associations are added.
+YAML formatting forces `trimTrailingWhitespaces: false` in the temporary runtime
+config to protect block scalar spaces, without rewriting saved/exported JSONC.
+External editor/CLI use must set it explicitly and does not inherit the app's
+source guards. See [the YAML safety override, exact source scope and release gates](WEB_CONFIG_SQL_SUPPORT.md).
+
 ## Python formatting
 
 Python `.py` and type-stub `.pyi` files use the managed, checksummed

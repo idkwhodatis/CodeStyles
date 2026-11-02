@@ -1,9 +1,10 @@
 # Optional language support
 
-CodeStyles retains its bundled offline dprint plugins, including Python/PythonStub
-(Ruff). Existing configurations and portable packages keep working. Rust is the
-first optional **native language pack**, not a WASM plugin, linter, compiler,
-arbitrary executable runner, or agent coding-rules engine.
+CodeStyles retains offline schemas, settings and samples, including Python/PythonStub
+(Ruff). Formatting uses explicitly installed managed runtimes; the dprint engine
+and its five pinned WASMs are the atomic optional `0.63.0-p1` pack, not bundled
+startup prerequisites. Rust is the first optional **native language pack**, not
+a WASM plugin, linter, compiler, arbitrary executable runner, or agent coding-rules engine.
 
 ## Current availability
 
@@ -102,3 +103,28 @@ PATH executable, rustup, network request or shell is needed to format after inst
   runtime closure findings and remaining gaps are in `TOOLCHAIN_PACKAGING.md`.
 - Desktop compilation/unit tests do not substitute for manual six-platform GUI,
   permission, relocation and packaging acceptance.
+
+## Standalone Web, YAML and SQL candidates
+
+HTML/CSS/SCSS share the existing Vue/Web `markup-0.27.6-malva-0.16.0` pack without
+changing its archive bytes. YAML (`pretty_yaml-0.6.0`) and SQL (`sql-0.4.1`) use
+separate data-only WASM packs with an explicit `requires_dprint_pack: 0.63.0-p1`
+contract. The engine plus five base plugins remain unchanged. Settings, samples
+and schemas are available offline before installation; formatting requires both
+the engine and the selected language's pack. No system/PATH or silent-download
+fallback is used.
+
+All six targets for each new candidate remain unavailable in the production
+catalog. MIT notices are included; transitive license review, native platform and
+GUI acceptance, and separately approved publication/activation remain gates.
+The deterministic offline `scripts/build_wasm_language_pack.py` emits disabled
+candidate manifests, not downloadable releases.
+
+These modes format selected-language project files after Check and diff review.
+Templates fail closed even when marker-like text appears in literal strings.
+SQL requires an explicit supported dialect and excludes procedural/client
+scripts; formatting neither validates SQL nor executes database/network actions.
+YAML applies a temporary `trimTrailingWhitespaces: false` safety override and
+rejects keep-chomping scalars. Saved/exported JSONC is not rewritten; external
+dprint use must set false explicitly and does not inherit application source
+guards. See [the complete scope and external YAML configuration example](WEB_CONFIG_SQL_SUPPORT.md).

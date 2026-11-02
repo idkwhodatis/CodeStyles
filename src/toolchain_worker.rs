@@ -67,6 +67,8 @@ impl ToolchainController {
             "gofmt" => "gofmt",
             "dartfmt" => "dartfmt",
             "vue" => "vue",
+            "yaml" => "yaml",
+            "sql" => "sql",
             "google-java-format" => "google-java-format",
             "csharpier" => "csharpier",
             "clang-format" => "clang-format",
@@ -273,7 +275,9 @@ mod tests {
 
     #[test]
     fn controllers_accept_only_fixed_pack_ids_and_pin_identity() {
-        for id in ["dprint", "rustfmt", "gofmt", "dartfmt", "vue"] {
+        for id in [
+            "dprint", "rustfmt", "gofmt", "dartfmt", "vue", "yaml", "sql",
+        ] {
             let controller = ToolchainController::for_pack(id).unwrap();
             assert_eq!(controller.pack_id(), id);
         }

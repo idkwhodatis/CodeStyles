@@ -21,6 +21,11 @@ pub enum SourceLanguage {
     Go,
     Dart,
     Vue,
+    Html,
+    Css,
+    Scss,
+    Yaml,
+    Sql,
     Java,
     CSharp,
     C,
@@ -28,7 +33,7 @@ pub enum SourceLanguage {
 }
 
 impl SourceLanguage {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 23] = [
         Self::TypeScript,
         Self::JavaScript,
         Self::Tsx,
@@ -43,6 +48,11 @@ impl SourceLanguage {
         Self::Go,
         Self::Dart,
         Self::Vue,
+        Self::Html,
+        Self::Css,
+        Self::Scss,
+        Self::Yaml,
+        Self::Sql,
         Self::Java,
         Self::CSharp,
         Self::C,
@@ -65,6 +75,11 @@ impl SourceLanguage {
             Self::Go => "Go",
             Self::Dart => "Dart / Flutter",
             Self::Vue => "Vue",
+            Self::Html => "HTML",
+            Self::Css => "CSS",
+            Self::Scss => "SCSS",
+            Self::Yaml => "YAML",
+            Self::Sql => "SQL",
             Self::Java => "Java",
             Self::CSharp => "C#",
             Self::C => "C",
@@ -89,6 +104,11 @@ impl SourceLanguage {
             Self::Go => "Go",
             Self::Dart => "Dart / Flutter",
             Self::Vue => "Vue",
+            Self::Html => "HTML",
+            Self::Css => "CSS",
+            Self::Scss => "SCSS",
+            Self::Yaml => "YAML",
+            Self::Sql => "SQL",
             Self::Java => "Java",
             Self::CSharp => "C#",
             Self::C => "C",
@@ -99,7 +119,7 @@ impl SourceLanguage {
     pub fn category(self) -> &'static str {
         match self {
             Self::TypeScript | Self::JavaScript | Self::Tsx | Self::Jsx => "Code",
-            Self::Json | Self::Jsonc | Self::Toml => "Data",
+            Self::Json | Self::Jsonc | Self::Toml | Self::Yaml => "Data",
             Self::Markdown => "Documentation",
             Self::Python => "Code",
             Self::PythonStub => "Code",
@@ -107,6 +127,10 @@ impl SourceLanguage {
             | Self::Go
             | Self::Dart
             | Self::Vue
+            | Self::Html
+            | Self::Css
+            | Self::Scss
+            | Self::Sql
             | Self::Java
             | Self::CSharp
             | Self::C
@@ -136,6 +160,11 @@ impl SourceLanguage {
             Self::C => include_str!("../resources/samples/sample.c"),
             Self::Cpp => include_str!("../resources/samples/sample.cpp"),
             Self::Vue => include_str!("../resources/samples/sample.vue"),
+            Self::Html => include_str!("../resources/samples/sample.html"),
+            Self::Css => include_str!("../resources/samples/sample.css"),
+            Self::Scss => include_str!("../resources/samples/sample.scss"),
+            Self::Yaml => include_str!("../resources/samples/sample.yaml"),
+            Self::Sql => include_str!("../resources/samples/sample.sql"),
         }
     }
 
@@ -159,6 +188,11 @@ impl SourceLanguage {
             Self::C => "c",
             Self::Cpp => "cpp",
             Self::Vue => "vue",
+            Self::Html => "html",
+            Self::Css => "css",
+            Self::Scss => "scss",
+            Self::Yaml => "yaml",
+            Self::Sql => "sql",
         }
     }
 
@@ -178,6 +212,11 @@ impl SourceLanguage {
             Self::C => PinnedPlugin::ClangFormat,
             Self::Cpp => PinnedPlugin::ClangFormat,
             Self::Vue => PinnedPlugin::Markup,
+            Self::Html => PinnedPlugin::Markup,
+            Self::Css => PinnedPlugin::Malva,
+            Self::Scss => PinnedPlugin::Malva,
+            Self::Yaml => PinnedPlugin::PrettyYaml,
+            Self::Sql => PinnedPlugin::Sql,
         }
     }
 
@@ -196,6 +235,11 @@ impl SourceLanguage {
             Self::C => Some("clang-format"),
             Self::Cpp => Some("clang-format"),
             Self::Vue => Some("vue"),
+            Self::Html => Some("vue"),
+            Self::Css => Some("vue"),
+            Self::Scss => Some("vue"),
+            Self::Yaml => Some("yaml"),
+            Self::Sql => Some("sql"),
             _ => None,
         }
     }
@@ -224,6 +268,11 @@ impl SourceLanguage {
             (Self::C, false) => "sample.c",
             (Self::Cpp, false) => "sample.cpp",
             (Self::Vue, false) => "sample.vue",
+            (Self::Html, false) => "sample.html",
+            (Self::Css, false) => "sample.css",
+            (Self::Scss, false) => "sample.scss",
+            (Self::Yaml, false) => "sample.yaml",
+            (Self::Sql, false) => "sample.sql",
             (Self::TypeScript, true) => "custom.ts",
             (Self::JavaScript, true) => "custom.js",
             (Self::Tsx, true) => "custom.tsx",
@@ -242,6 +291,11 @@ impl SourceLanguage {
             (Self::C, true) => "custom.c",
             (Self::Cpp, true) => "custom.cpp",
             (Self::Vue, true) => "custom.vue",
+            (Self::Html, true) => "custom.html",
+            (Self::Css, true) => "custom.css",
+            (Self::Scss, true) => "custom.scss",
+            (Self::Yaml, true) => "custom.yaml",
+            (Self::Sql, true) => "custom.sql",
         }
     }
 }
@@ -305,7 +359,12 @@ impl BuiltinSample {
                 | SourceLanguage::CSharp
                 | SourceLanguage::C
                 | SourceLanguage::Cpp
-                | SourceLanguage::Vue),
+                | SourceLanguage::Vue
+                | SourceLanguage::Html
+                | SourceLanguage::Css
+                | SourceLanguage::Scss
+                | SourceLanguage::Yaml
+                | SourceLanguage::Sql),
                 _,
             ) => language.builtin_source(),
             (SourceLanguage::Json, Self::Collections) => JSON_COLLECTIONS,
@@ -601,6 +660,11 @@ mod tests {
             (SourceLanguage::Go, "package main", "go"),
             (SourceLanguage::Dart, "void main()", "dart"),
             (SourceLanguage::Vue, "<template>", "vue"),
+            (SourceLanguage::Html, "<!doctype html>", "html"),
+            (SourceLanguage::Css, ":root", "css"),
+            (SourceLanguage::Scss, "@mixin", "scss"),
+            (SourceLanguage::Yaml, "&defaults", "yaml"),
+            (SourceLanguage::Sql, "select category", "sql"),
             (SourceLanguage::Java, "class Example", "java"),
             (SourceLanguage::CSharp, "public record Item", "cs"),
             (SourceLanguage::C, "struct item", "c"),
@@ -611,7 +675,30 @@ mod tests {
             assert!(!language.is_bundled());
             assert!(language.pack_id().is_some());
         }
-        assert_eq!(SourceLanguage::ALL.len(), 18);
+        assert_eq!(SourceLanguage::ALL.len(), 23);
+    }
+
+    #[test]
+    fn web_config_samples_exercise_composition_and_scalar_preservation() {
+        let html = SourceLanguage::Html.builtin_source();
+        for marker in ["<script>", "<style>", "<em>", "<!--"] {
+            assert!(html.contains(marker));
+        }
+        let yaml = SourceLanguage::Yaml.builtin_source();
+        for marker in ["&defaults", "*defaults", "|-", ">-", "\"on\"", "#"] {
+            assert!(yaml.contains(marker));
+        }
+        assert!(SourceLanguage::Scss.builtin_source().contains("&:hover"));
+        assert!(SourceLanguage::Sql.builtin_source().contains("group by"));
+        for language in [
+            SourceLanguage::Html,
+            SourceLanguage::Css,
+            SourceLanguage::Scss,
+        ] {
+            assert_eq!(language.pack_id(), Some("vue"));
+        }
+        assert_eq!(SourceLanguage::Yaml.pack_id(), Some("yaml"));
+        assert_eq!(SourceLanguage::Sql.pack_id(), Some("sql"));
     }
 
     #[test]
@@ -655,6 +742,11 @@ mod tests {
                 SourceLanguage::C => PinnedPlugin::ClangFormat,
                 SourceLanguage::Cpp => PinnedPlugin::ClangFormat,
                 SourceLanguage::Vue => PinnedPlugin::Markup,
+                SourceLanguage::Html => PinnedPlugin::Markup,
+                SourceLanguage::Css => PinnedPlugin::Malva,
+                SourceLanguage::Scss => PinnedPlugin::Malva,
+                SourceLanguage::Yaml => PinnedPlugin::PrettyYaml,
+                SourceLanguage::Sql => PinnedPlugin::Sql,
             };
             assert_eq!(language.plugin(), expected);
             let mut source = SourceState::default();
@@ -917,7 +1009,7 @@ mod tests {
                 ],
             ),
         ];
-        assert_eq!(coverage.len() + 10, SourceLanguage::ALL.len());
+        assert_eq!(coverage.len() + 15, SourceLanguage::ALL.len());
         for (language, tokens) in [
             (
                 SourceLanguage::Python,

@@ -1,7 +1,9 @@
 //! Saved-config project operations using the pinned dprint CLI's native discovery.
 //!
 //! Check/preparation never call `fmt`. Writes require a separate explicit action.
-//! No temporary config, plugin override, or config-discovery override is used here.
+//! Ordinary dprint project mode uses the saved config without plugin overrides.
+//! Explicit single-language managed modes instead reuse isolated preview formatting
+//! and the local scope/review protections below; they never run project plugins.
 //! CLI contract verified against dprint 0.63.0 help and tagged source:
 //! `arg_parser.rs`, `commands/{formatting,config}.rs`, `utils/glob/glob_utils.rs`.
 use crate::{
@@ -54,6 +56,11 @@ pub enum NativeLanguage {
     Go,
     Dart,
     Vue,
+    Html,
+    Css,
+    Scss,
+    Yaml,
+    Sql,
     Java,
     CSharp,
     C,
@@ -70,6 +77,11 @@ impl NativeLanguage {
             Self::C => "C",
             Self::Cpp => "C++",
             Self::Vue => "Vue",
+            Self::Html => "HTML",
+            Self::Css => "CSS",
+            Self::Scss => "SCSS",
+            Self::Yaml => "YAML",
+            Self::Sql => "SQL",
         }
     }
     fn extension(self) -> &'static str {
@@ -82,10 +94,17 @@ impl NativeLanguage {
             Self::C => "c",
             Self::Cpp => "cpp",
             Self::Vue => "vue",
+            Self::Html => "html",
+            Self::Css => "css",
+            Self::Scss => "scss",
+            Self::Yaml => "yaml",
+            Self::Sql => "sql",
         }
     }
     fn supports_extension(self, extension: &std::ffi::OsStr) -> bool {
         match self {
+            Self::Html => matches!(extension.to_str(), Some("html" | "htm")),
+            Self::Yaml => matches!(extension.to_str(), Some("yaml" | "yml")),
             Self::C => matches!(extension.to_str(), Some("c" | "h")),
             Self::Cpp => matches!(
                 extension.to_str(),
@@ -114,7 +133,18 @@ impl NativeLanguage {
             Self::C => "clang-format",
             Self::Cpp => "clang-format",
             Self::Vue => "dprint Vue WASM",
+            Self::Html => "dprint HTML WASM",
+            Self::Css => "dprint CSS WASM",
+            Self::Scss => "dprint SCSS WASM",
+            Self::Yaml => "dprint YAML WASM",
+            Self::Sql => "dprint SQL WASM",
         }
+    }
+    fn requires_dprint(self) -> bool {
+        matches!(
+            self,
+            Self::Vue | Self::Html | Self::Css | Self::Scss | Self::Yaml | Self::Sql
+        )
     }
     fn excluded_directory(self, name: &str) -> bool {
         name == ".git"
@@ -125,7 +155,13 @@ impl NativeLanguage {
                 Self::CSharp => matches!(name, "bin" | "obj"),
                 Self::C | Self::Cpp => matches!(name, "build" | "CMakeFiles"),
                 Self::Dart => matches!(name, "build" | ".dart_tool"),
-                Self::Vue => matches!(name, "node_modules" | "dist" | ".nuxt"),
+                Self::Vue | Self::Html | Self::Css | Self::Scss => {
+                    matches!(name, "node_modules" | "dist" | ".nuxt")
+                }
+                Self::Yaml | Self::Sql => matches!(
+                    name,
+                    "node_modules" | "dist" | "build" | "target" | "vendor"
+                ),
             }
     }
     fn metadata_names(self) -> &'static [&'static str] {
@@ -176,7 +212,7 @@ impl NativeLanguage {
                 "CMakeLists.txt",
                 "compile_commands.json",
             ],
-            Self::Vue => &[
+            Self::Vue | Self::Html | Self::Css | Self::Scss | Self::Yaml | Self::Sql => &[
                 ".gitignore",
                 ".ignore",
                 "package.json",
@@ -471,7 +507,9 @@ impl Backend {
         // and automatic verification, not just individual subprocesses.
         if self.needs_managed_dprint()
             && (request.native_language.is_none()
-                || request.native_language == Some(NativeLanguage::Vue))
+                || request
+                    .native_language
+                    .is_some_and(NativeLanguage::requires_dprint))
         {
             let (backend, _lease) = self.resolve_dprint(&cancelled)?;
             return backend.execute_project(request, cancelled);
@@ -934,6 +972,10 @@ impl Backend {
                 NativeLanguage::C | NativeLanguage::Cpp => "C/C++ source formatting uses explicit clangFormat settings, not .clang-format or compilation database discovery. C mode includes .c/.h; C++ mode includes C++ source/header suffixes and shared .h headers, interpreted as C++ by the selected project scope. Skips build/CMakeFiles and symlinks.",
                 NativeLanguage::Go => "Go-only project mode respects local .gitignore/.ignore and skips vendor/.git and symlinks. Fixed gofmt behavior; no module discovery, dependency downloads or configurable style rules.",
                 NativeLanguage::Vue => "Vue-only project mode uses verified markup/TypeScript/JSON/style WASM with explicit settings. It excludes node_modules/dist/.nuxt; external src and unsupported SFC blocks are rejected, not silently skipped.",
+                NativeLanguage::Html => "HTML-only project mode includes .html/.htm with explicit verified markup/script/style WASM. It skips node_modules/dist/.nuxt and symlinks. Embedded languages must be supported; external source files are never followed.",
+                NativeLanguage::Css | NativeLanguage::Scss => "Selected CSS or SCSS scope only, using verified Malva WASM and explicit settings. It skips node_modules/dist/.nuxt and symlinks. Imports are not resolved and other stylesheet languages are not included.",
+                NativeLanguage::Yaml => "YAML-only project mode includes .yaml/.yml with explicit verified WASM settings. Helm/Jinja templates are unsupported. It skips node_modules/dist/build/target/vendor and symlinks; package lock metadata is protected.",
+                NativeLanguage::Sql => "SQL-only project mode uses explicit verified WASM settings. Templated and procedural SQL are outside the supported scope. It skips node_modules/dist/build/target/vendor and symlinks; no database connection or dialect inference is performed.",
                 NativeLanguage::Dart => "Dart-only project mode respects local .gitignore/.ignore and skips build/.dart_tool/.git and symlinks. Explicit snapshot formatting settings only; protected project metadata is not automatically inherited. Flutter support means Dart source only.",
             }.into(),
             review: Some(review),
@@ -1331,6 +1373,8 @@ fn validate_native_project_config(text: &str, language: NativeLanguage) -> Resul
         crate::native_format::options(text, crate::native_format::NativeLanguage::Dart)?;
     } else if language == NativeLanguage::Vue {
         crate::config::validate_vue_config(text)?;
+    } else if language.requires_dprint() {
+        crate::config::validate_managed_language_config(text, language.extension())?;
     } else {
         let formatter_language = match language {
             NativeLanguage::Java => crate::native_format::NativeLanguage::Java,
@@ -1488,6 +1532,9 @@ fn native_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<Nati
             files.insert(request.safe_file(path)?);
         }
     }
+    // A metadata file may share the selected source suffix (for example
+    // pnpm-lock.yaml). Keep it protected, never part of the review source set.
+    files.retain(|path| !configs.contains_key(path));
     Ok((files, configs))
 }
 
@@ -1844,7 +1891,12 @@ mod tests {
     ) -> (tempfile::TempDir, ConfigDocument, ProjectRequest) {
         let dir = tempfile::tempdir().unwrap();
         let root = fs::canonicalize(dir.path()).unwrap();
-        fs::write(root.join("dprint.jsonc"), "{}").unwrap();
+        let settings = if language == NativeLanguage::Sql {
+            r#"{"sql":{"dialect":"postgresql"}}"#
+        } else {
+            "{}"
+        };
+        fs::write(root.join("dprint.jsonc"), settings).unwrap();
         let document = ConfigDocument::load(&root.join("dprint.jsonc")).unwrap();
         let request =
             ProjectRequest::new_native(root, &document, ProjectAction::Check, true, language)
@@ -1858,6 +1910,12 @@ mod tests {
             NativeLanguage::Rust,
             NativeLanguage::Go,
             NativeLanguage::Dart,
+            NativeLanguage::Vue,
+            NativeLanguage::Html,
+            NativeLanguage::Css,
+            NativeLanguage::Scss,
+            NativeLanguage::Yaml,
+            NativeLanguage::Sql,
             NativeLanguage::Java,
             NativeLanguage::CSharp,
             NativeLanguage::C,
@@ -1865,14 +1923,21 @@ mod tests {
         ] {
             let (_dir, _document, request) = native_fixture(language);
             let root = request.root();
-            for extension in ["rs", "go", "dart", "vue", "java", "cs", "c", "cpp"] {
+            for extension in [
+                "rs", "go", "dart", "vue", "java", "cs", "c", "cpp", "html", "css", "scss", "yaml",
+                "sql",
+            ] {
                 fs::write(root.join(format!("source.{extension}")), "source").unwrap();
             }
             let skipped = match language {
                 NativeLanguage::Rust => "target",
                 NativeLanguage::Go => "vendor",
                 NativeLanguage::Dart => "build",
-                NativeLanguage::Vue => "node_modules",
+                NativeLanguage::Vue
+                | NativeLanguage::Html
+                | NativeLanguage::Css
+                | NativeLanguage::Scss => "node_modules",
+                NativeLanguage::Yaml | NativeLanguage::Sql => "build",
                 NativeLanguage::Java => "target",
                 NativeLanguage::CSharp => "obj",
                 NativeLanguage::C | NativeLanguage::Cpp => "build",
@@ -1905,6 +1970,83 @@ mod tests {
             fs::remove_file(metadata).unwrap();
             assert_ne!(native_scope(&request, &cancel).unwrap().1, configs);
             assert!(native_scope(&request, &AtomicBool::new(true)).is_err());
+        }
+    }
+
+    #[test]
+    fn web_config_sql_scopes_keep_aliases_and_ignore_other_languages() {
+        for language in [
+            NativeLanguage::Html,
+            NativeLanguage::Css,
+            NativeLanguage::Scss,
+            NativeLanguage::Yaml,
+            NativeLanguage::Sql,
+        ] {
+            let (_dir, _document, request) = native_fixture(language);
+            let root = request.root();
+            fs::write(root.join(".ignore"), "ignored.*\n").unwrap();
+            for extension in [
+                "html", "htm", "css", "scss", "yaml", "yml", "sql", "vue", "js", "sass", "less",
+            ] {
+                fs::write(root.join(format!("source.{extension}")), "original").unwrap();
+                fs::write(root.join(format!("ignored.{extension}")), "ignored").unwrap();
+            }
+            let before = fs::read(root.join("source.yaml")).unwrap();
+            let (files, configs) = native_scope(&request, &AtomicBool::new(false)).unwrap();
+            let extensions: &[&str] = match language {
+                NativeLanguage::Html => &["html", "htm"],
+                NativeLanguage::Yaml => &["yaml", "yml"],
+                _ => &[language.extension()],
+            };
+            assert_eq!(
+                files,
+                extensions
+                    .iter()
+                    .map(|extension| root.join(format!("source.{extension}")))
+                    .collect()
+            );
+            assert!(configs.contains_key(&root.join(".ignore")));
+            assert_eq!(fs::read(root.join("source.yaml")).unwrap(), before);
+            assert!(language.requires_dprint());
+            for path in files {
+                assert_eq!(language.formatting_path(&path), path);
+            }
+        }
+    }
+
+    #[test]
+    fn web_config_sql_requests_require_saved_trusted_configuration() {
+        for language in [
+            NativeLanguage::Html,
+            NativeLanguage::Css,
+            NativeLanguage::Scss,
+            NativeLanguage::Yaml,
+            NativeLanguage::Sql,
+        ] {
+            let (_dir, mut document, request) = native_fixture(language);
+            assert!(
+                ProjectRequest::new_native(
+                    request.root.clone(),
+                    &document,
+                    ProjectAction::Check,
+                    false,
+                    language
+                )
+                .is_err()
+            );
+            document
+                .set(&["indentWidth"], serde_json::json!(4))
+                .unwrap();
+            assert!(
+                ProjectRequest::new_native(
+                    request.root.clone(),
+                    &document,
+                    ProjectAction::Check,
+                    true,
+                    language
+                )
+                .is_err()
+            );
         }
     }
 
@@ -2053,6 +2195,12 @@ mod tests {
     #[test]
     fn native_modes_reject_implicit_discovery_and_nested_configs() {
         for language in [
+            NativeLanguage::Vue,
+            NativeLanguage::Html,
+            NativeLanguage::Css,
+            NativeLanguage::Scss,
+            NativeLanguage::Yaml,
+            NativeLanguage::Sql,
             NativeLanguage::Rust,
             NativeLanguage::Go,
             NativeLanguage::Dart,

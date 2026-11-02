@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://plugins.dprint.dev/dprint/dprint-plugin-sql/0.4.1/schema.json",
+  "type": "object",
+  "definitions": {
+    "useTabs": {
+      "description": "Whether to use tabs (true) or spaces (false).",
+      "type": "boolean",
+      "default": false,
+      "oneOf": [{
+        "const": true,
+        "description": ""
+      }, {
+        "const": false,
+        "description": ""
+      }]
+    },
+    "newLineKind": {
+      "description": "The kind of newline to use.",
+      "type": "string",
+      "default": "lf",
+      "oneOf": [{
+        "const": "auto",
+        "description": "For each file, uses the newline kind found at the end of the last line."
+      }, {
+        "const": "crlf",
+        "description": "Uses carriage return, line feed."
+      }, {
+        "const": "lf",
+        "description": "Uses line feed."
+      }, {
+        "const": "system",
+        "description": "Uses the system standard (ex. crlf on Windows)."
+      }]
+    }
+  },
+  "properties": {
+    "lineWidth": {
+      "description": "The width of a line the printer will try to stay under. Note that the printer may exceed this width in certain cases.",
+      "default": 120,
+      "type": "number"
+    },
+    "indentWidth": {
+      "description": "The number of characters for an indent.",
+      "default": 2,
+      "type": "number"
+    },
+    "useTabs": {
+      "$ref": "#/definitions/useTabs"
+    },
+    "newLineKind": {
+      "$ref": "#/definitions/newLineKind"
+    },
+    "dialect": {
+      "description": "The SQL dialect the files are written in, which decides how the text is split into tokens: which characters start a comment or quote an identifier, whether a backslash escapes a quote, and so on. The generic dialect accepts the syntax of all of the others where they don't conflict.",
+      "type": "string",
+      "default": "generic",
+      "oneOf": [{
+        "const": "generic",
+        "description": "The syntax of all of the dialects where they don't conflict."
+      }, {
+        "const": "postgresql",
+        "description": "PostgreSQL, which also suits databases that use its syntax (ex. CockroachDB, DuckDB and Redshift)."
+      }, {
+        "const": "mysql",
+        "description": "MySQL and MariaDB."
+      }, {
+        "const": "sqlserver",
+        "description": "Microsoft SQL Server and Azure SQL (T-SQL)."
+      }, {
+        "const": "sqlite",
+        "description": "SQLite."
+      }, {
+        "const": "oracle",
+        "description": "Oracle (PL/SQL)."
+      }, {
+        "const": "bigquery",
+        "description": "Google BigQuery."
+      }, {
+        "const": "snowflake",
+        "description": "Snowflake."
+      }]
+    },
+    "casing": {
+      "description": "The casing of keywords. Names (ex. of tables and columns) and functions are left as written.",
+      "type": "string",
+      "default": "preserve",
+      "oneOf": [{
+        "const": "preserve",
+        "description": "Preserves the casing of keywords."
+      }, {
+        "const": "upper",
+        "description": "Converts keywords to UPPERCASE."
+      }, {
+        "const": "lower",
+        "description": "Converts keywords to lowercase."
+      }]
+    },
+    "uppercase": {
+      "description": "Deprecated. Use 'casing' instead. Use ALL CAPS for keywords.",
+      "default": false,
+      "type": "boolean"
+    },
+    "linesBetweenQueries": {
+      "description": "The minimum number of line breaks between statements at the top level of the file. A blank line between statements is kept regardless.",
+      "default": 1,
+      "type": "integer",
+      "minimum": 1
+    },
+    "joinsAsTopLevel": {
+      "description": "Whether to write joins at the indentation of the FROM keyword rather than indented beneath it.",
+      "default": false,
+      "type": "boolean"
+    }
+  }
+}

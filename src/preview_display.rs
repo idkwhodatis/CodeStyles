@@ -86,7 +86,10 @@ fn highlight_language(language: SourceLanguage) -> &'static str {
         | SourceLanguage::CSharp
         | SourceLanguage::C
         | SourceLanguage::Cpp => "text",
-        SourceLanguage::Vue => "html",
+        SourceLanguage::Vue | SourceLanguage::Html => "html",
+        SourceLanguage::Css | SourceLanguage::Scss | SourceLanguage::Yaml | SourceLanguage::Sql => {
+            "text"
+        }
         SourceLanguage::Python | SourceLanguage::PythonStub => "python",
     }
 }
@@ -117,6 +120,11 @@ mod tests {
                     SourceLanguage::Go
                         | SourceLanguage::Dart
                         | SourceLanguage::Vue
+                        | SourceLanguage::Html
+                        | SourceLanguage::Css
+                        | SourceLanguage::Scss
+                        | SourceLanguage::Yaml
+                        | SourceLanguage::Sql
                         | SourceLanguage::Java
                         | SourceLanguage::CSharp
                         | SourceLanguage::C

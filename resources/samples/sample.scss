@@ -1,0 +1,5 @@
+// Nested rules share one accent.
+$accent:#aabbcc;
+@mixin inset($space:8px){padding:$space;border:1px solid $accent;}
+.card{@include inset(16px);color:$accent;&:hover{color:darken($accent,10%)}.title{font-weight:bold}}
+@media (min-width:640px){.card{display:grid;gap:16px}}

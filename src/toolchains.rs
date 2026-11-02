@@ -416,6 +416,20 @@ impl ToolchainManager {
                 return Err("Unsupported dprint engine/WASM pack revision.".into());
             }
             runtime_entrypoints(spec)?;
+        } else if matches!(id, "yaml" | "sql") {
+            let (expected_version, expected_plugin) = if id == "yaml" {
+                ("pretty_yaml-0.6.0", "plugins/pretty_yaml-0.6.0.wasm")
+            } else {
+                ("sql-0.4.1", "plugins/sql-0.4.1.wasm")
+            };
+            if version != expected_version
+                || spec["kind"] != "wasm"
+                || spec["requires_dprint_pack"] != DPRINT_PACK_VERSION
+                || spec["wasm_plugins"] != json!([expected_plugin])
+            {
+                return Err("Unsupported managed language pack or dprint host contract.".into());
+            }
+            runtime_entrypoints(spec)?;
         } else if spec["kind"] == "dprint" {
             return Err("The dprint runtime kind is reserved for the dprint pack.".into());
         }
@@ -2412,5 +2426,31 @@ mod dprint_pack_tests {
         drop(runtime);
         manager.uninstall("dprint").unwrap();
         assert_eq!(manager.status("dprint").unwrap(), ToolchainStatus::Missing);
+    }
+}
+
+#[cfg(test)]
+mod optional_wasm_host_contract_tests {
+    use super::*;
+    #[test]
+    fn yaml_sql_require_exact_plugin_version_and_dprint_pack_without_enabling_downloads() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = ToolchainManager::at_managed_root(temp.path().join("tools")).unwrap();
+        for id in ["yaml", "sql"] {
+            manager.spec(id).unwrap();
+            assert!(manager.download_available(id).is_err());
+            for (key, bad) in [
+                ("requires_dprint_pack", json!("0.63.0-p2")),
+                ("kind", json!("native")),
+                ("wasm_plugins", json!(["plugins/unreviewed.wasm"])),
+            ] {
+                let mut changed = manager.clone();
+                changed.catalog["toolchains"][id]["targets"][&manager.target][key] = bad;
+                assert!(changed.spec(id).is_err(), "{id}/{key}");
+            }
+            let mut changed = manager.clone();
+            changed.catalog["toolchains"][id]["version"] = json!("unreviewed");
+            assert!(changed.spec(id).is_err());
+        }
     }
 }

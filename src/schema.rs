@@ -23,6 +23,8 @@ pub enum PinnedPlugin {
     ClangFormat,
     Markup,
     Malva,
+    PrettyYaml,
+    Sql,
 }
 
 impl PinnedPlugin {
@@ -49,6 +51,8 @@ impl PinnedPlugin {
             Self::Dartfmt => "dartfmt",
             Self::Markup => "markup",
             Self::Malva => "malva",
+            Self::PrettyYaml => "yaml",
+            Self::Sql => "sql",
         }
     }
     pub fn title(self) -> &'static str {
@@ -64,8 +68,10 @@ impl PinnedPlugin {
             Self::CSharpier => "C# (CSharpier)",
             Self::ClangFormat => "C / C++ (clang-format)",
             Self::Dartfmt => "Dart / Flutter",
-            Self::Markup => "Vue template",
-            Self::Malva => "Vue styles",
+            Self::Markup => "HTML / Vue markup",
+            Self::Malva => "CSS / SCSS / Vue styles",
+            Self::PrettyYaml => "YAML (Pretty YAML)",
+            Self::Sql => "SQL",
         }
     }
     pub fn version(self) -> &'static str {
@@ -83,6 +89,8 @@ impl PinnedPlugin {
             Self::Dartfmt => "3.13.7",
             Self::Markup => "0.27.6",
             Self::Malva => "0.16.0",
+            Self::PrettyYaml => "0.6.0",
+            Self::Sql => "0.4.1",
         }
     }
     pub fn url(self) -> &'static str {
@@ -100,6 +108,8 @@ impl PinnedPlugin {
             | Self::ClangFormat => "", // Not dprint plugins.
             Self::Markup => "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.6.wasm",
             Self::Malva => "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm",
+            Self::PrettyYaml => "https://plugins.dprint.dev/g-plane/pretty_yaml-v0.6.0.wasm",
+            Self::Sql => "https://plugins.dprint.dev/sql-0.4.1.wasm",
         }
     }
 
@@ -119,6 +129,8 @@ impl PinnedPlugin {
             | Self::ClangFormat => "",
             Self::Markup => "markup-0.27.6.wasm",
             Self::Malva => "malva-0.16.0.wasm",
+            Self::PrettyYaml => "pretty_yaml-0.6.0.wasm",
+            Self::Sql => "sql-0.4.1.wasm",
         }
     }
 
@@ -135,6 +147,8 @@ impl PinnedPlugin {
                 | Self::ClangFormat
                 | Self::Markup
                 | Self::Malva
+                | Self::PrettyYaml
+                | Self::Sql
         ) {
             if document.value(&["extends"])?.is_some()
                 || document
@@ -166,7 +180,7 @@ impl PinnedPlugin {
             value.as_str().is_some_and(|url| {
                 Self::ALL
                     .iter()
-                    .chain([Self::Markup, Self::Malva].iter())
+                    .chain([Self::Markup, Self::Malva, Self::PrettyYaml, Self::Sql].iter())
                     .any(|plugin| plugin.url() == url)
             })
         }) {
@@ -752,7 +766,7 @@ impl PluginSchema {
 
 #[derive(Clone, Debug)]
 pub struct SchemaCatalog {
-    schemas: [PluginSchema; 13],
+    schemas: [PluginSchema; 15],
 }
 
 impl SchemaCatalog {
@@ -774,6 +788,34 @@ impl SchemaCatalog {
         let rustfmt =
             serde_json::from_str(include_str!("../resources/schemas/rustfmt-stable.json"))
                 .map_err(|error| format!("Invalid native Rust schema: {error}"))?;
+        // The upstream default trims significant block-scalar spaces. Keep the
+        // exact upstream resource, but expose only the adapter's safe setting.
+        let mut yaml: Value =
+            serde_json::from_str(include_str!("../resources/schemas/pretty_yaml-0.6.0.json"))
+                .map_err(|e| format!("YAML schema: {e}"))?;
+        yaml["properties"]["trimTrailingWhitespaces"] = serde_json::json!({
+            "type":"boolean", "const":false, "default":false,
+            "description":"Fixed false in CodeStyles: trimming trailing spaces can change YAML block scalar values. The isolated preview/project config enforces false without rewriting your JSONC."});
+        // Preserve the downloaded schema verbatim; project its dialect control
+        // to the subset whose lexical safety gate is implemented and tested.
+        let mut sql: Value =
+            serde_json::from_str(include_str!("../resources/schemas/sql-0.4.1.json"))
+                .map_err(|e| format!("SQL schema: {e}"))?;
+        sql["properties"]["dialect"]["oneOf"]
+            .as_array_mut()
+            .expect("pinned enum")
+            .retain(|option| {
+                matches!(
+                    option["const"].as_str(),
+                    Some("postgresql" | "mysql" | "sqlite")
+                )
+            });
+        sql["properties"]["dialect"]
+            .as_object_mut()
+            .expect("pinned field")
+            .remove("default");
+        sql["properties"]["dialect"]["description"] = Value::String(
+            "Required explicit dialect. CodeStyles initially supports PostgreSQL, MySQL and SQLite non-procedural statements only; no auto-detection or generic default.".into());
         Ok(Self {
             schemas: [
                 PluginSchema::from_json(PinnedPlugin::TypeScript, &typescript)?,
@@ -819,6 +861,8 @@ impl SchemaCatalog {
                     &serde_json::from_str(include_str!("../resources/schemas/clangFormat.json"))
                         .map_err(|e| format!("clangFormat schema: {e}"))?,
                 )?,
+                PluginSchema::from_json(PinnedPlugin::PrettyYaml, &yaml)?,
+                PluginSchema::from_json(PinnedPlugin::Sql, &sql)?,
             ],
         })
     }
@@ -838,6 +882,8 @@ impl SchemaCatalog {
             PinnedPlugin::GoogleJavaFormat => 10,
             PinnedPlugin::CSharpier => 11,
             PinnedPlugin::ClangFormat => 12,
+            PinnedPlugin::PrettyYaml => 13,
+            PinnedPlugin::Sql => 14,
         }]
     }
 
@@ -895,6 +941,8 @@ impl SchemaCatalog {
             PinnedPlugin::Dartfmt,
             PinnedPlugin::Markup,
             PinnedPlugin::Malva,
+            PinnedPlugin::PrettyYaml,
+            PinnedPlugin::Sql,
             PinnedPlugin::GoogleJavaFormat,
             PinnedPlugin::CSharpier,
             PinnedPlugin::ClangFormat,
@@ -1272,6 +1320,54 @@ mod tests {
     }
 
     #[test]
+    fn yaml_sql_settings_are_offline_lossless_and_limit_dialect_choices() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let mut doc = document(json!({"unknown":{"keep":true}}));
+        let original = format!("// keep comment\n{}", doc.draft_text());
+        doc.replace_draft_text(&original).unwrap();
+        for plugin in [PinnedPlugin::PrettyYaml, PinnedPlugin::Sql] {
+            catalog.available(&doc, plugin).unwrap();
+            for field in catalog
+                .fields(plugin)
+                .iter()
+                .filter(|field| field.kind.is_supported())
+            {
+                let value = field.default.clone().unwrap_or_else(|| match &field.kind {
+                    FieldKind::Enum(choices) => choices[0].value.clone(),
+                    _ => panic!("new field requires explicit test value: {}", field.name),
+                });
+                field.set(&mut doc, plugin, value.clone()).unwrap();
+                assert_eq!(field.state(&doc, plugin).unwrap().explicit, Some(value));
+                field.unset(&mut doc, plugin).unwrap();
+                assert_eq!(field.state(&doc, plugin).unwrap().explicit, None);
+            }
+        }
+        assert!(doc.draft_text().contains("// keep comment"));
+        assert_eq!(doc.value(&["unknown", "keep"]).unwrap(), Some(json!(true)));
+        assert!(
+            catalog
+                .schema(PinnedPlugin::PrettyYaml)
+                .field("useTabs")
+                .is_none()
+        );
+        let trim = catalog
+            .schema(PinnedPlugin::PrettyYaml)
+            .field("trimTrailingWhitespaces")
+            .unwrap();
+        assert_eq!(trim.default, Some(json!(false)));
+        assert!(trim.validate(&json!(false)).is_ok());
+        assert!(trim.validate(&json!(true)).is_err());
+        let dialect = catalog.schema(PinnedPlugin::Sql).field("dialect").unwrap();
+        assert!(dialect.default.is_none());
+        for value in ["postgresql", "mysql", "sqlite"] {
+            dialect.validate(&json!(value)).unwrap();
+        }
+        for value in ["generic", "oracle", "sqlserver", "bigquery", "snowflake"] {
+            assert!(dialect.validate(&json!(value)).is_err());
+        }
+    }
+
+    #[test]
     fn existing_four_plugin_configuration_explains_python_opt_in_without_mutation() {
         let old_plugins = [
             PinnedPlugin::TypeScript,
@@ -1411,7 +1507,7 @@ mod tests {
     #[test]
     fn broad_categories_cover_every_field_for_all_languages() {
         let catalog = SchemaCatalog::bundled().unwrap();
-        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 18);
+        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 23);
         for language in crate::comparison::SourceLanguage::ALL {
             let fields = catalog.fields(language.plugin());
             let mut seen = std::collections::HashSet::new();

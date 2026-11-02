@@ -2,7 +2,7 @@
 pub const EXTENSIONS: &[&str] = &[
     "ts", "tsx", "js", "jsx", "json", "jsonc", "md", "markdown", "toml", "py", "pyi", "rs", "go",
     "dart", "vue", "java", "cs", "c", "h", "cc", "cpp", "cxx", "c++", "hh", "hpp", "hxx", "h++",
-    "C", "H",
+    "C", "H", "html", "htm", "css", "scss", "yaml", "yml", "sql",
 ];
 pub const INDENT_WIDTHS: &[u8] = &[2, 4];
 pub const SEMICOLONS: &[&str] = &["always", "asi"];
@@ -35,7 +35,11 @@ mod tests {
             assert!(crate::native_format::NativeLanguage::from_path(Path::new(&path)).is_some());
         }
         assert!(supports(Path::new("README.markdown")));
-        assert!(!supports(Path::new("sample.yaml")));
+        for extension in ["html", "htm", "css", "scss", "yaml", "yml", "sql"] {
+            assert!(supports(Path::new(&format!("sample.{extension}"))));
+        }
+        assert!(!supports(Path::new("sample.svelte")));
+        assert!(!supports(Path::new("sample.less")));
         assert!(!supports(Path::new("Cargo.lock")));
     }
 }

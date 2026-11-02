@@ -2077,6 +2077,666 @@
           ]
         }
       }
+    },
+    "yaml": {
+      "version": "pretty_yaml-0.6.0",
+      "distribution": "Reviewed optional WASM pack; unpublished candidate, no network install available.",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/pretty_yaml-0.6.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 584626,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-yaml-pretty_yaml-0.6.0.tar.gz",
+              "sha256": "0ee9a66019fde997bbfbc3619f6a080e10332ef74cba90c414ca3e83c0bcf7a5",
+              "bytes": 185054,
+              "max_download_bytes": 185054,
+              "max_expanded_bytes": 598962,
+              "members": [
+                {
+                  "path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "archive_path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "bytes": 576981,
+                  "sha256": "40a2fdda7040317eb1b23520f3a00769a5571eedb049c4ca9175c1b9eeba01ae",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/pretty_yaml-0.6.0.json",
+                  "archive_path": "schemas/pretty_yaml-0.6.0.json",
+                  "bytes": 4734,
+                  "sha256": "efb75d9eda299ae13a6af508e5579d9bec9a14654d986de470847605d1df1e29",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/pretty_yaml-0.6.0.txt",
+                  "archive_path": "licenses/pretty_yaml-0.6.0.txt",
+                  "bytes": 1073,
+                  "sha256": "2efe0331e360cdaa2701ae0b42fa1ce6002ee52675d648a0c49029b5f27eb734",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1838,
+                  "sha256": "07730f11d9239915afc93a8c8d02259afcf245fa76dcdcc6d39194de2e50335b",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/pretty_yaml-0.6.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 584626,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-yaml-pretty_yaml-0.6.0.tar.gz",
+              "sha256": "0ee9a66019fde997bbfbc3619f6a080e10332ef74cba90c414ca3e83c0bcf7a5",
+              "bytes": 185054,
+              "max_download_bytes": 185054,
+              "max_expanded_bytes": 598962,
+              "members": [
+                {
+                  "path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "archive_path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "bytes": 576981,
+                  "sha256": "40a2fdda7040317eb1b23520f3a00769a5571eedb049c4ca9175c1b9eeba01ae",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/pretty_yaml-0.6.0.json",
+                  "archive_path": "schemas/pretty_yaml-0.6.0.json",
+                  "bytes": 4734,
+                  "sha256": "efb75d9eda299ae13a6af508e5579d9bec9a14654d986de470847605d1df1e29",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/pretty_yaml-0.6.0.txt",
+                  "archive_path": "licenses/pretty_yaml-0.6.0.txt",
+                  "bytes": 1073,
+                  "sha256": "2efe0331e360cdaa2701ae0b42fa1ce6002ee52675d648a0c49029b5f27eb734",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1838,
+                  "sha256": "07730f11d9239915afc93a8c8d02259afcf245fa76dcdcc6d39194de2e50335b",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/pretty_yaml-0.6.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 584626,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-yaml-pretty_yaml-0.6.0.tar.gz",
+              "sha256": "0ee9a66019fde997bbfbc3619f6a080e10332ef74cba90c414ca3e83c0bcf7a5",
+              "bytes": 185054,
+              "max_download_bytes": 185054,
+              "max_expanded_bytes": 598962,
+              "members": [
+                {
+                  "path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "archive_path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "bytes": 576981,
+                  "sha256": "40a2fdda7040317eb1b23520f3a00769a5571eedb049c4ca9175c1b9eeba01ae",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/pretty_yaml-0.6.0.json",
+                  "archive_path": "schemas/pretty_yaml-0.6.0.json",
+                  "bytes": 4734,
+                  "sha256": "efb75d9eda299ae13a6af508e5579d9bec9a14654d986de470847605d1df1e29",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/pretty_yaml-0.6.0.txt",
+                  "archive_path": "licenses/pretty_yaml-0.6.0.txt",
+                  "bytes": 1073,
+                  "sha256": "2efe0331e360cdaa2701ae0b42fa1ce6002ee52675d648a0c49029b5f27eb734",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1838,
+                  "sha256": "07730f11d9239915afc93a8c8d02259afcf245fa76dcdcc6d39194de2e50335b",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/pretty_yaml-0.6.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 584626,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-yaml-pretty_yaml-0.6.0.tar.gz",
+              "sha256": "0ee9a66019fde997bbfbc3619f6a080e10332ef74cba90c414ca3e83c0bcf7a5",
+              "bytes": 185054,
+              "max_download_bytes": 185054,
+              "max_expanded_bytes": 598962,
+              "members": [
+                {
+                  "path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "archive_path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "bytes": 576981,
+                  "sha256": "40a2fdda7040317eb1b23520f3a00769a5571eedb049c4ca9175c1b9eeba01ae",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/pretty_yaml-0.6.0.json",
+                  "archive_path": "schemas/pretty_yaml-0.6.0.json",
+                  "bytes": 4734,
+                  "sha256": "efb75d9eda299ae13a6af508e5579d9bec9a14654d986de470847605d1df1e29",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/pretty_yaml-0.6.0.txt",
+                  "archive_path": "licenses/pretty_yaml-0.6.0.txt",
+                  "bytes": 1073,
+                  "sha256": "2efe0331e360cdaa2701ae0b42fa1ce6002ee52675d648a0c49029b5f27eb734",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1838,
+                  "sha256": "07730f11d9239915afc93a8c8d02259afcf245fa76dcdcc6d39194de2e50335b",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/pretty_yaml-0.6.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 584626,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-yaml-pretty_yaml-0.6.0.tar.gz",
+              "sha256": "0ee9a66019fde997bbfbc3619f6a080e10332ef74cba90c414ca3e83c0bcf7a5",
+              "bytes": 185054,
+              "max_download_bytes": 185054,
+              "max_expanded_bytes": 598962,
+              "members": [
+                {
+                  "path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "archive_path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "bytes": 576981,
+                  "sha256": "40a2fdda7040317eb1b23520f3a00769a5571eedb049c4ca9175c1b9eeba01ae",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/pretty_yaml-0.6.0.json",
+                  "archive_path": "schemas/pretty_yaml-0.6.0.json",
+                  "bytes": 4734,
+                  "sha256": "efb75d9eda299ae13a6af508e5579d9bec9a14654d986de470847605d1df1e29",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/pretty_yaml-0.6.0.txt",
+                  "archive_path": "licenses/pretty_yaml-0.6.0.txt",
+                  "bytes": 1073,
+                  "sha256": "2efe0331e360cdaa2701ae0b42fa1ce6002ee52675d648a0c49029b5f27eb734",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1838,
+                  "sha256": "07730f11d9239915afc93a8c8d02259afcf245fa76dcdcc6d39194de2e50335b",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/pretty_yaml-0.6.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 584626,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-yaml-pretty_yaml-0.6.0.tar.gz",
+              "sha256": "0ee9a66019fde997bbfbc3619f6a080e10332ef74cba90c414ca3e83c0bcf7a5",
+              "bytes": 185054,
+              "max_download_bytes": 185054,
+              "max_expanded_bytes": 598962,
+              "members": [
+                {
+                  "path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "archive_path": "plugins/pretty_yaml-0.6.0.wasm",
+                  "bytes": 576981,
+                  "sha256": "40a2fdda7040317eb1b23520f3a00769a5571eedb049c4ca9175c1b9eeba01ae",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/pretty_yaml-0.6.0.json",
+                  "archive_path": "schemas/pretty_yaml-0.6.0.json",
+                  "bytes": 4734,
+                  "sha256": "efb75d9eda299ae13a6af508e5579d9bec9a14654d986de470847605d1df1e29",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/pretty_yaml-0.6.0.txt",
+                  "archive_path": "licenses/pretty_yaml-0.6.0.txt",
+                  "bytes": 1073,
+                  "sha256": "2efe0331e360cdaa2701ae0b42fa1ce6002ee52675d648a0c49029b5f27eb734",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1838,
+                  "sha256": "07730f11d9239915afc93a8c8d02259afcf245fa76dcdcc6d39194de2e50335b",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "sql": {
+      "version": "sql-0.4.1",
+      "distribution": "Reviewed optional WASM pack; unpublished candidate, no network install available.",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/sql-0.4.1.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 666746,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-sql-sql-0.4.1.tar.gz",
+              "sha256": "20f5af44e490af0b83ab63fcb46a692cb13da5cc24e8eea7143d8fbdf6a9e810",
+              "bytes": 218578,
+              "max_download_bytes": 218578,
+              "max_expanded_bytes": 681082,
+              "members": [
+                {
+                  "path": "plugins/sql-0.4.1.wasm",
+                  "archive_path": "plugins/sql-0.4.1.wasm",
+                  "bytes": 660116,
+                  "sha256": "148784d024138e1bca88cffc05a67cc3ce180b5a24170fe79df31e8b6dc3a410",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/sql-0.4.1.json",
+                  "archive_path": "schemas/sql-0.4.1.json",
+                  "bytes": 3826,
+                  "sha256": "ca9b08f7e3a0dd5cde169027bd0dcd8c81b9cb29cc3044ac2ab63885c6e191d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/sql-0.4.1.txt",
+                  "archive_path": "licenses/sql-0.4.1.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1724,
+                  "sha256": "602aed67b37ec38e1418ad6c1bbbec4f652bafe4c2018c57e1fb5742f7053e83",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/sql-0.4.1.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 666746,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-sql-sql-0.4.1.tar.gz",
+              "sha256": "20f5af44e490af0b83ab63fcb46a692cb13da5cc24e8eea7143d8fbdf6a9e810",
+              "bytes": 218578,
+              "max_download_bytes": 218578,
+              "max_expanded_bytes": 681082,
+              "members": [
+                {
+                  "path": "plugins/sql-0.4.1.wasm",
+                  "archive_path": "plugins/sql-0.4.1.wasm",
+                  "bytes": 660116,
+                  "sha256": "148784d024138e1bca88cffc05a67cc3ce180b5a24170fe79df31e8b6dc3a410",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/sql-0.4.1.json",
+                  "archive_path": "schemas/sql-0.4.1.json",
+                  "bytes": 3826,
+                  "sha256": "ca9b08f7e3a0dd5cde169027bd0dcd8c81b9cb29cc3044ac2ab63885c6e191d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/sql-0.4.1.txt",
+                  "archive_path": "licenses/sql-0.4.1.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1724,
+                  "sha256": "602aed67b37ec38e1418ad6c1bbbec4f652bafe4c2018c57e1fb5742f7053e83",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/sql-0.4.1.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 666746,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-sql-sql-0.4.1.tar.gz",
+              "sha256": "20f5af44e490af0b83ab63fcb46a692cb13da5cc24e8eea7143d8fbdf6a9e810",
+              "bytes": 218578,
+              "max_download_bytes": 218578,
+              "max_expanded_bytes": 681082,
+              "members": [
+                {
+                  "path": "plugins/sql-0.4.1.wasm",
+                  "archive_path": "plugins/sql-0.4.1.wasm",
+                  "bytes": 660116,
+                  "sha256": "148784d024138e1bca88cffc05a67cc3ce180b5a24170fe79df31e8b6dc3a410",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/sql-0.4.1.json",
+                  "archive_path": "schemas/sql-0.4.1.json",
+                  "bytes": 3826,
+                  "sha256": "ca9b08f7e3a0dd5cde169027bd0dcd8c81b9cb29cc3044ac2ab63885c6e191d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/sql-0.4.1.txt",
+                  "archive_path": "licenses/sql-0.4.1.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1724,
+                  "sha256": "602aed67b37ec38e1418ad6c1bbbec4f652bafe4c2018c57e1fb5742f7053e83",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/sql-0.4.1.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 666746,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-sql-sql-0.4.1.tar.gz",
+              "sha256": "20f5af44e490af0b83ab63fcb46a692cb13da5cc24e8eea7143d8fbdf6a9e810",
+              "bytes": 218578,
+              "max_download_bytes": 218578,
+              "max_expanded_bytes": 681082,
+              "members": [
+                {
+                  "path": "plugins/sql-0.4.1.wasm",
+                  "archive_path": "plugins/sql-0.4.1.wasm",
+                  "bytes": 660116,
+                  "sha256": "148784d024138e1bca88cffc05a67cc3ce180b5a24170fe79df31e8b6dc3a410",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/sql-0.4.1.json",
+                  "archive_path": "schemas/sql-0.4.1.json",
+                  "bytes": 3826,
+                  "sha256": "ca9b08f7e3a0dd5cde169027bd0dcd8c81b9cb29cc3044ac2ab63885c6e191d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/sql-0.4.1.txt",
+                  "archive_path": "licenses/sql-0.4.1.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1724,
+                  "sha256": "602aed67b37ec38e1418ad6c1bbbec4f652bafe4c2018c57e1fb5742f7053e83",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/sql-0.4.1.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 666746,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-sql-sql-0.4.1.tar.gz",
+              "sha256": "20f5af44e490af0b83ab63fcb46a692cb13da5cc24e8eea7143d8fbdf6a9e810",
+              "bytes": 218578,
+              "max_download_bytes": 218578,
+              "max_expanded_bytes": 681082,
+              "members": [
+                {
+                  "path": "plugins/sql-0.4.1.wasm",
+                  "archive_path": "plugins/sql-0.4.1.wasm",
+                  "bytes": 660116,
+                  "sha256": "148784d024138e1bca88cffc05a67cc3ce180b5a24170fe79df31e8b6dc3a410",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/sql-0.4.1.json",
+                  "archive_path": "schemas/sql-0.4.1.json",
+                  "bytes": 3826,
+                  "sha256": "ca9b08f7e3a0dd5cde169027bd0dcd8c81b9cb29cc3044ac2ab63885c6e191d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/sql-0.4.1.txt",
+                  "archive_path": "licenses/sql-0.4.1.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1724,
+                  "sha256": "602aed67b37ec38e1418ad6c1bbbec4f652bafe4c2018c57e1fb5742f7053e83",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-MIT-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/sql-0.4.1.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 666746,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-sql-sql-0.4.1.tar.gz",
+              "sha256": "20f5af44e490af0b83ab63fcb46a692cb13da5cc24e8eea7143d8fbdf6a9e810",
+              "bytes": 218578,
+              "max_download_bytes": 218578,
+              "max_expanded_bytes": 681082,
+              "members": [
+                {
+                  "path": "plugins/sql-0.4.1.wasm",
+                  "archive_path": "plugins/sql-0.4.1.wasm",
+                  "bytes": 660116,
+                  "sha256": "148784d024138e1bca88cffc05a67cc3ce180b5a24170fe79df31e8b6dc3a410",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/sql-0.4.1.json",
+                  "archive_path": "schemas/sql-0.4.1.json",
+                  "bytes": 3826,
+                  "sha256": "ca9b08f7e3a0dd5cde169027bd0dcd8c81b9cb29cc3044ac2ab63885c6e191d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/sql-0.4.1.txt",
+                  "archive_path": "licenses/sql-0.4.1.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 1724,
+                  "sha256": "602aed67b37ec38e1418ad6c1bbbec4f652bafe4c2018c57e1fb5742f7053e83",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        }
+      }
     }
   }
 }

@@ -775,7 +775,7 @@ impl VueSettingsGroup {
     }
     fn label(self) -> &'static str {
         match self {
-            Self::Template => "Template",
+            Self::Template => "Markup",
             Self::Script => "Script (JS / TS)",
             Self::Styles => "Styles",
         }
@@ -888,7 +888,16 @@ fn package_footprint_text(metadata: Option<&Result<Option<PackFootprint>, String
 fn pack_matches_preview(language: SourceLanguage, pack_id: &str) -> bool {
     language.pack_id() == Some(pack_id)
         || (pack_id == "dprint"
-            && (language.pack_id().is_none() || language == SourceLanguage::Vue))
+            && (language.pack_id().is_none()
+                || matches!(
+                    language,
+                    SourceLanguage::Vue
+                        | SourceLanguage::Html
+                        | SourceLanguage::Css
+                        | SourceLanguage::Scss
+                        | SourceLanguage::Yaml
+                        | SourceLanguage::Sql
+                )))
 }
 
 fn pack_mutation_affects_preview(
@@ -905,6 +914,11 @@ fn native_language(language: SourceLanguage) -> Option<NativeLanguage> {
         SourceLanguage::Go => Some(NativeLanguage::Go),
         SourceLanguage::Dart => Some(NativeLanguage::Dart),
         SourceLanguage::Vue => Some(NativeLanguage::Vue),
+        SourceLanguage::Html => Some(NativeLanguage::Html),
+        SourceLanguage::Css => Some(NativeLanguage::Css),
+        SourceLanguage::Scss => Some(NativeLanguage::Scss),
+        SourceLanguage::Yaml => Some(NativeLanguage::Yaml),
+        SourceLanguage::Sql => Some(NativeLanguage::Sql),
         SourceLanguage::Java => Some(NativeLanguage::Java),
         SourceLanguage::CSharp => Some(NativeLanguage::CSharp),
         SourceLanguage::C => Some(NativeLanguage::C),
@@ -1027,7 +1041,10 @@ fn dialog_is_current(opened_version: u64, current_version: u64) -> bool {
 
 impl PreviewWindow {
     fn schema_context(&self) -> SchemaContext {
-        if self.source.language() == SourceLanguage::Vue {
+        if matches!(
+            self.source.language(),
+            SourceLanguage::Vue | SourceLanguage::Html
+        ) {
             SchemaContext::ManagedVue
         } else {
             SchemaContext::Standalone
@@ -1035,7 +1052,10 @@ impl PreviewWindow {
     }
 
     fn plugin(&self) -> PinnedPlugin {
-        if self.source.language() == SourceLanguage::Vue {
+        if matches!(
+            self.source.language(),
+            SourceLanguage::Vue | SourceLanguage::Html
+        ) {
             self.vue_settings.plugin()
         } else {
             self.source.language().plugin()
@@ -1566,9 +1586,12 @@ impl PreviewWindow {
             .when(self.source.language() == SourceLanguage::Java, |panel| panel.child(div().text_sm().child("Java source formatting uses google-java-format with Google or AOSP style. Imports are preserved; no JDK, classpath or build discovery. Plain-text preview highlighting.")))
             .when(self.source.language() == SourceLanguage::CSharp, |panel| panel.child(div().text_sm().child("C# source formatting only, with explicit CSharpier settings. No solution/project evaluation, restore, analyzers, .editorconfig inheritance or generated-file discovery. Plain-text preview highlighting.")))
             .when(matches!(self.source.language(), SourceLanguage::C | SourceLanguage::Cpp), |panel| panel.child(div().text_sm().child("C and C++ share explicit clangFormat settings. No .clang-format discovery or compilation database; .h headers follow the selected C or C++ project scope; C++ suffixes use C++ mode. Direct .h formatting defaults to C. Plain-text preview highlighting.")))
+            .when(self.source.language() == SourceLanguage::Sql, |panel| panel.child(div().text_sm().child("Choose PostgreSQL, MySQL or SQLite explicitly in SQL settings before formatting. The dialect changes parsing semantics; CodeStyles never guesses. dbt/Jinja templates and procedural SQL are outside scope.")))
+            .when(self.source.language() == SourceLanguage::Yaml, |panel| panel.child(div().text_sm().child("Plain YAML only; Helm/Jinja templates and keep-chomping block scalars (|+ / >+) are rejected. The pinned formatter changes trailing-newline semantics for these scalars. Review the diff before applying changes.")))
+            .when(matches!(self.source.language(), SourceLanguage::Css | SourceLanguage::Scss), |panel| panel.child(div().text_sm().child("CSS and SCSS share Malva settings. Less and indented Sass are outside scope. Preview is plain text when no highlighting grammar is available.")))
             .when(self.source.language() == SourceLanguage::Dart, |panel| panel.child(div().text_sm().child("Dart / Flutter source formatting: languageVersion, pageWidth, trailingCommas. No Flutter SDK, analyzer, pub tooling or widget generation. Dart preview uses plain text when no highlighting grammar is available.")))
-            .when(self.source.language() == SourceLanguage::Vue, |panel| panel.child(div().text_xs().child("Template → markup (markup_fmt) · Script → shared typescript settings (also affect JS/TS previews) · Styles → malva. JSONC and unknown options are preserved. Settings can be edited before installing support; download availability follows the language-pack catalog.")))
-            .when(self.source.language() == SourceLanguage::Vue, |panel| panel.child(div().flex().gap_2().children(VueSettingsGroup::ALL.into_iter().enumerate().map(|(index, group)| Button::new(("vue-setting-group", index)).label(group.label()).selected(self.vue_settings == group).disabled(!vue_group_can_change(self.raw_dirty, self.field_draft.is_dirty(), self.project_busy(), self.dialog_pending)).on_click(cx.listener(move |this, _, window, cx| {
+            .when(matches!(self.source.language(), SourceLanguage::Vue | SourceLanguage::Html), |panel| panel.child(div().text_xs().child("Markup → markup (markup_fmt) · Script → shared typescript settings (also affect JS/TS previews) · Styles → malva. JSONC and unknown options are preserved. Settings can be edited before installing support; download availability follows the language-pack catalog.")))
+            .when(matches!(self.source.language(), SourceLanguage::Vue | SourceLanguage::Html), |panel| panel.child(div().flex().gap_2().children(VueSettingsGroup::ALL.into_iter().enumerate().map(|(index, group)| Button::new(("vue-setting-group", index)).label(group.label()).selected(self.vue_settings == group).disabled(!vue_group_can_change(self.raw_dirty, self.field_draft.is_dirty(), self.project_busy(), self.dialog_pending)).on_click(cx.listener(move |this, _, window, cx| {
                 if vue_group_can_change(this.raw_dirty, this.field_draft.is_dirty(), this.project_busy(), this.dialog_pending) && this.allow_field_transition(cx) { this.vue_settings = group; this.selected_field = None; this.group.clear(); this.sync_field(window, cx); cx.notify(); }
             }))))))
             .child(
@@ -1806,7 +1829,7 @@ impl PreviewWindow {
             _ => format!("Project directory: {}", root.display()),
         };
         let engine_scope = if native_project {
-            "Only the selected language is included, using saved CodeStyles settings and its verified managed pack. Local ignore rules apply; symlinks and generated/build directories are skipped. Unsupported discovery options and nested configs are rejected. This is not mixed-language formatting; Vue does not read external src or arbitrary custom block languages."
+            "Only the selected language is included, using saved CodeStyles settings and its verified managed pack. Local ignore rules apply; symlinks and generated/build directories are skipped. Unsupported discovery options and nested configs are rejected. This is not mixed-language formatting; HTML/Vue do not read external sources or arbitrary embedded languages; YAML/SQL templates are unsupported."
         } else {
             "Uses dprint's normal nested configuration discovery. Review this project's nested configs, extends and plugin sources: they may download resources and execute process plugins with your account's permissions."
         };
@@ -1979,7 +2002,7 @@ impl PreviewWindow {
             .collect();
         div().flex().flex_col().flex_1().min_h_0().gap_3()
             .child(div().text_sm().child(format!("Project root · {root_label}")))
-            .when(native_language(self.source.language()).is_some(), |panel| panel.child(div().text_sm().child(format!("{}-only scope · local ignore files · no symlinks or unsupported nested configuration. Not mixed-language discovery. Vue external src/custom block languages are rejected.", self.source.language().display_name()))))
+            .when(native_language(self.source.language()).is_some(), |panel| panel.child(div().text_sm().child(format!("{}-only scope · local ignore files · no symlinks or unsupported nested configuration. Not mixed-language discovery. Embedded external sources and unsupported template languages are rejected.", self.source.language().display_name()))))
             .when(self.dirty(), |panel| panel.child(div().text_color(cx.theme().warning).child("Save or discard pending configuration edits before checking or formatting.")))
             .child(div().flex().flex_wrap().gap_2()
                 .child(Button::new("project-check").label("Check project…").disabled(disabled).on_click(cx.listener(|this, _, window, cx| this.project_action(ProjectAction::Check, window, cx))))
@@ -2030,6 +2053,10 @@ impl PreviewWindow {
                     SourceLanguage::C | SourceLanguage::Cpp => "C/C++ use clang-format with explicit settings, not project .clang-format discovery. CodeStyles JSONC is not a .clang-format YAML file; configure external editor/CI tooling explicitly.",
                     SourceLanguage::Go => "Go uses canonical gofmt with no style settings. Configure your normal Go editor tooling separately.",
                     SourceLanguage::Dart => "Dart / Flutter source uses the pinned Dart formatter. This does not install Flutter or run pub/analyzer commands. The three supported options are languageVersion, pageWidth, and trailingCommas.",
+                    SourceLanguage::Html => "HTML uses pinned markup_fmt, with the managed TypeScript/JSON/Malva chain for supported script and style blocks. Templates and unsupported embedded languages are outside this scope. No external source is read.",
+                    SourceLanguage::Css | SourceLanguage::Scss => "CSS and SCSS share Malva settings. Only the selected syntax is included in project checks. Less, Sass indented syntax and framework templates are not supported.",
+                    SourceLanguage::Yaml => "YAML uses Pretty YAML. External editor/CI must explicitly set yaml.trimTrailingWhitespaces: false: CodeStyles forces this only in its temporary runtime config and does not add it to saved/exported JSONC. Review scalar content. Helm/Jinja templates and keep-chomping blocks (|+ / >+) are rejected in CodeStyles because the pinned formatter can change their semantics; external tools do not inherit these guards.",
+                    SourceLanguage::Sql => "SQL requires an explicit sql.dialect before preview or project formatting. Choose PostgreSQL, MySQL or SQLite in settings; no dialect is inferred. dbt/Jinja templates and procedural SQL are outside scope; review the diff before applying changes.",
                     _ => "Vue support is Vue-only SFC formatting with pinned markup_fmt / Malva and the managed dprint script formatters. External src and unsupported custom block languages fail closed. It is not a Vue build system or arbitrary embedded-language runner.",
                 })).into_any_element();
         }
@@ -2227,7 +2254,7 @@ impl PreviewWindow {
             .map(|snapshot| snapshot.root.display().to_string())
             .unwrap_or_else(|| "the dedicated managed directory".into());
         let explanation = format!(
-            "Remove only the managed {} pack under {location}? Other language packs, project source files, and saved configuration are not removed. Formatting languages that depend on this pack will require reinstalling it; Vue also depends on dprint.",
+            "Remove only the managed {} pack under {location}? Other language packs, project source files, and saved configuration are not removed. Formatting languages that depend on this pack will require reinstalling it; Web, YAML and SQL packs also depend on dprint.",
             self.toolchain_controller.pack_id()
         );
         let prompt = window.prompt(
@@ -2292,11 +2319,11 @@ impl PreviewWindow {
         };
         div().id("language-support-content").flex().flex_col().flex_1().min_h_0().overflow_y_scroll().gap_3()
             .child(div().text_lg().child("Language support"))
-            .child(div().flex().flex_wrap().gap_2().children([("dprint", "dprint"), ("rustfmt", "Rust"), ("gofmt", "Go"), ("dartfmt", "Dart / Flutter"), ("vue", "Vue"), ("google-java-format", "Java"), ("csharpier", "C#"), ("clang-format", "C / C++")].into_iter().enumerate().map(|(index, (id, label))| Button::new(("pack-choice", index)).label(label).selected(self.toolchain_controller.pack_id() == id).disabled(blocked).on_click(cx.listener(move |this, _, _, cx| this.switch_pack(id, cx))))))
+            .child(div().flex().flex_wrap().gap_2().children([("dprint", "dprint"), ("rustfmt", "Rust"), ("gofmt", "Go"), ("dartfmt", "Dart / Flutter"), ("vue", "Web / Vue"), ("yaml", "YAML"), ("sql", "SQL"), ("google-java-format", "Java"), ("csharpier", "C#"), ("clang-format", "C / C++")].into_iter().enumerate().map(|(index, (id, label))| Button::new(("pack-choice", index)).label(label).selected(self.toolchain_controller.pack_id() == id).disabled(blocked).on_click(cx.listener(move |this, _, _, cx| this.switch_pack(id, cx))))))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
                 .child(div().child("Offline settings · no formatter installation required"))
-                .child(div().text_sm().child("TypeScript / JavaScript / JSX / TSX · JSON / JSONC · Markdown · TOML · Python / Python Stub"))
-                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Install dprint to format these languages. Its engine and five pinned WASM plugins are one verified optional pack. Vue requires both dprint and Vue packs. Settings, schemas, and samples remain available offline. Installation does not change project plugin references.")))
+                .child(div().text_sm().child("TypeScript / JavaScript / JSX / TSX · JSON / JSONC · Markdown · TOML · Python / Python Stub · HTML / CSS / SCSS · YAML · SQL"))
+                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Install dprint to format these languages. Its engine and five pinned WASM plugins are one verified optional pack. HTML/CSS/SCSS/Vue also require the Web / Vue pack; YAML and SQL each require their own pack. Settings, schemas, and samples remain available offline. Installation does not change project plugin references.")))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
                 .child(div().child(format!("{} · managed optional language pack", self.toolchain_controller.pack_id())))
                 .child(div().text_sm().child(state))
@@ -2723,7 +2750,10 @@ fn highlight_language(language: SourceLanguage) -> &'static str {
         | SourceLanguage::CSharp
         | SourceLanguage::C
         | SourceLanguage::Cpp => "text",
-        SourceLanguage::Vue => "html",
+        SourceLanguage::Vue | SourceLanguage::Html => "html",
+        SourceLanguage::Css | SourceLanguage::Scss | SourceLanguage::Yaml | SourceLanguage::Sql => {
+            "text"
+        }
     }
 }
 
@@ -3123,7 +3153,16 @@ mod tests {
     fn dprint_mutations_invalidate_all_dependent_languages_including_vue() {
         use codestyles::{comparison::SourceLanguage, toolchain_worker::PackAction};
         for language in SourceLanguage::ALL {
-            let depends_on_dprint = language.pack_id().is_none() || language == SourceLanguage::Vue;
+            let depends_on_dprint = language.pack_id().is_none()
+                || matches!(
+                    language,
+                    SourceLanguage::Vue
+                        | SourceLanguage::Html
+                        | SourceLanguage::Css
+                        | SourceLanguage::Scss
+                        | SourceLanguage::Yaml
+                        | SourceLanguage::Sql
+                );
             assert_eq!(
                 super::pack_matches_preview(language, "dprint"),
                 depends_on_dprint
@@ -3184,6 +3223,29 @@ mod tests {
     }
 
     #[test]
+    fn shared_web_pack_invalidates_all_web_previews_but_not_yaml_or_sql() {
+        use codestyles::comparison::SourceLanguage;
+        for language in [
+            SourceLanguage::Vue,
+            SourceLanguage::Html,
+            SourceLanguage::Css,
+            SourceLanguage::Scss,
+        ] {
+            assert!(super::pack_matches_preview(language, "vue"));
+            assert!(super::pack_matches_preview(language, "dprint"));
+            assert!(!super::pack_matches_preview(language, "yaml"));
+        }
+        for language in [SourceLanguage::Yaml, SourceLanguage::Sql] {
+            assert!(!super::pack_matches_preview(language, "vue"));
+            assert!(super::pack_matches_preview(language, "dprint"));
+            assert!(super::pack_matches_preview(
+                language,
+                language.pack_id().unwrap()
+            ));
+        }
+    }
+
+    #[test]
     fn shared_clang_pack_invalidates_both_dialects_but_not_other_languages() {
         use codestyles::{comparison::SourceLanguage, toolchain_worker::PackAction};
         for language in [SourceLanguage::C, SourceLanguage::Cpp] {
@@ -3219,6 +3281,11 @@ mod tests {
             (SourceLanguage::Go, "gofmt", NativeLanguage::Go),
             (SourceLanguage::Dart, "dartfmt", NativeLanguage::Dart),
             (SourceLanguage::Vue, "vue", NativeLanguage::Vue),
+            (SourceLanguage::Html, "vue", NativeLanguage::Html),
+            (SourceLanguage::Css, "vue", NativeLanguage::Css),
+            (SourceLanguage::Scss, "vue", NativeLanguage::Scss),
+            (SourceLanguage::Yaml, "yaml", NativeLanguage::Yaml),
+            (SourceLanguage::Sql, "sql", NativeLanguage::Sql),
             (
                 SourceLanguage::Java,
                 "google-java-format",
@@ -3493,6 +3560,11 @@ mod tests {
                 SourceLanguage::Go
                     | SourceLanguage::Dart
                     | SourceLanguage::Vue
+                    | SourceLanguage::Html
+                    | SourceLanguage::Css
+                    | SourceLanguage::Scss
+                    | SourceLanguage::Yaml
+                    | SourceLanguage::Sql
                     | SourceLanguage::Java
                     | SourceLanguage::CSharp
                     | SourceLanguage::C

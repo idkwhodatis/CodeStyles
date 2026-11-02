@@ -1,0 +1,15 @@
+# Reuse defaults without changing scalar values.
+defaults: &defaults
+  retries: 3
+  enabled: true
+service:
+  <<: *defaults
+  name: "preview"
+  labels: [web, config, "on"]
+  ports: [8080, 8081]
+  description: |-
+    Keep this line.
+    And this indentation.
+  folded: >-
+    A folded message
+    remains a message.

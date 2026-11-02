@@ -1,0 +1,5 @@
+/* Cards adapt to the available space. */
+:root{--accent:#aabbcc;--gap:16px}
+.card,.panel{display:grid;gap:var(--gap);color:var(--accent);padding:8px 16px;border:1px solid #ffffff}
+.card:hover{color:rgb(20,40,60)}
+@media (min-width:640px){.card{grid-template-columns:repeat(2,1fr)}}
