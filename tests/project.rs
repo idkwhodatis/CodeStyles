@@ -1,8 +1,8 @@
+mod common;
 use codestyles::{
     backend::Backend,
     config::ConfigDocument,
     project::{ProjectAction, ProjectRequest},
-    resources,
 };
 use serde_json::json;
 use std::{
@@ -16,9 +16,7 @@ use std::{
 };
 
 fn backend() -> Backend {
-    resources::bundled_backend()
-        .unwrap()
-        .with_timeout(Duration::from_secs(30))
+    common::backend().with_timeout(Duration::from_secs(30))
 }
 fn config(root: &Path, newline: &str) -> ConfigDocument {
     let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/plugins");

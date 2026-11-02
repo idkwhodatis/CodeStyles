@@ -23,6 +23,8 @@ pub enum PackAction {
 pub struct PackSnapshot {
     pub pack_id: &'static str,
     pub status: ToolchainStatus,
+    /// Verified native entrypoint, resolved off the UI thread.
+    pub executable: Option<PathBuf>,
     pub root: PathBuf,
     pub available: bool,
     pub local_available: bool,
@@ -55,11 +57,12 @@ impl Default for ToolchainController {
 }
 impl ToolchainController {
     pub fn new() -> Self {
-        Self::for_pack("rustfmt").expect("Rust is an allowed language pack")
+        Self::for_pack("dprint").expect("dprint is an allowed formatter pack")
     }
 
     pub fn for_pack(id: &str) -> Result<Self, String> {
         let id = match id {
+            "dprint" => "dprint",
             "rustfmt" => "rustfmt",
             "gofmt" => "gofmt",
             "dartfmt" => "dartfmt",
@@ -178,9 +181,17 @@ fn snapshot(
             .map_err(|e| e.to_string())?;
     let target = crate::resources::target()?;
     let spec = &catalog["toolchains"][id]["targets"][target];
+    let status = manager.status_cancellable(id, cancel)?;
+    let executable = if matches!(status, ToolchainStatus::Installed { .. }) {
+        let runtime = manager.resolve_cancellable(id, cancel)?;
+        (!runtime.executable.as_os_str().is_empty()).then_some(runtime.executable.clone())
+    } else {
+        None
+    };
     Ok(PackSnapshot {
         pack_id: id,
-        status: manager.status_cancellable(id, cancel)?,
+        status,
+        executable,
         footprint: manager.footprint(id),
         root: manager.root().to_path_buf(),
         available: manager.download_available(id).is_ok(),
@@ -254,8 +265,15 @@ mod tests {
         }
     }
     #[test]
+    fn default_controller_selects_dprint_without_installing_or_resolving_it() {
+        let controller = ToolchainController::new();
+        assert_eq!(controller.pack_id(), "dprint");
+        assert!(!controller.is_running());
+    }
+
+    #[test]
     fn controllers_accept_only_fixed_pack_ids_and_pin_identity() {
-        for id in ["rustfmt", "gofmt", "dartfmt", "vue"] {
+        for id in ["dprint", "rustfmt", "gofmt", "dartfmt", "vue"] {
             let controller = ToolchainController::for_pack(id).unwrap();
             assert_eq!(controller.pack_id(), id);
         }

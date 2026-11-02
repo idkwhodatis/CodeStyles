@@ -1878,6 +1878,205 @@
           "environment": {}
         }
       }
+    },
+    "dprint": {
+      "version": "0.63.0-p1",
+      "distribution": "One atomic engine + five pinned WASM runtime pack; no system or bundled fallback.",
+      "targets": {
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Dprint runtime pack has not been published or natively validated for this target.",
+          "kind": "dprint",
+          "executable": "bin/dprint",
+          "wasm_plugins": [
+            "plugins/typescript-0.96.1.wasm",
+            "plugins/json-0.25.2.wasm",
+            "plugins/markdown-0.26.0.wasm",
+            "plugins/toml-0.9.0.wasm",
+            "plugins/ruff-0.11.3.wasm"
+          ],
+          "environment": {},
+          "archives": []
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Dprint runtime pack has not been published or natively validated for this target.",
+          "kind": "dprint",
+          "executable": "bin/dprint.exe",
+          "wasm_plugins": [
+            "plugins/typescript-0.96.1.wasm",
+            "plugins/json-0.25.2.wasm",
+            "plugins/markdown-0.26.0.wasm",
+            "plugins/toml-0.9.0.wasm",
+            "plugins/ruff-0.11.3.wasm"
+          ],
+          "environment": {},
+          "archives": []
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Dprint runtime pack has not been published or natively validated for this target.",
+          "kind": "dprint",
+          "executable": "bin/dprint",
+          "wasm_plugins": [
+            "plugins/typescript-0.96.1.wasm",
+            "plugins/json-0.25.2.wasm",
+            "plugins/markdown-0.26.0.wasm",
+            "plugins/toml-0.9.0.wasm",
+            "plugins/ruff-0.11.3.wasm"
+          ],
+          "environment": {},
+          "archives": []
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Dprint runtime pack has not been published or natively validated for this target.",
+          "kind": "dprint",
+          "executable": "bin/dprint",
+          "wasm_plugins": [
+            "plugins/typescript-0.96.1.wasm",
+            "plugins/json-0.25.2.wasm",
+            "plugins/markdown-0.26.0.wasm",
+            "plugins/toml-0.9.0.wasm",
+            "plugins/ruff-0.11.3.wasm"
+          ],
+          "environment": {},
+          "archives": []
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Dprint runtime pack has not been published or natively validated for this target.",
+          "kind": "dprint",
+          "executable": "bin/dprint.exe",
+          "wasm_plugins": [
+            "plugins/typescript-0.96.1.wasm",
+            "plugins/json-0.25.2.wasm",
+            "plugins/markdown-0.26.0.wasm",
+            "plugins/toml-0.9.0.wasm",
+            "plugins/ruff-0.11.3.wasm"
+          ],
+          "environment": {},
+          "archives": []
+        },
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished dprint runtime candidate; native validation and release approval required.",
+          "kind": "dprint",
+          "executable": "bin/dprint",
+          "wasm_plugins": [
+            "plugins/typescript-0.96.1.wasm",
+            "plugins/json-0.25.2.wasm",
+            "plugins/markdown-0.26.0.wasm",
+            "plugins/toml-0.9.0.wasm",
+            "plugins/ruff-0.11.3.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 45479062,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-dprint-0.63.0-p1-x86_64-unknown-linux-gnu.tar.gz",
+              "sha256": "f157b0b183d26efe338746c534de97ac059ed68180891f80fa0e7761d2241e65",
+              "bytes": 15283964,
+              "max_download_bytes": 15283964,
+              "max_expanded_bytes": 45502614,
+              "members": [
+                {
+                  "path": "bin/dprint",
+                  "archive_path": "bin/dprint",
+                  "bytes": 27246456,
+                  "sha256": "43611a9705843e43c2798552592d78d0a2a67de2785226f1bfed74aa8c4cd657",
+                  "executable": true
+                },
+                {
+                  "path": "plugins/typescript-0.96.1.wasm",
+                  "archive_path": "plugins/typescript-0.96.1.wasm",
+                  "bytes": 4174185,
+                  "sha256": "9c52244de2c25a33addc7ddacff4443234a2dc4b5d3f34131262d1e0df35007c",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/json-0.25.2.wasm",
+                  "archive_path": "plugins/json-0.25.2.wasm",
+                  "bytes": 658096,
+                  "sha256": "811ca4c6f732bcd6f707bc2f42d42395bb4127cdf829960cf628a18fc149777e",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/markdown-0.26.0.wasm",
+                  "archive_path": "plugins/markdown-0.26.0.wasm",
+                  "bytes": 796007,
+                  "sha256": "5cebd0459bf1aa13fb027331720158d03e2a897b1d9f7b3bf93cac661ca4ddbd",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/toml-0.9.0.wasm",
+                  "archive_path": "plugins/toml-0.9.0.wasm",
+                  "bytes": 526974,
+                  "sha256": "776e088ed4255a51a80e3640e5fd20b15661147e86df3e99611aaa37e9c59852",
+                  "executable": false
+                },
+                {
+                  "path": "plugins/ruff-0.11.3.wasm",
+                  "archive_path": "plugins/ruff-0.11.3.wasm",
+                  "bytes": 12064583,
+                  "sha256": "e828d4a046b6eb1f7461e0d1a1277d4c5d31b097607cae9b32c0d37d5e5a285c",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dprint.txt",
+                  "archive_path": "licenses/dprint.txt",
+                  "bytes": 1080,
+                  "sha256": "f49eac7bc59816a4b7fffd64914169ef46deb636f94b77eaa274e7352983c3fa",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dprint-plugin-typescript.txt",
+                  "archive_path": "licenses/dprint-plugin-typescript.txt",
+                  "bytes": 1085,
+                  "sha256": "43f8cfbeca17eccd83fc98f27d211073eaee5574fc3162f345acc196d6190ce7",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dprint-plugin-json.txt",
+                  "archive_path": "licenses/dprint-plugin-json.txt",
+                  "bytes": 1080,
+                  "sha256": "b1f397e882e63feef0d0331a7d55e2b36deddf8d098a6216f4754397710b60df",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dprint-plugin-markdown.txt",
+                  "archive_path": "licenses/dprint-plugin-markdown.txt",
+                  "bytes": 1085,
+                  "sha256": "193c768fb8fe4ec0c69902f6e67f10550bf5abaed1925c87bf1e4740d875cfcc",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dprint-plugin-toml.txt",
+                  "archive_path": "licenses/dprint-plugin-toml.txt",
+                  "bytes": 1085,
+                  "sha256": "cca6ac7ebae91401de7520120a57225886f308456123f29d0728e50ff2f3b494",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dprint-plugin-ruff.txt",
+                  "archive_path": "licenses/dprint-plugin-ruff.txt",
+                  "bytes": 1126,
+                  "sha256": "f1dbd53ab0ade604131bf53d6d756299e4555272ed66253ffd9b8e7d5eabb635",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 6220,
+                  "sha256": "9a27f3509fa057b2c8422dd692c109394c1d1784837df7314b53ef50ebb56714",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        }
+      }
     }
   }
 }

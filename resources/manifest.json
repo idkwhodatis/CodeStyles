@@ -375,6 +375,21 @@
       "bytes": 1126,
       "kind": "license",
       "version": "0.11.3"
+    },
+    {
+      "path": "licenses/dprint-plugin-json.txt",
+      "bytes": 1080,
+      "sha256": "b1f397e882e63feef0d0331a7d55e2b36deddf8d098a6216f4754397710b60df"
+    },
+    {
+      "path": "licenses/dprint-plugin-typescript.txt",
+      "bytes": 1085,
+      "sha256": "43f8cfbeca17eccd83fc98f27d211073eaee5574fc3162f345acc196d6190ce7"
+    },
+    {
+      "path": "licenses/dprint.txt",
+      "bytes": 1080,
+      "sha256": "f49eac7bc59816a4b7fffd64914169ef46deb636f94b77eaa274e7352983c3fa"
     }
   ]
 }

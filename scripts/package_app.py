@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build offline native distributions from an already built CodeStyles executable.
 
-No downloads occur here. Every selected formatter, plugin, and schema is verified
+No downloads occur here. Every selected offline schema and pinned license is verified
 against the committed manifest before any output is published. ZIP, tar.gz and
 Debian packages have deterministic metadata; native DMG and Inno Setup output do
 not promise byte reproducibility. Requires Python 3.9+.
@@ -89,14 +89,10 @@ def resource_path(root, name):
 
 def stage_resources(source, destination, target):
     manifest = json.loads((source / 'manifest.json').read_text(encoding='utf-8'))
-    artifacts = bundle_resources.selected(manifest, target)
-    executables = [item for item in artifacts if item['kind'] == 'executable-archive']
-    if len(executables) != 1 or executables[0].get('target') != target:
-        raise ValueError(f'Manifest must contain exactly one formatter for {target}')
-    expected = f'bin/{target}/dprint' + ('.exe' if 'windows' in target else '')
-    if executables[0]['executable']['path'] != expected:
-        raise ValueError(f'Formatter path must match the runtime layout: {expected}')
-    records = list(bundle_resources.runtime_files(artifacts))
+    # App settings/resources are usable before any runtime is installed.
+    # Engine and WASM bytes belong exclusively to the optional managed pack.
+    records = [entry for entry in manifest['files']
+               if entry['path'].startswith(('schemas/', 'licenses/'))]
     names = set()
     for record in records:
         path = resource_path(source, record['path'])
@@ -111,7 +107,7 @@ def stage_resources(source, destination, target):
     names.update(path.relative_to(source).as_posix() for path in licenses.rglob('*') if path.is_file())
     for name in sorted(names):
         copy_file(resource_path(source, name), destination / name,
-                  executable=name == executables[0]['executable']['path'])
+                  executable=False)
     # Check the staged bytes as well, so neither a bad copy nor source mutation
     # between verification and copying can silently produce a corrupt bundle.
     for record in records:
@@ -243,7 +239,7 @@ def write_deb(root, stage, output, target, version, depends):
             'Homepage: https://github.com/idkwhodatis/CodeStyles\n'
             f'Installed-Size: {(size + 1023) // 1024}\nDepends: {depends}\n'
             'Description: Native offline-first dprint style preview\n'
-            ' Preview and configure formatting with bundled, SHA-256-pinned\n'
+            ' Preview and configure formatting with optional, SHA-256-pinned\n'
             ' dprint and TypeScript, JSON, Markdown and TOML plugins.\n'
         )
         write_file(control / 'control', metadata)

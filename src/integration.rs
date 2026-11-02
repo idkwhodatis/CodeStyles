@@ -1,4 +1,4 @@
-//! Read-only editor setup guidance. Callers supply the already-verified bundled
+//! Read-only editor setup guidance. Callers supply the already-verified managed
 //! executable; generating a guide never discovers, launches, or changes anything.
 use std::path::Path;
 
@@ -84,7 +84,7 @@ pub struct ProjectIntegration {
     pub format_command: Option<String>,
 }
 
-/// Generate commands for an already-verified bundled console dprint and the
+/// Generate commands for an already-verified managed console dprint and the
 /// current saved configuration. This function performs no I/O. The caller must
 /// include pending/invalid raw edits in `dirty`; draft changes are never used by
 /// an external editor, shell command, or CI job.
@@ -152,13 +152,13 @@ pub const EDITOR_STEPS: [&str; 5] = [
     "Install the official dprint.dprint extension in VS Code. CodeStyles does not install or configure the editor for you.",
     "Save the project configuration as dprint.json, dprint.jsonc, .dprint.json or .dprint.jsonc in the project. The extension discovers project configuration; it does not use CodeStyles' unsaved draft or support arbitrary custom config locations.",
     "Open Preferences: Open User Settings (JSON). Merge the supplied entries into existing settings. Keep dprint.path in your user settings: this absolute executable path belongs to this installation, not to the team's repository. Preserve other existing settings.",
-    "The snippet selects dprint for JavaScript, JSX, TypeScript, TSX, JSON, JSONC, Markdown and TOML. Format on save is optional; add editor.formatOnSave: true to the desired language settings only if you want it.",
-    "Run Dprint: Restart after changing the executable path, then Format Document on a project file. If results differ, check workspace overrides, the saved config, plugin versions and the source path. Move or remove CodeStyles and this path may need updating. Remote editors need a matching executable on their own host.",
+    "The snippet selects dprint for JavaScript, JSX, TypeScript, TSX, JSON, JSONC, Markdown, TOML and Python. Format on save is optional; add editor.formatOnSave: true to the desired language settings only if you want it.",
+    "Run Dprint: Restart after changing the executable path, then Format Document on a project file. If results differ, check workspace overrides, the saved config, plugin versions and the source path. After reinstalling or repairing the dprint pack, refresh its status in CodeStyles and copy the current path again: activation uses a new runtime directory. Moving the managed tools directory or uninstalling the pack also invalidates this path. Remote editors need a matching executable on their own host.",
 ];
 
 pub const CI_INSTRUCTIONS: &str = "Use dprint 0.63.0 in CI and the same committed configuration and exact plugin versions as the editor. For new CodeStyles configurations those plugins are TypeScript 0.96.1, JSON 0.25.2, Markdown 0.26.0, TOML 0.9.0 and Ruff 0.11.3 (Python). Imported configurations retain their original plugin references.\n\nAfter your existing repository checkout, an official GitHub Actions step is:\n- uses: dprint/check@v2\n  with:\n    dprint-version: \"0.63.0\"\n\nThe action otherwise selects the latest CLI. Pin the action itself according to your repository's policy. For other CI systems, install the matching 0.63.0 release for the runner and run dprint --version followed by dprint check from the project root. A custom CLI config path can be specified with --config, but the editor needs a discoverable config name. Do not copy this machine's absolute dprint.path into CI.";
 
-pub const OFFLINE_NOTE: &str = "Selecting the bundled executable does not make editor or CI formatting automatically offline. CodeStyles alone remaps its exact pinned plugin URLs to bundled WASM for preview. VS Code and CI resolve the saved config normally and may download plugins or inherited configs. Only trust configurations and process plugins you intend to run.";
+pub const OFFLINE_NOTE: &str = "Selecting the managed executable does not make editor or CI formatting automatically offline. CodeStyles alone remaps its exact pinned plugin URLs to the installed managed pack's verified WASM for preview. VS Code and CI resolve the saved config normally and may download plugins or inherited configs. Only trust configurations and process plugins you intend to run.";
 
 pub const PATH_NOTE: &str = "The settings snippet escapes the path as JSON; Copy path gives the raw path. The extension supports path expansion, so prefer installation paths without expansion syntax such as $HOME or ${HOME}, and check the resolved executable if your path contains it.";
 
@@ -184,15 +184,17 @@ pub struct IntegrationGuide {
     pub ci_instructions: String,
 }
 
-/// Build user-level VS Code settings for an absolute, already-verified bundled
+/// Build user-level VS Code settings for an absolute, already-verified managed
 /// executable. No filesystem access or editor mutation occurs here. Relative and
 /// non-Unicode paths fail rather than yielding an ambiguous or lossy snippet.
 pub fn guidance(executable: &Path) -> Result<IntegrationGuide, String> {
     if !executable.is_absolute() {
-        return Err("Editor integration needs the absolute bundled dprint executable path.".into());
+        return Err(
+            "Editor integration needs the absolute verified managed dprint executable path.".into(),
+        );
     }
     let executable_path = executable.to_str().ok_or(
-        "The bundled executable path cannot be represented in VS Code's Unicode JSON settings. Move CodeStyles to a Unicode path before configuring the editor.",
+        "The managed executable path cannot be represented in VS Code's Unicode JSON settings. Select a dedicated Unicode managed-tools directory with CODESTYLES_TOOLCHAINS_DIR, install the verified dprint pack there, then refresh and copy its path.",
     )?;
     Ok(IntegrationGuide {
         executable_path: executable_path.to_owned(),
@@ -460,6 +462,10 @@ mod tests {
         assert!(guide.ci_instructions.contains("dprint-version: \"0.63.0\""));
         assert!(STABLE_FORMAT_EXPLANATION.contains("defaults to false"));
         assert!(OFFLINE_NOTE.contains("may download"));
+        assert!(OFFLINE_NOTE.contains("managed pack's verified WASM"));
+        assert!(!OFFLINE_NOTE.contains("bundled"));
+        assert!(guide.editor_steps.contains("new runtime directory"));
+        assert!(guide.editor_steps.contains("copy the current path again"));
         let manifest: serde_json::Value =
             serde_json::from_str(include_str!("../resources/manifest.json")).unwrap();
         assert_eq!(manifest["dprint_version"], DPRINT_VERSION);

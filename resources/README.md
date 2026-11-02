@@ -1,4 +1,4 @@
-# Pinned offline formatter resources
+# Pinned formatter sources and offline application assets
 
 Engine: **dprint 0.63.0**. Plugins: **TypeScript 0.96.1**, **JSON 0.25.2**,
 **Markdown 0.26.0**, **TOML 0.9.0**, **Ruff (Python) 0.11.3**.
@@ -6,11 +6,13 @@ Engine: **dprint 0.63.0**. Plugins: **TypeScript 0.96.1**, **JSON 0.25.2**,
 `manifest.json` pins official GitHub release URLs, published SHA-256 digests,
 archive sizes, and verified extracted executable digests. New plugin licenses
 are pinned to their exact release tags with locally computed hashes. WASM and schemas are
-vendored; platform binaries and source ZIPs are ignored build staging. The
-packaged application must include the target `bin/` folder and both `plugins/`
-and `schemas/` folders. A fresh application cache needs no network access to
-format with these local WASM files. Do not use remote plugin URLs at runtime.
+vendored as reviewed pack build inputs; platform binaries and source ZIPs are
+ignored maintainer staging. The application ships schemas and licenses but no
+`bin/` or `plugins/` payload. Its settings and built-in samples work without any
+runtime. Formatting requires explicit installation of the atomic dprint engine
+plus five-WASM managed pack. The installed pack formats offline after installation.
 
+The following commands prepare maintainer inputs, not app launch prerequisites.
 From repository root:
 
 ```
@@ -24,7 +26,7 @@ never access the network; missing or modified resources cause a hard failure.
 `fetch` never updates the pinned manifest. Updates require explicitly reviewing
 a new official release and regenerating reviewed hashes. ZIPs have fixed
 metadata for reproducible packaging. This script packages formatter resources,
-not the application UI or executable; application packaging must include them.
+not the application UI or executable; application packaging deliberately excludes runtimes.
 
 Supported resource targets: Linux x64/ARM64 GNU, macOS arm64/x64, Windows arm64/x64.
 Only Linux x64 is executed during this build; other binaries are checksum-
@@ -47,7 +49,7 @@ value preservation. The sample files do not need separate runtime packaging.
 
 The pinned [official dprint Ruff wrapper](https://github.com/dprint/dprint-plugin-ruff/releases/tag/0.11.3)
 is a WebAssembly plugin for `.py` and `.pyi`, not a system Ruff executable.
-It runs inside the same bundled dprint on all six targets, without requiring
+It runs inside the same managed dprint on all six targets, without requiring
 Python, pip, Ruff installation or runtime downloads for standalone previews.
 The plugin and its exact upstream schema add approximately 12.1 MB before
 package compression. Its formatter configuration lives in the `ruff` section of

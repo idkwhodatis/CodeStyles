@@ -22,6 +22,9 @@ use std::{
 };
 use tempfile::NamedTempFile;
 
+/// Pack revision pins the engine and the complete five-WASM runtime as one unit.
+pub const DPRINT_PACK_VERSION: &str = "0.63.0-p1";
+
 const MARKER: &str = ".codestyles-managed-tools";
 const MARKER_CONTENT: &[u8] = b"CodeStyles toolchains v1\n";
 const RECEIPT: &str = ".receipt.json";
@@ -408,6 +411,14 @@ impl ToolchainManager {
         let spec = tool["targets"]
             .get(&self.target)
             .ok_or("This toolchain is unavailable for this platform.")?;
+        if id == "dprint" {
+            if version != DPRINT_PACK_VERSION || spec["kind"] != "dprint" {
+                return Err("Unsupported dprint engine/WASM pack revision.".into());
+            }
+            runtime_entrypoints(spec)?;
+        } else if spec["kind"] == "dprint" {
+            return Err("The dprint runtime kind is reserved for the dprint pack.".into());
+        }
         Ok((version, spec))
     }
 
@@ -1244,9 +1255,13 @@ fn validate_removal(root: &Path, spec: &Value) -> Result<(), String> {
     walk_files(root, root, &mut files)?;
     let mut expected: BTreeSet<_> = expected_members(spec)?.into_keys().collect();
     expected.insert(RECEIPT.into());
-    if files != expected {
+    // Missing payload members are a repairable corruption: deleting the
+    // remaining allowlisted files is safe. Never broaden removal to foreign
+    // files, links, or a runtime without its ownership receipt. Resolution still
+    // hashes every required member in validate_runtime and fails on absence.
+    if !files.is_subset(&expected) || !files.contains(RECEIPT) {
         return Err(
-            "Managed runtime contains unexpected or missing files; refusing recursive removal."
+            "Managed runtime contains unexpected files or lacks its ownership receipt; refusing recursive removal."
                 .into(),
         );
     }
@@ -1332,6 +1347,38 @@ fn runtime_entrypoints(spec: &Value) -> Result<(Option<String>, Vec<String>), St
                 Some(normalized_path(string(spec, "executable")?)?),
                 Vec::new(),
             ))
+        }
+        "dprint" => {
+            let executable = string(spec, "executable")?;
+            if !["bin/dprint", "bin/dprint.exe"].contains(&executable) {
+                return Err("Invalid dprint engine entrypoint.".into());
+            }
+            if spec.get("environment").is_some_and(|value| {
+                !value
+                    .as_object()
+                    .is_some_and(|environment| environment.is_empty())
+            }) {
+                return Err("dprint packs cannot supply loader environment.".into());
+            }
+            let expected: Vec<String> = crate::schema::PinnedPlugin::ALL
+                .iter()
+                .map(|plugin| format!("plugins/{}", plugin.filename()))
+                .collect();
+            let entries = spec["wasm_plugins"]
+                .as_array()
+                .ok_or("dprint pack must declare all five pinned WASM plugins.")?;
+            let actual = entries
+                .iter()
+                .map(|entry| entry.as_str().ok_or("Invalid dprint WASM entrypoint."))
+                .collect::<Result<BTreeSet<_>, _>>()?;
+            if entries.len() != expected.len()
+                || actual != expected.iter().map(String::as_str).collect()
+            {
+                return Err(
+                    "dprint pack must contain exactly the five pinned WASM plugins.".into(),
+                );
+            }
+            Ok((Some(executable.into()), expected))
         }
         "wasm" => {
             if spec
@@ -2173,5 +2220,197 @@ mod wasm_pack_contract_tests {
         ] {
             assert!(runtime_entrypoints(&invalid).is_err(), "{invalid}");
         }
+    }
+}
+
+#[cfg(test)]
+mod dprint_pack_tests {
+    use super::*;
+
+    fn spec() -> Value {
+        json!({"kind":"dprint", "executable":"bin/dprint", "environment":{},
+            "wasm_plugins":crate::schema::PinnedPlugin::ALL.map(|plugin| format!("plugins/{}", plugin.filename()))})
+    }
+
+    #[test]
+    fn dprint_entrypoints_pin_the_complete_runtime_and_forbid_loader_overrides() {
+        let good = spec();
+        let (engine, plugins) = runtime_entrypoints(&good).unwrap();
+        assert_eq!(engine.as_deref(), Some("bin/dprint"));
+        assert_eq!(plugins.len(), 5);
+        let mut windows = good.clone();
+        windows["executable"] = json!("bin/dprint.exe");
+        assert!(runtime_entrypoints(&windows).is_ok());
+        for (key, value) in [
+            ("executable", json!("dprint")),
+            ("executable", json!("../bin/dprint")),
+            ("executable", json!("bin/other")),
+            ("wasm_plugins", json!([])),
+            ("wasm_plugins", json!(["plugins/typescript-latest.wasm"])),
+            ("environment", json!({"LD_LIBRARY_PATH":"lib"})),
+            ("environment", json!(false)),
+        ] {
+            let mut bad = good.clone();
+            bad[key] = value;
+            assert!(runtime_entrypoints(&bad).is_err(), "{bad}");
+        }
+        let mut duplicate = good.clone();
+        duplicate["wasm_plugins"][1] = duplicate["wasm_plugins"][0].clone();
+        assert!(runtime_entrypoints(&duplicate).is_err());
+        let mut extra = good;
+        extra["wasm_plugins"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!("plugins/extra.wasm"));
+        assert!(runtime_entrypoints(&extra).is_err());
+    }
+
+    fn fixture() -> (tempfile::TempDir, ToolchainManager, Vec<u8>) {
+        let mut spec = spec();
+        let mut entries = vec![(
+            "bin/dprint".to_owned(),
+            b"verified dprint engine\n".to_vec(),
+            true,
+        )];
+        entries.extend(crate::schema::PinnedPlugin::ALL.iter().map(|plugin| {
+            (
+                format!("plugins/{}", plugin.filename()),
+                b"\0asm\x01\0\0\0".to_vec(),
+                false,
+            )
+        }));
+        let mut tar = tar::Builder::new(Vec::new());
+        let mut members = Vec::new();
+        for (path, bytes, executable) in &entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(bytes.len() as u64);
+            header.set_mode(if *executable { 0o755 } else { 0o644 });
+            header.set_cksum();
+            tar.append_data(&mut header, path, bytes.as_slice())
+                .unwrap();
+            members.push(json!({"archive_path":path,"path":path,"bytes":bytes.len(),
+                "sha256":format!("{:x}",Sha256::digest(bytes)),"executable":executable}));
+        }
+        let raw = tar.into_inner().unwrap();
+        let mut gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        gzip.write_all(&raw).unwrap();
+        let bytes = gzip.finish().unwrap();
+        spec["available"] = json!(false);
+        spec["reason"] = json!("Unpublished dprint test pack");
+        spec["max_installed_bytes"] = json!(4096);
+        spec["archives"] = json!([{"format":"tar.gz","sha256":format!("{:x}",Sha256::digest(&bytes)),
+            "bytes":bytes.len(),"max_download_bytes":4096,"max_expanded_bytes":65536,"members":members}]);
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("managed");
+        initialize_root(&root).unwrap();
+        let manager = ToolchainManager {
+            root,
+            target: "test".into(),
+            verified: Default::default(),
+            catalog: json!({"format_version":1,"toolchains":{"dprint":{"version":DPRINT_PACK_VERSION,"targets":{"test":spec}}}}),
+        };
+        (dir, manager, bytes)
+    }
+
+    fn install(manager: &ToolchainManager, bytes: &[u8]) -> Result<ResolvedToolchain, String> {
+        manager.install_with(
+            "dprint",
+            &AtomicBool::new(false),
+            &|_| {},
+            |_, path, _, _| write_new(path, bytes),
+        )
+    }
+
+    #[test]
+    fn dprint_missing_install_corrupt_uninstall_and_reinstall_are_atomic() {
+        let (_dir, mut manager, bytes) = fixture();
+        assert_eq!(manager.status("dprint").unwrap(), ToolchainStatus::Missing);
+        assert!(
+            manager
+                .download_available("dprint")
+                .unwrap_err()
+                .contains("Unpublished")
+        );
+        assert!(manager.resolve("dprint").is_err());
+        let runtime = install(&manager, &bytes).unwrap();
+        assert_eq!(runtime.version, DPRINT_PACK_VERSION);
+        assert_eq!(runtime.wasm_plugins.len(), 5);
+        assert!(runtime.executable.is_file());
+        let plugin = runtime.wasm_plugins[0].clone();
+        drop(runtime);
+        assert!(matches!(
+            manager.status("dprint").unwrap(),
+            ToolchainStatus::Installed { .. }
+        ));
+        fs::write(&plugin, b"corrupt WASM").unwrap();
+        assert!(matches!(
+            manager.status("dprint").unwrap(),
+            ToolchainStatus::Corrupt { .. }
+        ));
+        assert!(manager.resolve("dprint").is_err());
+        manager.uninstall("dprint").unwrap();
+        assert_eq!(manager.status("dprint").unwrap(), ToolchainStatus::Missing);
+        let runtime = install(&manager, &bytes).unwrap();
+        let executable = runtime.executable.clone();
+        let root = runtime.root.clone();
+        drop(runtime);
+        fs::remove_file(executable).unwrap();
+        assert!(matches!(
+            manager.status("dprint").unwrap(),
+            ToolchainStatus::Corrupt { .. }
+        ));
+        assert!(manager.resolve("dprint").is_err());
+        // A partial owned runtime is removable, but missing bytes never grant
+        // permission to remove a foreign file or an unreceipted directory.
+        fs::write(root.join("foreign"), b"keep").unwrap();
+        assert!(manager.uninstall("dprint").is_err());
+        assert_eq!(fs::read(root.join("foreign")).unwrap(), b"keep");
+        fs::remove_file(root.join("foreign")).unwrap();
+        let receipt = fs::read(root.join(RECEIPT)).unwrap();
+        fs::remove_file(root.join(RECEIPT)).unwrap();
+        assert!(manager.uninstall("dprint").is_err());
+        fs::write(root.join(RECEIPT), receipt).unwrap();
+        manager.uninstall("dprint").unwrap();
+        drop(install(&manager, &bytes).unwrap());
+        assert!(manager.resolve("dprint").is_ok());
+        manager.catalog["toolchains"]["dprint"]["version"] = json!("0.63.0");
+        assert!(manager.status("dprint").unwrap_err().contains("revision"));
+    }
+
+    #[test]
+    fn dprint_failed_or_cancelled_install_preserves_active_and_leases_block_uninstall() {
+        let (_dir, manager, bytes) = fixture();
+        drop(install(&manager, &bytes).unwrap());
+        let pointer = fs::read(manager.root.join("dprint/active.json")).unwrap();
+        assert!(install(&manager, b"corrupt archive").is_err());
+        let cancel = AtomicBool::new(false);
+        assert!(
+            manager
+                .install_with("dprint", &cancel, &|_| {}, |_, path, _, _| {
+                    write_new(path, &bytes)?;
+                    cancel.store(true, Ordering::Release);
+                    Ok(())
+                })
+                .unwrap_err()
+                .contains("cancelled")
+        );
+        assert_eq!(
+            fs::read(manager.root.join("dprint/active.json")).unwrap(),
+            pointer
+        );
+        let runtime = manager.resolve("dprint").unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let worker_manager = manager.clone();
+        let worker_cancel = cancel.clone();
+        let uninstall = std::thread::spawn(move || {
+            worker_manager.uninstall_cancellable("dprint", &worker_cancel)
+        });
+        std::thread::sleep(Duration::from_millis(100));
+        cancel.store(true, Ordering::Release);
+        assert!(uninstall.join().unwrap().unwrap_err().contains("cancelled"));
+        assert!(runtime.executable.is_file());
+        drop(runtime);
+        manager.uninstall("dprint").unwrap();
+        assert_eq!(manager.status("dprint").unwrap(), ToolchainStatus::Missing);
     }
 }

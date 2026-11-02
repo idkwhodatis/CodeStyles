@@ -25,6 +25,7 @@ pub struct Backend {
     executable: PathBuf,
     plugins: Vec<PathBuf>,
     timeout: Duration,
+    managed_dprint: bool,
     rustfmt: crate::rustfmt::RustfmtRuntime,
     native: crate::native_format::NativeRuntime,
     managed: Arc<Mutex<Option<crate::toolchains::ToolchainManager>>>,
@@ -36,11 +37,47 @@ impl Backend {
             executable,
             plugins,
             timeout: Duration::from_secs(30),
+            managed_dprint: false,
             rustfmt: Default::default(),
             native: Default::default(),
             managed: Default::default(),
         }
     }
+    /// Construct the application backend without touching disk or finding tools.
+    /// Formatting resolves only an explicitly installed, verified runtime pack.
+    pub fn managed() -> Self {
+        let mut backend = Self::new(PathBuf::new(), Vec::new());
+        backend.managed_dprint = true;
+        backend
+    }
+
+    pub(crate) fn needs_managed_dprint(&self) -> bool {
+        self.managed_dprint
+    }
+
+    pub(crate) fn resolve_dprint(
+        &self,
+        cancelled: &AtomicBool,
+    ) -> Result<(Self, crate::toolchains::ResolvedToolchain), String> {
+        let manager = {
+            let mut slot = self
+                .managed
+                .lock()
+                .map_err(|_| "Managed formatter state failed.")?;
+            if slot.is_none() {
+                *slot = Some(crate::toolchains::ToolchainManager::discover()?);
+            }
+            slot.as_ref().expect("initialized").clone()
+        };
+        let runtime = manager.resolve_cancellable("dprint", cancelled)
+            .map_err(|e| format!("dprint runtime is unavailable. Install or repair dprint in Language support. {e}"))?;
+        let mut backend = self.clone();
+        backend.executable = runtime.executable.clone();
+        backend.plugins = runtime.wasm_plugins.clone();
+        backend.managed_dprint = false;
+        Ok((backend, runtime))
+    }
+
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
@@ -55,7 +92,7 @@ impl Backend {
         self
     }
 
-    /// The verified, explicitly selected bundled CLI, never a PATH lookup.
+    /// The explicitly selected CLI, never a PATH lookup. Empty on a lazy managed backend.
     pub fn executable(&self) -> &Path {
         &self.executable
     }
@@ -64,10 +101,14 @@ impl Backend {
         self.timeout
     }
 
-    /// A portable new document referencing the exact bundled plugin versions.
+    /// A portable new document referencing the exact pinned plugin versions.
     /// Only preview-time exact pinned references map to verified local assets.
     pub fn standalone_config(&self) -> Result<ConfigDocument, String> {
-        ConfigDocument::standalone(&self.plugins)
+        if self.managed_dprint {
+            ConfigDocument::standalone_pinned()
+        } else {
+            ConfigDocument::standalone(&self.plugins)
+        }
     }
 
     pub fn format(
@@ -94,6 +135,10 @@ impl Backend {
             .and_then(|value| value.to_str());
         if crate::native_format::NativeLanguage::from_path(&request.source_path).is_some() {
             return self.native.format(request, cancelled, self.timeout);
+        }
+        if self.managed_dprint {
+            let (backend, _lease) = self.resolve_dprint(&cancelled)?;
+            return backend.format(request, cancelled);
         }
         // Retain the shared pack lease until every formatter pipe has exited.
         let _vue_runtime;
@@ -144,12 +189,9 @@ impl Backend {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        let mut child = command.spawn().map_err(|e| {
-            format!(
-                "Cannot start bundled dprint {}: {e}",
-                self.executable.display()
-            )
-        })?;
+        let mut child = command
+            .spawn()
+            .map_err(|e| format!("Cannot start dprint {}: {e}", self.executable.display()))?;
         let mut stdin = child.stdin.take().expect("piped stdin");
         let stdout = child.stdout.take().expect("piped stdout");
         let stderr = child.stderr.take().expect("piped stderr");

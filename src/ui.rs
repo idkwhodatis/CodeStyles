@@ -14,7 +14,6 @@ use codestyles::{
     preview::PreviewController,
     project::{NativeLanguage, ProjectAction, ProjectReport, ProjectRequest},
     project_worker::ProjectController,
-    resources,
     schema::{
         FieldKind, PinnedPlugin, SchemaCatalog, SchemaContext, SchemaField, setting_categories,
     },
@@ -90,26 +89,18 @@ pub struct PreviewWindow {
 
 impl PreviewWindow {
     pub fn new(cx: &mut Context<Self>) -> Self {
-        let backend = resources::bundled_backend();
-        let executable = backend
-            .as_ref()
-            .ok()
-            .map(|backend| backend.executable().to_path_buf());
-        let project_controller = backend
-            .as_ref()
-            .ok()
-            .map(|backend| ProjectController::new(backend.clone()));
-        let (controller, document, status, error) = match backend {
-            Ok(backend) => match backend.standalone_config() {
-                Ok(document) => (
-                    Some(PreviewController::new(backend)),
-                    Some(document),
-                    "Ready".into(),
-                    false,
-                ),
-                Err(error) => (None, None, error, true),
-            },
-            Err(error) => (None, None, format!("Backend unavailable: {error}"), true),
+        // Settings and the initial portable document need no installed formatter.
+        let backend = codestyles::backend::Backend::managed();
+        let executable = None; // Populated only by the managed-runtime worker.
+        let project_controller = Some(ProjectController::new(backend.clone()));
+        let (controller, document, status, error) = match backend.standalone_config() {
+            Ok(document) => (
+                Some(PreviewController::new(backend)),
+                Some(document),
+                "Ready · install a formatter in Languages to enable preview".into(),
+                false,
+            ),
+            Err(error) => (None, None, error, true),
         };
         let mut view = Self {
             controller,
@@ -184,14 +175,19 @@ impl PreviewWindow {
                         view.pack_status = match completed.result {
                             Ok(()) => match completed.action {
                                 PackAction::Refresh => "Language-pack status refreshed.".into(),
-                                PackAction::Uninstall => "Selected language pack uninstalled. Bundled languages are unchanged.".into(),
+                                PackAction::Uninstall => "Selected formatter pack uninstalled. Settings and other packs are unchanged.".into(),
                                 _ => "Verified language pack installed.".into(),
                             },
                             Err(error) => error,
                         };
                         match completed.snapshot {
-                            Ok(snapshot) => view.pack_snapshot = Some(snapshot),
-                            Err(error) => { view.pack_snapshot = None; view.pack_error = true; view.pack_status.push_str(&format!("\nStatus unavailable: {error}")); }
+                            Ok(snapshot) => {
+                                if completed.pack_id == "dprint" {
+                                    view.executable = snapshot.executable.clone();
+                                }
+                                view.pack_snapshot = Some(snapshot);
+                            },
+                            Err(error) => { if completed.pack_id == "dprint" { view.executable = None; } view.pack_snapshot = None; view.pack_error = true; view.pack_status.push_str(&format!("\nStatus unavailable: {error}")); }
                         }
                         if changed && pack_matches_preview(view.source.language(), completed.pack_id) {
                             view.project_report = None;
@@ -354,7 +350,7 @@ impl PreviewWindow {
             return;
         }
         if self.controller.is_none() {
-            self.fail("Preview unavailable: the bundled formatter could not be loaded. Configuration editing and saving remain available.".into());
+            self.fail("Preview unavailable: the formatter controller could not be initialized. Configuration editing and saving remain available.".into());
             cx.notify();
             return;
         }
@@ -891,6 +887,8 @@ fn package_footprint_text(metadata: Option<&Result<Option<PackFootprint>, String
 
 fn pack_matches_preview(language: SourceLanguage, pack_id: &str) -> bool {
     language.pack_id() == Some(pack_id)
+        || (pack_id == "dprint"
+            && (language.pack_id().is_none() || language == SourceLanguage::Vue))
 }
 
 fn pack_mutation_affects_preview(
@@ -1669,7 +1667,7 @@ impl PreviewWindow {
                                                                 {
                                                                     return;
                                                                 }
-                                                                this.switch_pack(language.pack_id().unwrap_or("rustfmt"), cx);
+                                                                this.switch_pack(language.pack_id().unwrap_or("dprint"), cx);
                                                                 this.vue_settings = VueSettingsGroup::Template;
                                                                 this.source
                                                                     .select_language(language);
@@ -1870,7 +1868,7 @@ impl PreviewWindow {
                         this.project_selection.clear();
                         this.project_report = None;
                         this.project_error = false;
-                        this.project_status = if native_project { "Running selected-language-only project operation with the verified pack…" } else { "Running bundled dprint with the saved project configuration…" }.into();
+                        this.project_status = if native_project { "Running selected-language-only project operation with the verified pack…" } else { "Running managed dprint with the saved project configuration…" }.into();
                     }
                     Err(error) => { this.project_status = error; this.project_error = true; }
                 }
@@ -2011,6 +2009,10 @@ impl PreviewWindow {
             .into_any_element()
     }
 
+    fn dprint_runtime_busy(&self) -> bool {
+        self.toolchain_controller.pack_id() == "dprint" && self.toolchain_controller.is_running()
+    }
+
     fn render_integration(&mut self, cx: &mut Context<Self>) -> AnyElement {
         if self.source.language() == SourceLanguage::Rust {
             return self.render_rust_integration(cx);
@@ -2021,28 +2023,32 @@ impl PreviewWindow {
         if !self.source.language().is_bundled() {
             return div().flex().flex_col().gap_3()
                 .child(div().text_lg().child(format!("{} editor & CI", self.source.language().display_name())))
-                .child(div().text_sm().child("This optional language uses a verified managed pack. Installing it does not change editor settings or add project plugin URLs. Configure external editor/CI tools explicitly; the bundled offline dprint config alone does not provide this language."))
+                .child(div().text_sm().child("This optional language uses a verified managed pack. Installing it does not change editor settings or add project plugin URLs. Configure external editor/CI tools explicitly; the portable dprint config alone does not provide this language."))
                 .child(div().text_sm().child(match self.source.language() {
                     SourceLanguage::Java => "Java uses google-java-format with Google or AOSP style and preserves imports. CodeStyles JSONC is not a native formatter config; configure external editor/CI tooling explicitly.",
                     SourceLanguage::CSharp => "C# uses CSharpier with isolated source formatting, not dotnet format: no solution loading, restore or analyzers. CodeStyles JSONC is not .csharpierrc; copy the supported settings to your external tooling explicitly.",
                     SourceLanguage::C | SourceLanguage::Cpp => "C/C++ use clang-format with explicit settings, not project .clang-format discovery. CodeStyles JSONC is not a .clang-format YAML file; configure external editor/CI tooling explicitly.",
                     SourceLanguage::Go => "Go uses canonical gofmt with no style settings. Configure your normal Go editor tooling separately.",
                     SourceLanguage::Dart => "Dart / Flutter source uses the pinned Dart formatter. This does not install Flutter or run pub/analyzer commands. The three supported options are languageVersion, pageWidth, and trailingCommas.",
-                    _ => "Vue support is Vue-only SFC formatting with pinned markup_fmt / Malva and bundled script formatters. External src and unsupported custom block languages fail closed. It is not a Vue build system or arbitrary embedded-language runner.",
+                    _ => "Vue support is Vue-only SFC formatting with pinned markup_fmt / Malva and the managed dprint script formatters. External src and unsupported custom block languages fail closed. It is not a Vue build system or arbitrary embedded-language runner.",
                 })).into_any_element();
         }
         let guide = self
             .executable
             .as_ref()
             .ok_or_else(|| {
-                "Bundled executable is unavailable. Verify the resource bundle first.".to_owned()
+                "Managed dprint is not verified. Install or refresh dprint in Languages first."
+                    .to_owned()
             })
             .and_then(|path| integration::guidance(path));
         let shell = integration::CommandShell::native();
         let project = self
             .executable
             .as_ref()
-            .ok_or_else(|| "Bundled executable is unavailable.".to_owned())
+            .ok_or_else(|| {
+                "Managed dprint is not verified. Install or refresh dprint in Languages first."
+                    .to_owned()
+            })
             .and_then(|path| {
                 integration::project_guidance(
                     path,
@@ -2078,14 +2084,14 @@ impl PreviewWindow {
             .child(div().text_lg().child("Editor & CI"))
             .child(div().text_sm().child(project_status))
             .child(div().flex().flex_wrap().gap_2()
-                .child(Button::new("copy-project-check").label("Copy check command").disabled(check_command.is_none() || self.dialog_pending || self.project_busy()).on_click(cx.listener(move |this, _, _, cx| {
-                    if !this.dirty() && let Some(command) = &check_command {
+                .child(Button::new("copy-project-check").label("Copy check command").disabled(check_command.is_none() || self.dialog_pending || self.project_busy() || self.dprint_runtime_busy()).on_click(cx.listener(move |this, _, _, cx| {
+                    if !this.dirty() && !this.dprint_runtime_busy() && let Some(command) = &check_command {
                         cx.write_to_clipboard(ClipboardItem::new_string(command.clone()));
                         this.status = format!("Saved-project check command copied for {}.", shell.label()); cx.notify();
                     }
                 })))
-                .child(Button::new("copy-project-format").label("Copy format command").disabled(format_command.is_none() || self.dialog_pending || self.project_busy()).on_click(cx.listener(move |this, _, _, cx| {
-                    if !this.dirty() && let Some(command) = &format_command {
+                .child(Button::new("copy-project-format").label("Copy format command").disabled(format_command.is_none() || self.dialog_pending || self.project_busy() || self.dprint_runtime_busy()).on_click(cx.listener(move |this, _, _, cx| {
+                    if !this.dirty() && !this.dprint_runtime_busy() && let Some(command) = &format_command {
                         cx.write_to_clipboard(ClipboardItem::new_string(command.clone()));
                         this.status = format!("Format command copied for {}. Running it writes project source files.", shell.label()); cx.notify();
                     }
@@ -2095,14 +2101,14 @@ impl PreviewWindow {
                     this.status = "CI step copied. Use after checkout with a committed, discoverable dprint configuration.".into(); cx.notify();
                 }))))
             .child(div().flex().flex_wrap().gap_2()
-                .child(Button::new("copy-dprint-path").label("Copy dprint path").disabled(path.is_none()).on_click(cx.listener(move |this, _, _, cx| {
-                    if let Some(path) = &path {
+                .child(Button::new("copy-dprint-path").label("Copy dprint path").disabled(path.is_none() || self.dprint_runtime_busy()).on_click(cx.listener(move |this, _, _, cx| {
+                    if !this.dprint_runtime_busy() && let Some(path) = &path {
                         cx.write_to_clipboard(ClipboardItem::new_string(path.clone()));
-                        this.status = "Bundled dprint path copied. Paste it into VS Code user settings.".into(); cx.notify();
+                        this.status = "Verified managed dprint path copied. Paste it into VS Code user settings.".into(); cx.notify();
                     }
                 })))
-                .child(Button::new("copy-editor-settings").label("Copy settings").disabled(settings.is_none()).on_click(cx.listener(move |this, _, _, cx| {
-                    if let Some(settings) = &settings { cx.write_to_clipboard(ClipboardItem::new_string(settings.clone())); this.status = "Settings JSON copied. Merge it into VS Code user settings, preserving existing entries.".into(); cx.notify(); }
+                .child(Button::new("copy-editor-settings").label("Copy settings").disabled(settings.is_none() || self.dprint_runtime_busy()).on_click(cx.listener(move |this, _, _, cx| {
+                    if !this.dprint_runtime_busy() && let Some(settings) = &settings { cx.write_to_clipboard(ClipboardItem::new_string(settings.clone())); this.status = "Settings JSON copied. Merge it into VS Code user settings, preserving existing entries.".into(); cx.notify(); }
                 })))
                 .child(Button::new("open-dprint-extension").label("VS Code extension").on_click(|_, _, cx| cx.open_url(integration::EXTENSION_URL))))
             .child(code_pane("integration-guide", "Editor & CI setup · no settings changed automatically".into(), &text, cx))
@@ -2221,7 +2227,7 @@ impl PreviewWindow {
             .map(|snapshot| snapshot.root.display().to_string())
             .unwrap_or_else(|| "the dedicated managed directory".into());
         let explanation = format!(
-            "Remove only the managed {} pack under {location}? Other language packs, bundled languages, project source files, and saved configuration are not removed. Formatting this language will require reinstalling its verified pack.",
+            "Remove only the managed {} pack under {location}? Other language packs, project source files, and saved configuration are not removed. Formatting languages that depend on this pack will require reinstalling it; Vue also depends on dprint.",
             self.toolchain_controller.pack_id()
         );
         let prompt = window.prompt(
@@ -2286,11 +2292,11 @@ impl PreviewWindow {
         };
         div().id("language-support-content").flex().flex_col().flex_1().min_h_0().overflow_y_scroll().gap_3()
             .child(div().text_lg().child("Language support"))
-            .child(div().flex().flex_wrap().gap_2().children([("rustfmt", "Rust"), ("gofmt", "Go"), ("dartfmt", "Dart / Flutter"), ("vue", "Vue"), ("google-java-format", "Java"), ("csharpier", "C#"), ("clang-format", "C / C++")].into_iter().enumerate().map(|(index, (id, label))| Button::new(("pack-choice", index)).label(label).selected(self.toolchain_controller.pack_id() == id).disabled(blocked).on_click(cx.listener(move |this, _, _, cx| this.switch_pack(id, cx))))))
+            .child(div().flex().flex_wrap().gap_2().children([("dprint", "dprint"), ("rustfmt", "Rust"), ("gofmt", "Go"), ("dartfmt", "Dart / Flutter"), ("vue", "Vue"), ("google-java-format", "Java"), ("csharpier", "C#"), ("clang-format", "C / C++")].into_iter().enumerate().map(|(index, (id, label))| Button::new(("pack-choice", index)).label(label).selected(self.toolchain_controller.pack_id() == id).disabled(blocked).on_click(cx.listener(move |this, _, _, cx| this.switch_pack(id, cx))))))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
-                .child(div().child(if self.controller.is_some() { "Built in · resources verified" } else { "Built in · resource verification unavailable" }))
+                .child(div().child("Offline settings · no formatter installation required"))
                 .child(div().text_sm().child("TypeScript / JavaScript / JSX / TSX · JSON / JSONC · Markdown · TOML · Python / Python Stub"))
-                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Existing pinned dprint and five WASM plugins remain bundled. This page does not remove or upgrade existing project plugin references.")))
+                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Install dprint to format these languages. Its engine and five pinned WASM plugins are one verified optional pack. Vue requires both dprint and Vue packs. Settings, schemas, and samples remain available offline. Installation does not change project plugin references.")))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
                 .child(div().child(format!("{} · managed optional language pack", self.toolchain_controller.pack_id())))
                 .child(div().text_sm().child(state))
@@ -2779,7 +2785,7 @@ impl Render for PreviewWindow {
             .as_ref()
             .and_then(|doc| doc.path())
             .map(|path| path.display().to_string())
-            .unwrap_or_else(|| "Untitled · bundled plugins".into());
+            .unwrap_or_else(|| "Untitled · pinned plugin configuration".into());
         let state_label = if self.field_draft.is_dirty() {
             "Unapplied value"
         } else if self.raw_dirty {
@@ -3111,6 +3117,33 @@ mod tests {
     fn publication_state_is_not_inferred_from_editable_settings() {
         assert!(super::remote_pack_availability(false).contains("cannot be installed remotely"));
         assert!(super::remote_pack_availability(true).contains("available for this platform"));
+    }
+
+    #[test]
+    fn dprint_mutations_invalidate_all_dependent_languages_including_vue() {
+        use codestyles::{comparison::SourceLanguage, toolchain_worker::PackAction};
+        for language in SourceLanguage::ALL {
+            let depends_on_dprint = language.pack_id().is_none() || language == SourceLanguage::Vue;
+            assert_eq!(
+                super::pack_matches_preview(language, "dprint"),
+                depends_on_dprint
+            );
+            for action in [
+                PackAction::Install,
+                PackAction::Uninstall,
+                PackAction::InstallLocal("candidate.tar.gz".into()),
+            ] {
+                assert_eq!(
+                    super::pack_mutation_affects_preview(language, "dprint", &action),
+                    depends_on_dprint
+                );
+            }
+            assert!(!super::pack_mutation_affects_preview(
+                language,
+                "dprint",
+                &PackAction::Refresh
+            ));
+        }
     }
 
     #[test]

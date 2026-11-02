@@ -1,3 +1,4 @@
+mod common;
 use codestyles::{
     backend::{Backend, FormatRequest},
     config::ConfigDocument,
@@ -318,7 +319,7 @@ fn changed_bundled_executable_is_rejected_before_execution() {
         serde_json::to_vec(&manifest).unwrap(),
     )
     .unwrap();
-    let result = codestyles::resources::backend_from_root(dir.path());
+    let result = common::verified_backend(dir.path());
     assert!(result.unwrap_err().contains("checksum mismatch"));
 }
 
@@ -331,9 +332,9 @@ fn unpinned_cli_version_is_rejected() {
     )
     .unwrap();
     assert!(
-        codestyles::resources::backend_from_root(dir.path())
+        common::verified_backend(dir.path())
             .unwrap_err()
-            .contains("Unsupported bundled dprint version")
+            .contains("Unsupported pinned dprint version")
     );
 }
 
@@ -410,7 +411,7 @@ fn child_receives_literal_argv_stdin_and_dedicated_cache_environment() {
 #[test]
 fn verified_resource_bundle_formats_through_real_backend() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
-    let backend = codestyles::resources::backend_from_root(&root).unwrap();
+    let backend = common::verified_backend(&root).unwrap();
     let output = backend
         .format(
             &request(
@@ -579,7 +580,7 @@ fn markdown_and_toml_samples_match_pinned_cli_with_saved_and_changed_settings() 
 #[test]
 fn markdown_fences_use_bundled_typescript_json_and_toml_plugins() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
-    let backend = codestyles::resources::backend_from_root(&root).unwrap();
+    let backend = common::verified_backend(&root).unwrap();
     let document = backend.standalone_config().unwrap();
     let input = FormatRequest {
         source: "```ts\nconst n=1\n```\n\n```json\n{\"a\":1}\n```\n\n```toml\na=1\n```\n".into(),
@@ -617,7 +618,7 @@ fn corrupted_markdown_and_toml_bundles_are_rejected_before_use() {
             b"corrupt",
         )
         .unwrap();
-        let error = codestyles::resources::backend_from_root(dir.path()).unwrap_err();
+        let error = common::verified_backend(dir.path()).unwrap_err();
         assert!(error.contains("checksum mismatch"));
         assert!(error.contains(plugin.filename()));
     }

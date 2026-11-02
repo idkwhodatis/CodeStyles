@@ -1,7 +1,7 @@
 # CodeStyles
 
 Native code-style editor and project formatter using Rust, GPUI Kit **0.7.3**
-and the bundled **dprint 0.63.0** executable. Tune a style against offline built-in
+and an optional managed **dprint 0.63.0** runtime plugin. Tune a style against offline built-in
 examples, then inspect and format real project files with the saved configuration.
 
 ## Downloadable language support and Rust
@@ -43,8 +43,8 @@ whole import. There is no automatic config discovery or IDE settings rewrite. Se
 
 ## Python formatting
 
-Python `.py` and type-stub `.pyi` files use the bundled, checksummed
-**dprint Ruff adapter 0.11.3** (WASM), through the same dprint 0.63.0 backend.
+Python `.py` and type-stub `.pyi` files use the managed, checksummed
+**dprint Ruff adapter 0.11.3** (WASM), through the same optional dprint 0.63.0 backend.
 No Python interpreter, pip, or separately installed Ruff is needed. Choose
 **Python** or **Python Stub** in the language picker for a highlighted built-in
 example, native formatting settings, live preview, and saved-versus-draft diff.
@@ -89,7 +89,7 @@ removed. Preview style remains opt-in. See the [official adapter documentation](
   or cancelled verification is not presented as a clean result.
 - Prepare plugins uses the pinned CLI and reports failures. Project operations
   use saved plugin references and normal nested config discovery, unlike the
-  preview-only bundled plugin remapping. A cold project cache can need network
+  preview-only managed plugin remapping. A cold project cache can need network
   access even for known pinned plugin URLs.
 - Every project action asks for trust covering the saved and nested configuration,
   inherited resources and process plugins. Formatting selected files additionally
@@ -107,7 +107,7 @@ removed. Preview style remains opt-in. See the [official adapter documentation](
   closure cannot be safely protected. Read-only Check remains available; ordinary
   relative/absolute extends, `${configDir}`, inheritance and overrides retain their
   native dprint semantics. Local plugin resources are protected from formatting.
-- Editor & CI shows the verified bundled executable path, a copy-path action,
+- Editor & CI shows the verified installed executable path, a copy-path action,
   user-level VS Code settings and version-pinned CI guidance. It never edits the
   editor or workspace settings. See [editor integration](EDITOR_INTEGRATION.md).
 
@@ -186,7 +186,7 @@ TOML uses the same formatting concerns for its available dprint options.
   replaces the selected file. This is a compare-before-replace guard, not an editor
   lock: an external writer can still race the final check and replacement.
 - Standalone drafts/export use pinned standard plugin URLs, never installation-
-  specific paths. Preview alone maps those exact versions to verified bundled WASM;
+  specific paths. Preview alone maps those exact versions to verified installed WASM;
   imported and saved text keeps its original references.
 - Save As creates a new destination only. It never overwrites an unrelated existing
   file. Relative references retain their text, so moving folders can change their
@@ -223,27 +223,35 @@ See [GPUI Kit installation](https://gpui-kit.com/docs/installation/).
 For Linux x86-64:
 
 ```sh
-python3 scripts/bundle_resources.py fetch --target x86_64-unknown-linux-gnu
-python3 scripts/bundle_resources.py verify --target x86_64-unknown-linux-gnu
 cargo run --locked
 ```
 
-Other bundled targets: `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-apple-darwin`,
+Other application targets: `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-apple-darwin`,
 `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc`. Build on the corresponding
 native OS/architecture. Linux ARM64 is included. All six CI lanes use native hosted runners; each
 asserts its Rust host triple before executing tests and building its package.
 
-`fetch` is a build-time operation from pinned official sources. Binaries and ZIP
-archives are ignored by Git; WASM, schemas, manifest and licenses are committed.
-Do not ship a checkout without fetching and packaging its target executable.
+No dprint executable or system installation is needed to build, launch, or edit
+settings. Install **dprint** explicitly from **Languages → Language support** before preview or
+project formatting. It uses the same verified install/cancel/uninstall flow as
+other tools; startup never downloads anything or searches `PATH`. A missing,
+corrupt, or unavailable pack is reported rather than falling back to bundled or
+system executables. All dprint targets remain unavailable until reviewed runtime
+artifacts are published and their catalog entries explicitly enabled.
 
-The runtime finds `resources/` beside the executable, then the development
-checkout. `CODESTYLES_RESOURCES` explicitly overrides that directory. It verifies
-SHA256 before starting the bundled binary and never searches `PATH` for dprint.
+The runtime pack contains the engine and all five WASMs as one atomic unit
+(`0.63.0-p1`); schemas, samples and licenses remain available offline in the app.
+See [dprint pack preparation](TOOLCHAIN_PACKAGING.md#dprint-engine-and-wasm-pack).
+`bundle_resources.py fetch` is only an explicit maintainer/test-fixture preparation
+step, not an application build/startup prerequisite. The app finds offline
+`resources/` beside its executable (or inside the macOS app); debug builds can use
+the checkout. `CODESTYLES_RESOURCES` explicitly overrides that metadata directory,
+not the managed runtime selection.
+
 The backend gives dprint a dedicated `CodeStyles/dprint` directory under the OS
 user cache (LOCALAPPDATA on Windows, Library/Caches on macOS, XDG_CACHE_HOME or
 ~/.cache on Linux). `DPRINT_CACHE_DIR` explicitly overrides it, useful when the
-normal user cache is read-only. A cold cache compiles bundled WASM locally without
+normal user cache is read-only. A cold cache compiles installed WASM locally without
 network access. Preview config discovery is disabled; the selected draft is explicit. Project
 commands retain normal nested discovery with the saved configuration.
 
@@ -259,7 +267,6 @@ The portable ZIP is unsigned; native installers/signing are outside this slice.
 
 ```sh
 python3 -m unittest discover -s scripts -p 'test_*.py'
-python3 scripts/bundle_resources.py verify --target x86_64-unknown-linux-gnu
 cargo fmt --check
 cargo test --locked --no-default-features
 cargo test --locked --bin codestyles
@@ -279,7 +286,7 @@ not evidence those builds or interactive GUI smoke tests have passed.
 Opening a project config only reads it. Previewing requires an explicit trust
 action: dprint may resolve remote extends/plugins and execute process plugins.
 Trust is not sandboxing. Raw configuration changes require renewed trust. Only
-standalone/reopened configs using the exact bundled pinned plugins without external
+standalone/reopened configs using the exact installed pinned plugins without external
 references are guaranteed offline. Unknown plugin versions
 are retained; plugin-specific controls are disabled for unsupported
 references and inherited configurations. Raw JSONC editing remains available.

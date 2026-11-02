@@ -1,10 +1,10 @@
 //! Real pinned Ruff WASM integration, including reviewed project writes.
-//! These tests require the same checksummed bundle shipped with the application.
+//! These tests require explicit checksummed upstream test fixtures.
+mod common;
 use codestyles::{
     backend::{Backend, FormatRequest},
     config::ConfigDocument,
     project::{ProjectAction, ProjectRequest},
-    resources,
     schema::PinnedPlugin,
 };
 use serde_json::json;
@@ -17,8 +17,7 @@ use std::{
 };
 
 fn backend() -> Backend {
-    resources::backend_from_root(&Path::new(env!("CARGO_MANIFEST_DIR")).join("resources"))
-        .expect("verified native dprint and Ruff WASM must be bundled")
+    common::backend()
 }
 
 fn cancellation(value: bool) -> Arc<AtomicBool> {

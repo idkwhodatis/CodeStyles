@@ -268,7 +268,7 @@ class DistributionToolsTests(unittest.TestCase):
                 sign_macos.notarize('app.zip', 'existing-profile', report, '/tmp/signing.keychain-db')
                 self.assertEqual(command.call_args.args[0][-2:], ['--keychain', '/tmp/signing.keychain-db'])
 
-    def test_signing_verifies_upstream_and_updates_only_signed_executable(self):
+    def test_signing_verifies_offline_assets_without_runtime(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             app = root / 'CodeStyles.app'
@@ -278,7 +278,7 @@ class DistributionToolsTests(unittest.TestCase):
             original = b'upstream-dprint'
             plugin = b'pinned-wasm'
             records = []
-            for path, data in ((dprint_path, original), ('plugins/a.wasm', plugin)):
+            for path, data in (('schemas/a.json', original), ('licenses/a.txt', plugin)):
                 file = resources / path
                 file.parent.mkdir(parents=True, exist_ok=True)
                 file.write_bytes(data)
@@ -299,13 +299,13 @@ class DistributionToolsTests(unittest.TestCase):
                     mock.patch.object(sign_macos, 'notarize'):
                 sign_macos.sign(app, target, 'existing-identity', 'existing-profile', root / 'signed')
             final = json.loads((resources / 'manifest.json').read_text())['files']
-            self.assertEqual(final[0]['upstream_sha256'], records[0]['sha256'])
-            self.assertEqual(final[0]['sha256'], hashlib.sha256(original + b'-signature').hexdigest())
+            self.assertEqual(final[0], records[0])
             self.assertEqual(final[1], records[1])
             smoke_index = next(i for i, args in enumerate(calls) if 'smoke_package.py' in str(args))
             seal_index = next(i for i, args in enumerate(calls) if args[0] == 'codesign' and args[-1] == app)
             self.assertGreater(smoke_index, seal_index)
-            # Re-signing transformed bytes must not bypass the upstream trust pin.
+            # Mutated offline bytes must not bypass the upstream trust pin.
+            (resources / 'schemas/a.json').write_bytes(b'corrupt')
             with mock.patch.object(sign_macos, 'ROOT', root), mock.patch.object(sign_macos, 'run') as run:
                 with self.assertRaises(ValueError):
                     sign_macos.sign(app, target, 'identity', 'profile', root / 'signed')

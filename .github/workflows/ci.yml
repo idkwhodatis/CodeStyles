@@ -79,15 +79,19 @@ jobs:
       - name: Verify native Rust host
         run: |
           python -c "import subprocess; host=subprocess.check_output(['rustc', '-vV'], text=True); print(host); assert 'host: ${{ matrix.target }}' in host"
-      - run: python scripts/bundle_resources.py fetch --target ${{ matrix.target }}
-      - run: python scripts/bundle_resources.py verify --target ${{ matrix.target }}
       - run: python -m unittest discover -s scripts -p 'test_*.py'
       - run: cargo fmt --check
-      - run: cargo test --locked --no-default-features
+      - name: Validate settings and startup without runtime files
+        run: cargo test --locked --no-default-features --lib
       - run: cargo check --locked
-      - run: cargo test --locked --bin codestyles
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo build --locked --release
+      - name: Prepare explicit real parity-test fixtures (not application dependencies)
+        run: python scripts/bundle_resources.py fetch --target ${{ matrix.target }}
+      - run: cargo test --locked --no-default-features
+      - run: cargo test --locked --bin codestyles
+      - name: Verify native optional dprint pack lifecycle without publishing
+        run: python scripts/verify_dprint_pack.py --target ${{ matrix.target }} --work-dir "${{ runner.temp }}/codestyles-dprint"
       - name: Build native distribution formats
         run: python scripts/package_app.py --target ${{ matrix.target }} --output-dir dist
       - name: Audit complete bundles and exercise archived/installed resources

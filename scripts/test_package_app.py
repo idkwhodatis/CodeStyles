@@ -65,12 +65,13 @@ class PackageTests(unittest.TestCase):
 
     def assert_resources(self, names, prefix, target):
         executable = 'dprint.exe' if 'windows' in target else 'dprint'
-        self.assertIn(f'{prefix}bin/{target}/{executable}', names)
+        self.assertNotIn(f'{prefix}bin/{target}/{executable}', names)
+        self.assertFalse(any(name.endswith('.wasm') for name in names))
         for other in package.TARGETS:
             if other != target:
                 self.assertFalse(any(f'/bin/{other}/' in name for name in names))
         for plugin in ('typescript', 'json', 'markdown', 'toml', 'ruff'):
-            for relative in (f'plugins/{plugin}.wasm', f'schemas/{plugin}.json', f'licenses/{plugin}.txt'):
+            for relative in (f'schemas/{plugin}.json', f'licenses/{plugin}.txt'):
                 self.assertIn(prefix + relative, names)
         for relative in ('manifest.json', 'README.md', 'THIRD_PARTY_NOTICES.md'):
             self.assertIn(prefix + relative, names)
@@ -133,7 +134,6 @@ class PackageTests(unittest.TestCase):
             prefix = f'codestyles-1.2.3-{target}/'
             self.assert_resources(archive.getnames(), prefix + 'resources/', target)
             self.assertEqual(archive.getmember(prefix + 'codestyles').mode, 0o755)
-            self.assertEqual(archive.getmember(prefix + 'resources/bin/' + target + '/dprint').mode, 0o755)
             self.assertEqual(archive.getmember(prefix + 'LICENSE').mode, 0o644)
             self.assertTrue(all(member.uid == 0 and member.gid == 0 and member.mtime == package.EPOCH
                                 for member in archive.getmembers()))
@@ -191,7 +191,7 @@ class PackageTests(unittest.TestCase):
     def test_resource_corruption_missing_file_and_target_fail_closed(self):
         target = 'x86_64-unknown-linux-gnu'
         output = self.root / 'bad.zip'
-        plugin = self.resources / 'plugins/typescript.wasm'
+        plugin = self.resources / 'schemas/typescript.json'
         original = plugin.read_bytes()
         plugin.write_bytes(b'X' * len(original))
         with self.assertRaisesRegex(ValueError, 'SHA-256 mismatch'):
@@ -209,7 +209,7 @@ class PackageTests(unittest.TestCase):
 
         def corrupt_copy(source, destination, executable=False):
             original_copy(source, destination, executable)
-            if destination.name == 'typescript.wasm':
+            if destination.name == 'typescript.json':
                 destination.write_bytes(b'X' * destination.stat().st_size)
 
         with mock.patch.object(package, 'copy_file', side_effect=corrupt_copy):
@@ -227,8 +227,7 @@ class PackageTests(unittest.TestCase):
         output = self.root / 'mode-test.zip'
         package.write_zip(stage, output)
         with zipfile.ZipFile(output) as archive:
-            for path in ('CodeStyles.app/Contents/MacOS/codestyles',
-                         'CodeStyles.app/Contents/Resources/resources/bin/aarch64-apple-darwin/dprint'):
+            for path in ('CodeStyles.app/Contents/MacOS/codestyles',):
                 self.assertEqual(stat.S_IMODE(archive.getinfo(path).external_attr >> 16), 0o755)
 
     def test_missing_formatter_and_unsafe_manifest_paths_fail_closed(self):
@@ -237,11 +236,12 @@ class PackageTests(unittest.TestCase):
                 package.resource_path(self.resources, name)
         self.manifest['artifacts'] = [item for item in self.manifest['artifacts'] if item.get('target') != 'aarch64-apple-darwin']
         self.save_manifest()
-        with self.assertRaisesRegex(ValueError, 'exactly one formatter'):
-            self.build('aarch64-apple-darwin', '.app.zip')
+        shutil.rmtree(self.resources / 'bin')
+        shutil.rmtree(self.resources / 'plugins')
+        self.build('aarch64-apple-darwin', '.app.zip')
 
     def test_symlink_resources_are_rejected(self):
-        plugin = self.resources / 'plugins/json.wasm'
+        plugin = self.resources / 'schemas/json.json'
         original = plugin.read_bytes()
         plugin.unlink()
         other = self.root / 'external.wasm'

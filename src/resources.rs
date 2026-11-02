@@ -1,4 +1,4 @@
-//! Explicit, checksummed runtime resources. Never searches PATH for dprint.
+//! Offline application assets. Formatter runtimes are optional managed packs.
 use crate::{backend::Backend, schema::PinnedPlugin};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -92,33 +92,35 @@ pub fn backend_from_root(root: &Path) -> Result<Backend, String> {
     )
     .map_err(|e| e.to_string())?;
     if manifest["dprint_version"] != "0.63.0" {
-        return Err("Unsupported bundled dprint version".into());
+        return Err("Unsupported pinned dprint version".into());
     }
     let files = manifest["files"]
         .as_array()
         .ok_or("Manifest is missing files")?;
-    let executable = format!(
-        "bin/{}/dprint{}",
-        target()?,
-        if cfg!(windows) { ".exe" } else { "" }
-    );
-    let plugins = PinnedPlugin::ALL.map(|plugin| format!("plugins/{}", plugin.filename()));
-    for name in std::iter::once(executable.as_str()).chain(plugins.iter().map(String::as_str)) {
+    // Only metadata is shipped with the application. Executable/WASM entries
+    // remain upstream provenance for the separately installed runtime pack.
+    let mut assets = vec!["licenses/dprint.txt".to_string()];
+    for plugin in PinnedPlugin::ALL {
+        assets.push(format!(
+            "schemas/{}-{}.json",
+            plugin.section(),
+            plugin.version()
+        ));
+        assets.push(format!("licenses/dprint-plugin-{}.txt", plugin.section()));
+    }
+    for name in assets {
         let entry = files
             .iter()
-            .find(|entry| entry["path"].as_str() == Some(name))
+            .find(|entry| entry["path"].as_str() == Some(name.as_str()))
             .ok_or_else(|| format!("Resource absent from manifest: {name}"))?;
-        let bytes = std::fs::read(root.join(name))
-            .map_err(|e| format!("Cannot read bundled {name}: {e}"))?;
+        let bytes = std::fs::read(root.join(&name))
+            .map_err(|e| format!("Cannot read offline asset {name}: {e}"))?;
         let actual = format!("{:x}", Sha256::digest(&bytes));
         if entry["sha256"].as_str() != Some(actual.as_str()) {
-            return Err(format!("Bundled resource checksum mismatch: {name}"));
+            return Err(format!("Offline asset checksum mismatch: {name}"));
         }
     }
-    Ok(Backend::new(
-        root.join(executable),
-        plugins.iter().map(|p| root.join(p)).collect(),
-    ))
+    Ok(Backend::managed())
 }
 
 #[cfg(test)]

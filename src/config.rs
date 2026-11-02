@@ -117,21 +117,43 @@ impl ConfigDocument {
         })
     }
 
+    /// Offline configuration creation requires no installed runtime or WASM files.
+    pub fn standalone_pinned() -> Result<Self, String> {
+        let text = format!(
+            "{}\n",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "plugins": PINNED_PLUGINS.map(|(_, url)| url)
+            }))
+            .map_err(|e| e.to_string())?
+        );
+        Ok(Self {
+            path: None,
+            saved_text: text.clone(),
+            draft_text: text,
+            saved_stamp: None,
+            value_cache: Default::default(),
+        })
+    }
+
     /// Standalone documents use portable URLs for the supplied pinned bundle.
     /// Imported documents retain every plugin and unknown property verbatim.
     pub fn standalone(plugins: &[PathBuf]) -> Result<Self, String> {
         let plugins = plugins
             .iter()
             .map(|path| {
-                fs::canonicalize(path)
-                    .map_err(|e| format!("Cannot locate bundled plugin {}: {e}", path.display()))?;
+                fs::canonicalize(path).map_err(|e| {
+                    format!(
+                        "Cannot locate verified local plugin {}: {e}",
+                        path.display()
+                    )
+                })?;
                 let url = PINNED_PLUGINS
                     .iter()
                     .find(|(name, _)| path.file_name() == Some(std::ffi::OsStr::new(name)))
                     .map(|(_, url)| *url)
                     .ok_or_else(|| {
                         format!(
-                            "No portable pinned reference for bundled plugin {}",
+                            "No portable pinned reference for local plugin {}",
                             path.display()
                         )
                     })?;
@@ -726,10 +748,14 @@ impl DraftConfig {
             };
             let bundled = plugins.iter().find(|path| path.file_name() == Some(std::ffi::OsStr::new(name)))
                 .ok_or_else(|| format!("The verified bundle is missing {name}; offline preview cannot resolve {reference}."))?;
-            let bundled = fs::canonicalize(bundled)
-                .map_err(|e| format!("Cannot locate bundled plugin {}: {e}", bundled.display()))?;
+            let bundled = fs::canonicalize(bundled).map_err(|e| {
+                format!(
+                    "Cannot locate verified local plugin {}: {e}",
+                    bundled.display()
+                )
+            })?;
             let raw = serde_json::to_string(&bundled.to_string_lossy())
-                .map_err(|e| format!("Cannot encode bundled plugin path: {e}"))?;
+                .map_err(|e| format!("Cannot encode local plugin path: {e}"))?;
             literal.set_raw_value(raw);
         }
         Self::from_snapshot(&ConfigSnapshot {

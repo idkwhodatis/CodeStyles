@@ -234,3 +234,36 @@ native runners (two concurrent jobs), with no URL override, a 2 GiB free-space
 gate, bounded execution/logs, exact one-test-pass enforcement, and temporary
 cleanup. Two complete transfers plus one cancelled partial per target test
 reinstallation; this is not a genuine cross-version upgrade claim.
+
+
+## Dprint engine and WASM pack
+
+Dprint is an optional managed tool, not an application dependency. Pack version
+`0.63.0-p1` binds engine `0.63.0` to TypeScript `0.96.1`, JSON `0.25.2`, Markdown
+`0.26.0`, TOML `0.9.0` and Ruff `0.11.3`. Any component change requires a reviewed
+pack revision; runtime entrypoints must match these pinned filenames. A single
+atomic pack prevents an engine being installed without its WASM dependencies.
+Vue remains a separate optional WASM pack and also needs the dprint host.
+
+Maintainer-only offline build after explicit pinned source preparation:
+
+```sh
+python scripts/bundle_resources.py fetch --target x86_64-unknown-linux-gnu
+python scripts/build_dprint_pack.py --target x86_64-unknown-linux-gnu \
+  --output candidates/codestyles-dprint-0.63.0-p1-x86_64-unknown-linux-gnu.tar.gz \
+  --candidate candidates/dprint-linux.json
+```
+
+The builder checks every engine/WASM/license byte against `resources/manifest.json`,
+includes provenance and license texts, and writes deterministic tar.gz metadata.
+It never runs downloaded code, enables a catalog target, or publishes an artifact.
+Schemas/licenses and embedded samples remain offline application assets; the app
+package intentionally omits binaries and WASM files, even if locally fetched.
+
+Current targets are **unpublished and disabled**. Linux x64 has an exact locally
+built candidate; other targets retain explicit unavailable entries, not invented
+URLs or checksums. Before publication/enabling: native preview/project/config,
+cancel/corrupt/reinstall/busy tests, ABI audit, license audit, and platform signing
+acceptance must pass. macOS needs separate managed-runtime signing/JIT validation;
+signing the app no longer mutates a runtime checksum inside the app. Publication
+and release approval remain separate from implementing or building these packs.

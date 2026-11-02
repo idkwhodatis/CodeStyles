@@ -3,8 +3,8 @@
 
 Requires an existing Developer ID identity and existing notarytool keychain
 profile. This script does not create credentials or publish releases. Run on a
-trusted build only. Signing changes the dprint bytes; preserve the upstream hash
-as provenance and update only its runtime checksum before sealing the app.
+trusted build only. Runtime packs are separately distributed and signed; the app
+contains no dprint executable or WASM payload.
 """
 import argparse
 import hashlib
@@ -38,38 +38,25 @@ def sign(app, target, identity, profile, output, keychain=None):
     resources = app / 'Contents/Resources/resources'
     manifest_path = resources / 'manifest.json'
     manifest = json.loads(manifest_path.read_text())
-    path = f'bin/{target}/dprint'
-    entries = [entry for entry in manifest['files'] if entry['path'] == path]
-    if len(entries) != 1:
-        raise ValueError('Expected exactly one target dprint checksum')
-    entry = entries[0]
-    executable = resources / path
-    upstream = hashlib.sha256(executable.read_bytes()).hexdigest()
-    # Validate against the committed upstream trust anchor, not only bundle data.
     trusted = json.loads((ROOT / 'resources/manifest.json').read_text())
-    expected = next(item for item in trusted['files'] if item['path'] == path)
-    if upstream != expected['sha256'] or upstream != entry['sha256']:
-        raise ValueError('Unsigned dprint does not match pinned upstream bytes')
+    trusted_files = {item['path']: item for item in trusted['files']}
+    if (resources / 'bin').exists() or (resources / 'plugins').exists():
+        raise ValueError('Runtime payload must be distributed as a separate managed pack')
     for item in manifest['files']:
-        file = resources / item['path']
-        if item['path'].startswith('bin/') and item['path'] != path:
+        if not item['path'].startswith(('schemas/', 'licenses/')):
             continue
-        if not file.is_file() or hashlib.sha256(file.read_bytes()).hexdigest() != item['sha256']:
+        expected = trusted_files.get(item['path'])
+        file = resources / item['path']
+        if (expected != item or not file.is_file()
+                or hashlib.sha256(file.read_bytes()).hexdigest() != item['sha256']):
             raise ValueError(f'Invalid or missing resource: {item["path"]}')
-    run('codesign', '--force', '--options', 'runtime', '--timestamp', '--sign', identity,
-        '--entitlements', ROOT / 'packaging/macos/dprint-entitlements.plist', executable)
-    entry['upstream_sha256'] = upstream
-    entry['sha256'] = hashlib.sha256(executable.read_bytes()).hexdigest()
-    entry['bytes'] = executable.stat().st_size
-    entry['distribution_transform'] = 'Developer ID codesign; upstream pin retained'
-    manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
     run('codesign', '--force', '--options', 'runtime', '--timestamp', '--sign', identity,
         app / 'Contents/MacOS/codestyles')
     run('codesign', '--force', '--options', 'runtime', '--timestamp', '--sign', identity, app)
     run('codesign', '--verify', '--deep', '--strict', '--verbose=2', app)
     output.mkdir(parents=True, exist_ok=True)
-    # The signed binary must still format through all five WASM plugins. This
-    # detects JIT entitlement/runtime trouble before requesting notarization.
+    # Verify signed application startup with no installed runtime. Runtime pack
+    # signing/JIT compatibility requires its own release validation.
     run(sys.executable, ROOT / 'scripts/smoke_package.py', '--directory', app,
         '--report', output / f'{target}-signed-smoke.json')
     with tempfile.TemporaryDirectory(prefix='codestyles-notary-') as temporary:

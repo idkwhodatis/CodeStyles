@@ -51,7 +51,7 @@ jobs:
           git diff HEAD --exit-code
       - name: Validate maintainer scripts
         run: python -m unittest discover -s scripts -p 'test_*.py'
-      - name: Prepare existing offline backend resources
+      - name: Prepare explicit parity-test fixtures (not application resources)
         run: python scripts/bundle_resources.py fetch --target ${{ matrix.target }}
       - name: Build, install, execute and uninstall the pinned native candidate
         run: >-

@@ -467,6 +467,15 @@ impl Backend {
         request: &ProjectRequest,
         cancelled: Arc<AtomicBool>,
     ) -> Result<ProjectReport, String> {
+        // Hold the engine and WASM pack stable across discovery, review, writes,
+        // and automatic verification, not just individual subprocesses.
+        if self.needs_managed_dprint()
+            && (request.native_language.is_none()
+                || request.native_language == Some(NativeLanguage::Vue))
+        {
+            let (backend, _lease) = self.resolve_dprint(&cancelled)?;
+            return backend.execute_project(request, cancelled);
+        }
         let mut writes_started = false;
         let result = if request.native_language.is_some() {
             self.execute_native_project(request, &cancelled, &mut writes_started)
@@ -980,12 +989,9 @@ impl Backend {
         if cancelled.load(Ordering::Acquire) {
             return Err("Project operation cancelled.".into());
         }
-        let mut child = command.spawn().map_err(|e| {
-            format!(
-                "Cannot start bundled dprint {}: {e}",
-                self.executable().display()
-            )
-        })?;
+        let mut child = command
+            .spawn()
+            .map_err(|e| format!("Cannot start dprint {}: {e}", self.executable().display()))?;
         #[cfg(windows)]
         let process_tree = WindowsProcessTree::attach_and_resume(&mut child, cancelled)?;
         let writer = input.map(|input| {

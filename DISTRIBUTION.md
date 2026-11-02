@@ -8,7 +8,7 @@ and validation targets, not a promise that every older machine has been tested.
 | Platform | Compatibility goal | Distribution |
 | --- | --- | --- |
 | Windows x64 | Windows 10 22H2; older builds unverified | Portable ZIP, per-user Inno Setup installer |
-| Windows ARM64 | Windows 10 ARM64 22H2 to be validated; current CI is Windows 11 | Native application/dprint ZIP and installer |
+| Windows ARM64 | Windows 10 ARM64 22H2 to be validated; current CI is Windows 11 | Native application ZIP and installer |
 | macOS Intel | Catalina 10.15.7 | `.app.zip`, DMG |
 | macOS Apple Silicon | Big Sur 11.0; M1 and later | `.app.zip`, DMG |
 | Linux x64 / ARM64 | glibc 2.28 ABI goal plus documented desktop dependencies | tar.gz, Debian `.deb` |
@@ -18,7 +18,6 @@ and validation targets, not a promise that every older machine has been tested.
 `cargo build --locked --release`, then:
 
 ```
-python scripts/bundle_resources.py fetch --target <native-target>
 python scripts/package_app.py --target <native-target> --output-dir dist
 python scripts/check_distribution.py --target <native-target> --directory dist
 ```
@@ -38,16 +37,18 @@ The whole-bundle ELF audit rejects newer GLIBC/GLIBCXX/CXXABI requirements rathe
 than silently raising the baseline. A failed dependency build or ABI audit blocks
 that lane and requires investigation before choosing a newer baseline.
 
-The auditor examines every ELF, Mach-O or PE in the payload, including dprint,
+The auditor examines every ELF, Mach-O or PE in the application payload,
 and reports architectures, deployment commands, imported libraries, RPATH and
 symbol-version requirements. Windows GUI subsystem is checked for the app;
-dprint is a subprocess CLI. Installer bootstrap/uninstaller architecture is
+dprint is a separately distributed optional subprocess CLI. Installer bootstrap/uninstaller architecture is
 reported separately from the native application. ABI headers and import names do
 not prove API availability or successful rendering on an older OS.
 
-`--self-test <report.json>` runs the installed application's real formatter path
-without initializing a GUI. It checks all five bundled WASM plugins/ten source
-languages. The archive and native-container tests use fresh caches, Unicode/space
+`--self-test <report.json>` checks offline resources/configuration without
+initializing a GUI. Clean application packages must pass without an installed
+dprint runtime, explicitly skipping formatting rather than using PATH or fetching
+anything. Real formatting is verified separately against the managed runtime pack.
+The archive and native-container tests use fresh caches, Unicode/space
 paths, an unrelated working directory and installation-tree content snapshots.
 Windows tests silently install into a disposable per-user directory and uninstall;
 macOS tests mount the DMG read-only; Linux tests inspect/extract the actual Debian
@@ -107,16 +108,12 @@ The manual run ID must identify a successful push build of the exact current
 master SHA; PR build artifacts are refused. Importing the existing identity is
 limited to a temporary runner keychain, removed even on failure.
 
-The script signs dprint with the JIT entitlement, checks its original bytes
-against the committed upstream pin, preserves `upstream_sha256`, updates only the
-runtime manifest checksum for the signed binary, and seals the app. WASM pins
-remain unchanged. It reruns all formatter paths on the signed app before
-notarization, requires an explicit Apple `Accepted` result, staples/validates the
-app and DMG, and runs Gatekeeper assessment. The signed manifest is protected by
-the app's code signature. No claim of signing/notarization success is made until
-the opt-in workflow succeeds with real credentials. Actual entitlement behavior
-must be established by that run; do not relax hardened-runtime policy to hide a
-failure.
+The script verifies offline resources, signs and seals the application, and reruns
+the missing-runtime startup smoke test before notarization. It requires an explicit
+Apple `Accepted` result and staples/validates the app and DMG. Runtime packs are
+separate artifacts: their signing, JIT entitlements, notarization and native
+execution must be validated before enabling a macOS dprint catalog target. No
+signing/notarization success is claimed until the opt-in workflow actually passes.
 
 Alternatively, on a Mac with an existing unlocked signing identity and an
 already-configured notarytool profile:

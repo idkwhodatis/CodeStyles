@@ -3,7 +3,7 @@ use codestyles::{
     backend::{Backend, FormatRequest},
     config::ConfigDocument,
     project::{ProjectAction, ProjectRequest},
-    resources, rustfmt,
+    rustfmt,
     toolchains::{ToolchainManager, ToolchainStatus},
 };
 use serde_json::json;
@@ -22,7 +22,7 @@ fn document(root: &Path, value: serde_json::Value) -> ConfigDocument {
     ConfigDocument::load(&path).unwrap()
 }
 fn backend() -> Backend {
-    resources::backend_from_root(&Path::new(env!("CARGO_MANIFEST_DIR")).join("resources")).unwrap()
+    Backend::managed()
 }
 fn preview(backend: &Backend, document: &ConfigDocument, source: &str) -> Result<String, String> {
     backend.format(

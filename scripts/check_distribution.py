@@ -69,7 +69,7 @@ def audit_bootstrap(path, report):
             errors.append(f'Undeclared bootstrap import: {name}')
     result = {'status': 'failed' if errors else 'passed', 'role': 'installer-bootstrap',
               'sha256': hashlib.sha256(data).hexdigest(), 'binary': record, 'errors': errors,
-              'note': 'x86 helper uses Windows emulation on ARM64; application and dprint remain native. Header/import audit does not establish old-OS API availability.'}
+              'note': 'x86 helper uses Windows emulation on ARM64; application remains native; optional runtimes are audited separately. Header/import audit does not establish old-OS API availability.'}
     report.write_text(json.dumps(result, indent=2) + '\n')
     if errors:
         raise ValueError('; '.join(errors))

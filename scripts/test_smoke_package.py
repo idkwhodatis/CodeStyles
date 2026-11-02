@@ -215,10 +215,11 @@ class SmokeTests(unittest.TestCase):
                 with self.subTest(install=install):
                     self.assertTrue(smoke.is_within(resources, install))
                     self.assertFalse(smoke.is_within(install + " sibling", install))
-                    report = {"status": "passed", "mode": "headless_standalone_preview",
+                    report = {"status": "passed", "mode": "headless_optional_runtime",
                               "resources": {"root": resources, "discovery": "beside_executable",
                                             "checksums_verified": True},
-                              "dprint_executable": resources + r"\bin\dprint.exe",
+                              "dprint_executable": None, "runtime": {"status": "not_installed"},
+                              "offline_configuration": {"status": "passed"},
                               "cache_directory": reported_cache, "checks": []}
                     # Reaching language validation proves both containment and
                     # the differently prefixed cache paths were accepted.
@@ -241,10 +242,11 @@ class SmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             cache = root / "cache"
-            report = {"status": "passed", "mode": "headless_standalone_preview",
+            report = {"status": "passed", "mode": "headless_optional_runtime",
                       "resources": {"root": str(root / "resources"),
                                     "discovery": "development_checkout", "checksums_verified": True},
-                      "dprint_executable": str(root / "resources/bin/dprint"),
+                      "dprint_executable": None, "runtime": {"status": "not_installed"},
+                      "offline_configuration": {"status": "passed"},
                       "cache_directory": str(cache), "checks": []}
             with self.assertRaisesRegex(ValueError, "not discovered"):
                 smoke.validate_backend_report(report, root, cache)
@@ -256,16 +258,16 @@ class SmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             cache = root / "cache"
-            report = {"status": "passed", "mode": "headless_standalone_preview",
+            report = {"status": "passed", "mode": "headless_optional_runtime",
                       "resources": {"root": str(root / "resources"),
                                     "discovery": "beside_executable", "checksums_verified": True},
-                      "dprint_executable": str(root / "resources/bin/dprint"),
+                      "dprint_executable": None, "runtime": {"status": "not_installed"},
+                      "offline_configuration": {"status": "passed"},
                       "cache_directory": str(cache), "checks": []}
             mapping = {"ts": "typescript", "js": "typescript", "tsx": "typescript", "jsx": "typescript",
                        "json": "json", "jsonc": "json", "md": "markdown", "toml": "toml",
                        "py": "ruff", "pyi": "ruff"}
-            checks = [{"extension": ext, "plugin": plugin, "status": "passed",
-                       "evidence": {"changed": True, "idempotent": True}}
+            checks = [{"extension": ext, "plugin": plugin, "status": "skipped", "reason": "Install dprint in Runtime plugins"}
                       for ext, plugin in mapping.items()]
             report["checks"] = checks
             smoke.validate_backend_report(report, root, cache)
@@ -298,8 +300,8 @@ cache.mkdir()
 (cache / 'compiled-test-fixture').write_text('fixture')
 checks = []
 for ext, plugin in [('ts','typescript'), ('js','typescript'), ('tsx','typescript'), ('jsx','typescript'), ('json','json'), ('jsonc','json'), ('md','markdown'), ('toml','toml'), ('py','ruff'), ('pyi','ruff')]:
-    checks.append({'extension': ext, 'plugin': plugin, 'status': 'passed', 'evidence': {'changed': True, 'idempotent': True}})
-pathlib.Path(sys.argv[2]).write_text(json.dumps({'status': 'passed', 'mode': 'headless_standalone_preview', 'resources': {'root': str(root / 'resources'), 'discovery': 'beside_executable', 'checksums_verified': True}, 'dprint_executable': str(root / 'resources/bin/dprint'), 'cache_directory': str(cache), 'checks': checks}))
+    checks.append({'extension': ext, 'plugin': plugin, 'status': 'skipped', 'reason': 'Install dprint in Runtime plugins'})
+pathlib.Path(sys.argv[2]).write_text(json.dumps({'status': 'passed', 'mode': 'headless_optional_runtime', 'resources': {'root': str(root / 'resources'), 'discovery': 'beside_executable', 'checksums_verified': True}, 'dprint_executable': None, 'runtime': {'status': 'not_installed'}, 'offline_configuration': {'status': 'passed'}, 'cache_directory': str(cache), 'checks': checks}))
 ''', encoding="utf-8")
             binary.chmod(0o755)
             before = smoke.snapshot(payload)

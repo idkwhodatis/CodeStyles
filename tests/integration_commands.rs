@@ -1,8 +1,6 @@
 //! Runs the copied command text through the native shell and real bundled CLI.
-use codestyles::{
-    integration::{CommandShell, project_guidance},
-    resources,
-};
+mod common;
+use codestyles::integration::{CommandShell, project_guidance};
 use std::{
     fs,
     process::{Command, Output},
@@ -23,8 +21,8 @@ fn run(command: &str, cache: &std::path::Path) -> Output {
 
 #[test]
 fn copied_commands_check_format_and_recheck_with_real_bundled_dprint() {
-    let resources = resources::resolve_resources().unwrap();
-    let backend = resources::backend_from_root(&resources.root).unwrap();
+    let resources = common::resources();
+    let backend = common::backend();
     let temp = tempfile::tempdir().unwrap();
     let project = temp.path().join("Code Styles 格式 O'Brien’s $HOME [x]");
     fs::create_dir(&project).unwrap();
@@ -49,7 +47,7 @@ fn copied_commands_check_format_and_recheck_with_real_bundled_dprint() {
             &config,
             serde_json::to_vec(&serde_json::json!({
                 "includes": ["source.json"],
-                "plugins": [resources.root.join("plugins/json-0.25.2.wasm")],
+                "plugins": [resources.join("plugins/json-0.25.2.wasm")],
                 "json": {"indentWidth": 2}
             }))
             .unwrap(),

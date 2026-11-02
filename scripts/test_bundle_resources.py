@@ -121,7 +121,8 @@ class IntegrityTests(unittest.TestCase):
             record = {'path': relative, 'bytes': executable.stat().st_size,
                       'sha256': hashlib.sha256(executable.read_bytes()).hexdigest()}
             license_bytes = (resources / 'licenses' / 'plugin.txt').read_bytes()
-            (resources / 'manifest.json').write_text(json.dumps({'artifacts': [
+            (resources / 'manifest.json').write_text(json.dumps({'files': [dict(path='licenses/plugin.txt', bytes=len(license_bytes),
+                sha256=hashlib.sha256(license_bytes).hexdigest())], 'artifacts': [
                 {'kind': 'executable-archive', 'target': target, 'executable': record},
                 {'kind': 'license', 'path': 'licenses/plugin.txt', 'bytes': len(license_bytes),
                  'sha256': hashlib.sha256(license_bytes).hexdigest()}]}))

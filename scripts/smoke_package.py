@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test a distributed payload through its own headless standalone-preview mode.
+"""Test a distributed payload through its own headless optional-runtime startup mode.
 
 Extracts/copies into a Unicode/space path, with unrelated cwd and a fresh cache.
 Unreachable proxy settings are defense in depth, NOT genuine network isolation.
@@ -196,7 +196,7 @@ def find_binary(root):
 def isolated_environment(workspace):
     env = dict(os.environ)
     for key in list(env):
-        if key.upper() in {"CODESTYLES_RESOURCES", "DPRINT_CACHE_DIR", "DISPLAY", "WAYLAND_DISPLAY"}:
+        if key.upper() in {"CODESTYLES_RESOURCES", "DPRINT_CACHE_DIR", "CODESTYLES_TOOLCHAINS_DIR", "CODESTYLES_TRANSIENT_LAUNCH", "DISPLAY", "WAYLAND_DISPLAY"}:
             del env[key]
     directories = {"HOME": "user home", "USERPROFILE": "user home", "APPDATA": "user data",
                    "LOCALAPPDATA": "local data", "XDG_CACHE_HOME": "user cache",
@@ -207,6 +207,7 @@ def isolated_environment(workspace):
         env[key] = str(path)
     # This path must not exist before the packaged executable starts.
     env["DPRINT_CACHE_DIR"] = str(workspace / "fresh dprint cache 缓存")
+    env["CODESTYLES_TOOLCHAINS_DIR"] = str(workspace / "fresh managed runtimes")
     for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
         env[key] = "http://127.0.0.1:9"
     env["NO_PROXY"] = env["no_proxy"] = ""
@@ -243,15 +244,17 @@ def is_within(path, root):
 
 
 def validate_backend_report(report, install, cache):
-    if report.get("status") != "passed" or report.get("mode") != "headless_standalone_preview":
+    if report.get("status") != "passed" or report.get("mode") != "headless_optional_runtime":
         raise ValueError(f"Packaged self-test failed: {report.get('error', 'invalid report')}")
     resources = report.get("resources", {})
     if resources.get("discovery") not in {"beside_executable", "macos_app_bundle"}:
         raise ValueError("Resources were not discovered from the packaged installation")
     if not resources.get("checksums_verified") or not is_within(resources.get("root", ""), install):
         raise ValueError("Verified resources are not inside the extracted installation")
-    if not is_within(report.get("dprint_executable", ""), install):
-        raise ValueError("Formatter executable is outside the installation")
+    if report.get("runtime", {}).get("status") != "not_installed" or report.get("dprint_executable"):
+        raise ValueError("Clean application must start without a dprint runtime")
+    if report.get("offline_configuration", {}).get("status") != "passed":
+        raise ValueError("Offline configuration was not usable without dprint")
     if resolved_comparison_path(report.get("cache_directory", "")) != resolved_comparison_path(cache):
         raise ValueError("Self-test did not use the fresh external cache")
     checks = report.get("checks", [])
@@ -260,9 +263,8 @@ def validate_backend_report(report, install, cache):
     if {item.get("plugin") for item in checks} != EXPECTED_PLUGINS:
         raise ValueError("Self-test did not cover all five WASM plugins")
     for item in checks:
-        evidence = item.get("evidence", {})
-        if item.get("status") != "passed" or not evidence.get("changed") or not evidence.get("idempotent"):
-            raise ValueError(f"Formatter check failed: {item}")
+        if item.get("status") != "skipped" or not item.get("reason"):
+            raise ValueError(f"Missing-runtime formatting must be explicitly skipped: {item}")
 
 
 def smoke(args, result):

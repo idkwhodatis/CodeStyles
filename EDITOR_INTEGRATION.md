@@ -9,10 +9,11 @@ portable CI step, a copyable absolute executable path, and JSON settings. These
 are instructions for you to apply: the Editor & CI page does not install an extension,
 modify editor settings, or alter your project source files.
 
-## Run the bundled formatter from your terminal
+## Run the managed formatter from your terminal
 
+First install or refresh the **dprint** pack on the **Languages** page.
 Save or discard your configuration edits, then use **Copy check command** or
-**Copy format command** on the Editor & CI page. Commands use the bundled native
+**Copy format command** on the Editor & CI page. Commands use the verified managed native
 dprint console executable, not the CodeStyles GUI. Check reports differences;
 format writes project source files. Prefer the Project page's check/review/select
 workflow when you want to review the scope before applying changes.
@@ -31,10 +32,14 @@ the saved files at execution time; copied commands do not freeze reviewed conten
 Review config/plugin trust before running: plugins can download resources or run
 processes. These commands do not inherit preview's offline plugin remapping.
 
-The executable path is resolved from the installed bundle, including macOS
-`CodeStyles.app/Contents/Resources/resources`. Moving a portable installation
-requires copying commands and updating VS Code's executable path again. No PATH
-changes, wrappers, extension installs or settings mutations are performed.
+The executable path is resolved from the verified active **managed dprint pack**,
+not from the app's resources or system PATH. Use the current **Copy dprint path**
+or **Copy settings** value; do not construct the path yourself. Repairing or
+reinstalling the pack activates a new generated runtime directory. Refresh its
+status and copy commands/settings again afterward, and update VS Code's
+`dprint.path` followed by **Dprint: Restart**. Uninstalling the pack or moving its
+managed directory also invalidates the old path. No PATH changes, wrappers,
+extension installs or settings mutations are performed.
 
 **Copy CI step** copies only the portable action step shown below. Add it after
 checkout in an existing workflow, use the committed saved config, and set the
@@ -62,11 +67,12 @@ action's `working-directory`/`config-path` explicitly when the project needs the
    JSON, JSONC, Markdown, TOML, and Python (including `.pyi`). Format on save is optional: add
    `"editor.formatOnSave": true` in the desired language sections if wanted.
 
-For example, on Linux (replace the path with the one shown by CodeStyles):
+For example (the path below is a placeholder: use **Copy settings** for the
+current verified path on your machine):
 
 ```json
 {
-  "dprint.path": "/opt/CodeStyles/resources/bin/x86_64-unknown-linux-gnu/dprint",
+  "dprint.path": "/absolute/path/copied/from/CodeStyles/dprint",
   "dprint.ensureStableFormat": true,
   "[javascript]": { "editor.defaultFormatter": "dprint.dprint" },
   "[javascriptreact]": { "editor.defaultFormatter": "dprint.dprint" },
@@ -87,8 +93,9 @@ Unicode, and control characters; the copy-path action supplies the raw path.
 Relative or non-Unicode paths cannot produce a reliable snippet and receive an
 error. The extension supports path expansion, so if an installation directory
 contains expansion syntax such as `$HOME` or `${HOME}`, check how the extension
-resolves it and prefer a path without those characters. Moving or removing
-CodeStyles can invalidate this setting. A local path also does not identify an
+resolves it and prefer a path without those characters. Repairing or reinstalling the pack, uninstalling it, or moving its managed
+directory can invalidate this setting. Refresh and copy the current verified
+path rather than reusing an old generated runtime directory. A local path also does not identify an
 executable inside SSH, WSL, or container environments; configure the matching
 0.63.0 executable in the environment where the extension runs.
 
@@ -97,7 +104,7 @@ executable inside SSH, WSL, or container environments; configure the matching
 The extension's default is **false**. Setting it to **true** repeats formatting
 until output stops changing, matching the stable-format behavior of `dprint fmt`
 used by CodeStyles preview. The option requires dprint 0.59 or later, so the
-bundled 0.63.0 supports it. Additional passes may increase formatting time.
+pinned managed 0.63.0 supports it. Additional passes may increase formatting time.
 It is a formatting-convergence setting, not a version pin or a promise that
 different versions produce the same output. These semantics are defined in the
 [official extension settings](https://github.com/dprint/dprint-vscode#extension-settings)
@@ -111,8 +118,8 @@ do not silently replace project-specific plugins just to match this example.
 Save the reviewed config and commit it through your normal workflow so the
 editor, coworkers, and CI see the same values.
 
-Pointing VS Code at the bundled executable does **not** activate CodeStyles'
-preview-only mapping from pinned URLs to bundled WASM. The editor and CI read the
+Pointing VS Code at the managed executable does **not** activate CodeStyles'
+preview-only mapping from pinned URLs to the managed pack's verified WASM. The editor and CI read the
 saved configuration normally and may download plugins or inherited configs into
 their own caches. For an offline team setup, arrange trusted, portable local
 resources or prepopulate the relevant cache separately. Avoid committing the
@@ -173,7 +180,7 @@ The command helpers and action inputs were rechecked on **2026-10-19**, includin
 [PowerShell quoting](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules)
 and [literal directory selection](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/push-location).
 `tests/integration_commands.rs` runs the generated native-shell commands through
-the real bundled dprint: failed check without writes, format, then clean check.
+a real verified dprint executable: failed check without writes, format, then clean check.
 It exercises Unicode and shell-special paths and a competing root config, with
 both standard and custom selected filenames. The Windows branch also tests
 failure reporting and directory restoration. This run was validated on Linux;

@@ -39,7 +39,7 @@ pub fn run(report_path: &Path) -> Result<(), String> {
         "application": "CodeStyles",
         "application_version": env!("CARGO_PKG_VERSION"),
         "status": "failed",
-        "mode": "headless_standalone_preview",
+        "mode": "headless_optional_runtime",
         "executable": std::env::current_exe().ok(),
         "target": resources::target().ok(),
         "debug_build": cfg!(debug_assertions),
@@ -52,7 +52,7 @@ pub fn run(report_path: &Path) -> Result<(), String> {
         "fonts": {"status": "not_tested", "source": "system_installed_fonts", "embedded_fonts": false,
             "reason": "GPUI Kit embeds icons, not fonts. Installed font availability and glyph rendering require a native GUI check."},
         "network": {"isolation_enforced_by_self_test": false,
-            "scope": "Only standalone configs mapped to verified bundled plugins are exercised; imported remote or process-plugin configs are excluded."}
+            "scope": "No runtime is downloaded. Installed-runtime checks use standalone configs mapped to verified managed plugins; imported remote or process-plugin configs are excluded."}
     });
     let outcome = run_checks(&mut report);
     if let Err(error) = &outcome {
@@ -76,7 +76,40 @@ fn run_checks(report: &mut Value) -> Result<(), String> {
     report["resources"] = json!({"root": location.root, "discovery": location.discovery});
     let backend = resources::backend_from_root(&location.root)?;
     report["resources"]["checksums_verified"] = json!(true);
-    report["dprint_executable"] = json!(backend.executable());
+    backend.standalone_config()?;
+    report["offline_configuration"] = json!({"status":"passed"});
+    report["dprint_executable"] = Value::Null;
+    let manager = crate::toolchains::ToolchainManager::discover()?;
+    let status = manager.status("dprint")?;
+    let installed = match status {
+        crate::toolchains::ToolchainStatus::Missing => {
+            report["runtime"] = json!({"id":"dprint", "status":"not_installed"});
+            false
+        }
+        crate::toolchains::ToolchainStatus::Installed { version, .. } => {
+            report["runtime"] = json!({"id":"dprint", "status":"installed", "version":version});
+            true
+        }
+        crate::toolchains::ToolchainStatus::Corrupt { reason } => {
+            report["runtime"] = json!({"id":"dprint", "status":"corrupt", "reason":reason});
+            return Err(
+                "Installed dprint runtime is corrupt; repair it in Language support.".into(),
+            );
+        }
+    };
+    let backend = backend.with_toolchain_manager(manager);
+    // Keep a verified shared lease for the entire diagnostic formatting pass.
+    let resolved = if installed {
+        Some(backend.resolve_dprint(&AtomicBool::new(false))?)
+    } else {
+        None
+    };
+    let backend = if let Some((backend, _lease)) = &resolved {
+        report["dprint_executable"] = json!(backend.executable());
+        backend
+    } else {
+        &backend
+    };
     report["cache_directory"] = json!(cache_directory(std::env::consts::OS, |key| {
         std::env::var_os(key)
     })?);
@@ -93,7 +126,16 @@ fn run_checks(report: &mut Value) -> Result<(), String> {
             "language": language.label(), "extension": language.extension(),
             "plugin": language.plugin().section(), "status": "failed"
         });
-        match check_language(&backend, language, workspace.path()) {
+        if !installed {
+            check["status"] = json!("skipped");
+            check["reason"] = json!("Install dprint in Language support to run formatting checks.");
+            report["checks"]
+                .as_array_mut()
+                .expect("checks array")
+                .push(check);
+            continue;
+        }
+        match check_language(backend, language, workspace.path()) {
             Ok(evidence) => {
                 check["status"] = json!("passed");
                 check["evidence"] = evidence;
@@ -129,7 +171,7 @@ fn check_language(
     };
     let output = backend.format(&request, Arc::new(AtomicBool::new(false)))?;
     if output.trim().is_empty() || output == source {
-        return Err("Bundled formatter did not change the deliberately unformatted sample".into());
+        return Err("Managed formatter did not change the deliberately unformatted sample".into());
     }
     let second = backend.format(
         &FormatRequest {
@@ -171,18 +213,12 @@ mod tests {
     }
 
     #[test]
-    fn real_bundled_backend_formats_all_ten_self_test_samples() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
-        let backend = resources::backend_from_root(&root).unwrap();
-        let workspace = tempfile::tempdir().unwrap();
-        for language in SourceLanguage::ALL
-            .into_iter()
-            .filter(|language| language.is_bundled())
-        {
-            let evidence = check_language(&backend, language, workspace.path())
-                .unwrap_or_else(|error| panic!("{}: {error}", language.label()));
-            assert_eq!(evidence["changed"], true);
-            assert_eq!(evidence["idempotent"], true);
+    fn standalone_settings_work_without_runtime_or_resource_lookup() {
+        let backend = Backend::managed();
+        assert!(backend.executable().as_os_str().is_empty());
+        let document = backend.standalone_config().unwrap();
+        for plugin in PinnedPlugin::ALL {
+            assert!(document.draft_text().contains(plugin.url()));
         }
     }
 

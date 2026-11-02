@@ -4,7 +4,6 @@ use codestyles::{
     backend::{Backend, FormatRequest},
     config::ConfigDocument,
     project::{NativeLanguage, ProjectAction, ProjectRequest},
-    resources,
     toolchains::{ToolchainManager, ToolchainStatus},
 };
 use std::{
@@ -33,10 +32,16 @@ fn acceptance(
         .unwrap();
     let runtime_root = installed.root.clone();
     drop(installed);
-    let backend: Backend =
-        resources::backend_from_root(&Path::new(env!("CARGO_MANIFEST_DIR")).join("resources"))
-            .unwrap()
-            .with_toolchain_manager(manager.clone());
+    if language == NativeLanguage::Vue {
+        let dprint = std::env::var_os("CODESTYLES_DPRINT_ARCHIVE")
+            .expect("Vue requires an explicit pinned dprint archive");
+        drop(
+            manager
+                .install_verified_archive("dprint", Path::new(&dprint), cancel(), |_| {})
+                .unwrap(),
+        );
+    }
+    let backend = Backend::managed().with_toolchain_manager(manager.clone());
     let project = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(project.path()).unwrap();
     fs::write(root.join("dprint.jsonc"), "{}\n").unwrap();
