@@ -14,7 +14,8 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo build --locked --release
 # Explicit parity-test inputs only, after a complete no-runtime app build.
 python scripts/bundle_resources.py fetch --target "$TARGET"
-cargo test --locked --no-default-features
+# Keep real-CLI parity tests from oversubscribing cold WASM compilation.
+cargo test --locked --no-default-features -- --test-threads=2
 cargo test --locked --bin codestyles
 python scripts/verify_dprint_pack.py --target "$TARGET" --work-dir /tmp/codestyles-dprint
 python scripts/package_app.py --target "$TARGET" --output-dir dist

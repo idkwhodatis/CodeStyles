@@ -16,6 +16,10 @@
 
 # P4 validation — 2026-10-18
 
+Historical bundled-runtime results below predate optional dprint. Current clean-
+package smoke tests require an absent formatter cache and no managed runtime
+payload; installed-runtime formatting is tested separately.
+
 ## Executed locally on Linux x86-64
 
 - Native optimized release build, `cargo fmt --check`, all-target clippy with

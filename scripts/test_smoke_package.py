@@ -280,6 +280,51 @@ class SmokeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "five WASM plugins"):
                 smoke.validate_backend_report(report, root, cache)
 
+    def test_runtime_absent_cache_must_remain_absent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            cache = Path(temp) / "unused cache"
+            smoke.validate_unused_cache(cache)
+            for content in ("empty_directory", "compiled_artifact", "file"):
+                with self.subTest(content=content):
+                    if content == "file":
+                        cache.write_bytes(b"unexpected")
+                    else:
+                        cache.mkdir()
+                        if content == "compiled_artifact":
+                            (cache / "compiled.wasm").write_bytes(b"unexpected")
+                    with self.assertRaisesRegex(ValueError, "unexpectedly created"):
+                        smoke.validate_unused_cache(cache)
+                    if cache.is_dir():
+                        shutil.rmtree(cache)
+                    else:
+                        cache.unlink()
+            try:
+                cache.symlink_to(Path(temp) / "missing")
+            except OSError:
+                return  # Windows hosts may not grant symlink privileges.
+            with self.assertRaisesRegex(ValueError, "unexpectedly created"):
+                smoke.validate_unused_cache(cache)
+
+    def test_runtime_absent_managed_root_allows_only_valid_marker(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "managed runtimes"
+            root.mkdir()
+            marker = root / ".codestyles-managed-tools"
+            for data in (None, b"wrong marker", b"CodeStyles toolchains v1\n"):
+                if data is not None:
+                    marker.write_bytes(data)
+                if data == b"CodeStyles toolchains v1\n":
+                    smoke.validate_unused_toolchains(root)
+                else:
+                    with self.assertRaisesRegex(ValueError, "unexpected managed runtime"):
+                        smoke.validate_unused_toolchains(root)
+            for name in ("dprint", "active.json", ".staging", "download.tar.gz"):
+                extra = root / name
+                extra.mkdir()
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, "unexpected managed runtime"):
+                    smoke.validate_unused_toolchains(root)
+                extra.rmdir()
+
     @unittest.skipIf(os.name == "nt", "POSIX fake executable fixture")
     def test_directory_payload_is_copied_and_original_is_unchanged(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -288,7 +333,7 @@ class SmokeTests(unittest.TestCase):
             payload.mkdir()
             binary = payload / "codestyles"
             # This fixture verifies the harness only. Actual package evidence
-            # must use the compiled Rust application and its real WASM plugins.
+            # must use the compiled Rust application with no installed runtime.
             binary.write_text('''#!/usr/bin/env python3
 import json, os, pathlib, sys
 root = pathlib.Path(__file__).resolve().parent
@@ -296,8 +341,9 @@ cache = pathlib.Path(os.environ['DPRINT_CACHE_DIR'])
 assert not cache.exists()
 assert 'CODESTYLES_RESOURCES' not in os.environ
 assert pathlib.Path.cwd() != root
-cache.mkdir()
-(cache / 'compiled-test-fixture').write_text('fixture')
+managed = pathlib.Path(os.environ['CODESTYLES_TOOLCHAINS_DIR'])
+managed.mkdir()
+(managed / '.codestyles-managed-tools').write_bytes(b'CodeStyles toolchains v1\\n')
 checks = []
 for ext, plugin in [('ts','typescript'), ('js','typescript'), ('tsx','typescript'), ('jsx','typescript'), ('json','json'), ('jsonc','json'), ('md','markdown'), ('toml','toml'), ('py','ruff'), ('pyi','ruff')]:
     checks.append({'extension': ext, 'plugin': plugin, 'status': 'skipped', 'reason': 'Install dprint in Runtime plugins'})
@@ -310,6 +356,9 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({'status': 'passed', 'mode': 'he
             self.assertEqual(status, 0)
             result = json.loads(report.read_text(encoding="utf-8"))
             self.assertEqual(result["status"], "passed")
+            self.assertTrue(result["cache_initially_absent"])
+            self.assertTrue(result["cache_absent"])
+            self.assertTrue(result["managed_runtime_payload_absent"])
             self.assertTrue(result["read_only_install"]["write_denied"])
             self.assertTrue(result["install_tree_unchanged"])
             self.assertFalse(result["network"]["isolation_enforced_by_script"])

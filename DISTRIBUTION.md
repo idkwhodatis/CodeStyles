@@ -48,8 +48,11 @@ not prove API availability or successful rendering on an older OS.
 initializing a GUI. Clean application packages must pass without an installed
 dprint runtime, explicitly skipping formatting rather than using PATH or fetching
 anything. Real formatting is verified separately against the managed runtime pack.
-The archive and native-container tests use fresh caches, Unicode/space
-paths, an unrelated working directory and installation-tree content snapshots.
+The archive and native-container tests start with an absent formatter cache and
+require it to remain absent. The isolated managed-tool root may contain only its
+valid ownership marker, never runtime payloads or staging files. Tests also use
+Unicode/space paths, an unrelated working directory and installation-tree content
+snapshots.
 Windows tests silently install into a disposable per-user directory and uninstall;
 macOS tests mount the DMG read-only; Linux tests inspect/extract the actual Debian
 payload. Linux repeats its tests in an unprivileged Docker container with

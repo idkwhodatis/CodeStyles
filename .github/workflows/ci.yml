@@ -88,7 +88,9 @@ jobs:
       - run: cargo build --locked --release
       - name: Prepare explicit real parity-test fixtures (not application dependencies)
         run: python scripts/bundle_resources.py fetch --target ${{ matrix.target }}
-      - run: cargo test --locked --no-default-features
+      # Bound concurrent cold-WASM compilation on smaller native runners.
+      # Production timeout and the explicit timeout/cancellation tests stay unchanged.
+      - run: cargo test --locked --no-default-features -- --test-threads=2
       - run: cargo test --locked --bin codestyles
       - name: Verify native optional dprint pack lifecycle without publishing
         run: python scripts/verify_dprint_pack.py --target ${{ matrix.target }} --work-dir "${{ runner.temp }}/codestyles-dprint"

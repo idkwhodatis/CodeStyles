@@ -234,7 +234,7 @@ def main():
                 preserve_primary_error(
                     lambda: uninstall_windows(install, reports / 'installer-uninstall.json'),
                     sys.exc_info()[1])
-    print('Distribution containers and extracted runtime checks passed.')
+    print('Distribution containers and extracted application startup checks passed.')
 
 
 if __name__ == '__main__':

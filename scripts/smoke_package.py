@@ -267,6 +267,24 @@ def validate_backend_report(report, install, cache):
             raise ValueError(f"Missing-runtime formatting must be explicitly skipped: {item}")
 
 
+def validate_unused_cache(cache):
+    # No formatter runs in clean-package startup. Even an empty directory (or a
+    # dangling symlink) means something touched the explicitly absent cache.
+    if os.path.lexists(cache):
+        raise ValueError("Runtime-absent startup unexpectedly created a formatter cache")
+
+
+def validate_unused_toolchains(root):
+    # Discovery may initialize the managed root, but startup must not install,
+    # stage, or activate any runtime. Check disk evidence, not only the report.
+    marker = root / ".codestyles-managed-tools"
+    if (root.is_symlink() or not root.is_dir()
+            or {path.name for path in root.iterdir()} != {marker.name}
+            or marker.is_symlink() or not marker.is_file()
+            or marker.read_bytes() != b"CodeStyles toolchains v1\n"):
+        raise ValueError("Runtime-absent startup created unexpected managed runtime artifacts")
+
+
 def smoke(args, result):
     result["stage"] = "create_workspace"
     with tempfile.TemporaryDirectory(prefix="CodeStyles package 验证 ") as temp:
@@ -322,9 +340,11 @@ def smoke(args, result):
             result["stage"] = "validate_backend_report"
             validate_backend_report(result.get("backend", {}), install, cache)
             result["stage"] = "verify_cache"
-            result["cache_populated"] = cache.is_dir() and any(path.is_file() for path in cache.rglob("*"))
-            if not result["cache_populated"]:
-                raise ValueError("Formatter did not populate the fresh external cache")
+            result["cache_absent"] = not os.path.lexists(cache)
+            validate_unused_cache(cache)
+            result["stage"] = "verify_managed_runtimes"
+            validate_unused_toolchains(Path(env["CODESTYLES_TOOLCHAINS_DIR"]))
+            result["managed_runtime_payload_absent"] = True
         finally:
             failed = sys.exc_info()[0] is not None
             if not failed:
