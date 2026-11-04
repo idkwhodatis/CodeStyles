@@ -416,11 +416,14 @@ impl ToolchainManager {
                 return Err("Unsupported dprint engine/WASM pack revision.".into());
             }
             runtime_entrypoints(spec)?;
-        } else if matches!(id, "yaml" | "sql") {
-            let (expected_version, expected_plugin) = if id == "yaml" {
-                ("pretty_yaml-0.6.0", "plugins/pretty_yaml-0.6.0.wasm")
-            } else {
-                ("sql-0.4.1", "plugins/sql-0.4.1.wasm")
+        } else if matches!(id, "yaml" | "sql" | "shfmt" | "stylua" | "dockerfile") {
+            let (expected_version, expected_plugin) = match id {
+                "yaml" => ("pretty_yaml-0.6.0", "plugins/pretty_yaml-0.6.0.wasm"),
+                "sql" => ("sql-0.4.1", "plugins/sql-0.4.1.wasm"),
+                "shfmt" => ("shfmt-0.1.2", "plugins/shfmt-0.1.2.wasm"),
+                "stylua" => ("stylua-0.1.0", "plugins/stylua-0.1.0.wasm"),
+                "dockerfile" => ("dockerfile-0.7.0", "plugins/dockerfile-0.7.0.wasm"),
+                _ => unreachable!(),
             };
             if version != expected_version
                 || spec["kind"] != "wasm"
@@ -430,6 +433,20 @@ impl ToolchainManager {
                 return Err("Unsupported managed language pack or dprint host contract.".into());
             }
             runtime_entrypoints(spec)?;
+        } else if id == "caddyfmt" {
+            let executable = if self.target.contains("windows") {
+                "bin/caddy.exe"
+            } else {
+                "bin/caddy"
+            };
+            if version != "caddy-2.11.7"
+                || spec["kind"] != "native"
+                || spec["executable"] != executable
+                || spec["environment"] != json!({})
+                || spec.get("wasm_plugins").is_some()
+            {
+                return Err("Unsupported managed Caddy formatter contract.".into());
+            }
         } else if spec["kind"] == "dprint" {
             return Err("The dprint runtime kind is reserved for the dprint pack.".into());
         }
@@ -2436,7 +2453,7 @@ mod optional_wasm_host_contract_tests {
     fn yaml_sql_require_exact_plugin_version_and_dprint_pack_without_enabling_downloads() {
         let temp = tempfile::tempdir().unwrap();
         let manager = ToolchainManager::at_managed_root(temp.path().join("tools")).unwrap();
-        for id in ["yaml", "sql"] {
+        for id in ["yaml", "sql", "shfmt", "stylua", "dockerfile"] {
             manager.spec(id).unwrap();
             assert!(manager.download_available(id).is_err());
             for (key, bad) in [
@@ -2452,5 +2469,31 @@ mod optional_wasm_host_contract_tests {
             changed.catalog["toolchains"][id]["version"] = json!("unreviewed");
             assert!(changed.spec(id).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod caddy_host_contract_tests {
+    use super::*;
+    #[test]
+    fn caddy_pack_is_exact_and_disabled() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = ToolchainManager::at_managed_root(temp.path().join("tools")).unwrap();
+        manager.spec("caddyfmt").unwrap();
+        assert!(manager.download_available("caddyfmt").is_err());
+        for (key, bad) in [
+            ("kind", json!("wasm")),
+            ("executable", json!("bin/other")),
+            ("environment", json!({"CADDY_ADMIN":"localhost:2019"})),
+            ("wasm_plugins", json!([])),
+            ("wasm_plugins", Value::Null),
+        ] {
+            let mut changed = manager.clone();
+            changed.catalog["toolchains"]["caddyfmt"]["targets"][&manager.target][key] = bad;
+            assert!(changed.spec("caddyfmt").is_err(), "{key}");
+        }
+        let mut changed = manager.clone();
+        changed.catalog["toolchains"]["caddyfmt"]["version"] = json!("other");
+        assert!(changed.spec("caddyfmt").is_err());
     }
 }

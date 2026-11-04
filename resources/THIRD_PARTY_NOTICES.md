@@ -28,3 +28,24 @@ unpublished optional pack candidates, not shipped app runtimes. Fixed source
 URLs, sizes and SHA-256 pins are in `scripts/build_wasm_language_pack.py` and pack
 provenance. Upstream notices are included; a complete transitive dependency and
 target-feature license audit remains required before runtime redistribution.
+
+## Optional Shell, Lua, Dockerfile and Caddyfile candidates
+
+All candidates remain disabled and unpublished pending transitive license and
+native validation. Upstream releases are used unchanged.
+
+- dprint-plugin-shfmt 0.1.2: MIT; includes mvdan/sh 3.14.1 (BSD-3-Clause)
+  and buger/jsonparser 1.6.1 (MIT). Combined notices: licenses/shfmt-0.1.2.txt.
+- dprint-plugin-stylua 0.1.0: MIT; StyLua 2.6.0: MPL-2.0. Exact upstream
+  license and corresponding source links: licenses/stylua-upstream-2.6.0-MPL-2.0.txt
+  and licenses/stylua-0.1.0-SOURCE.txt. The wrapper disables upstream output
+  verification; parsing/idempotence do not prove semantic equivalence.
+- dprint-plugin-dockerfile 0.7.0: MIT, licenses/dockerfile-0.7.0.txt.
+- Caddy 2.11.7: Apache-2.0, licenses/caddy-2.11.7.txt. Source:
+  https://github.com/caddyserver/caddy/tree/v2.11.7. Complete upstream binary
+  packaged; CodeStyles invokes only fmt -, never server startup or adaptation.
+
+Source pins and review: script-formatter-sources.json,
+script-formatter-source-review.json, caddy-formatter-sources.json and
+scripts/build_wasm_language_pack.py. These notices do not claim a completed
+transitive license audit.

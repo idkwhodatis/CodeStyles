@@ -57,6 +57,21 @@ config to protect block scalar spaces, without rewriting saved/exported JSONC.
 External editor/CLI use must set it explicitly and does not inherit the app's
 source guards. See [the YAML safety override, exact source scope and release gates](WEB_CONFIG_SQL_SUPPORT.md).
 
+## Shell, Lua/Luau, Dockerfile and Caddyfile (local candidates)
+
+These five editor modes have offline examples/settings, preview/Diff and selected-language
+project Check/review/apply. Shell, Lua/Luau and Dockerfile use optional pinned WASM
+packs with managed dprint; Caddyfile uses an independent managed `caddy fmt -` pack.
+Nothing is discovered from PATH or downloaded implicitly. All 24 new platform
+entries remain unpublished and download-disabled pending release acceptance.
+
+Unsafe settings and known unsafe source forms are rejected **before invoking the
+formatter**. Source files are changed only through the existing reviewed-apply
+workflow. Dockerfile's supported syntax is intentionally narrow because the
+upstream formatter can alter some shell literals. Caddyfile support is formatting,
+not configuration validation or deployment. See [exact source scope, safety
+guards and release gates](SCRIPT_CONFIG_SUPPORT.md).
+
 ## Python formatting
 
 Python `.py` and type-stub `.pyi` files use the managed, checksummed

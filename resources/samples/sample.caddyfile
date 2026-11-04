@@ -1,0 +1,10 @@
+# Source formatting only: not loaded or deployed.
+:8080 {
+    encode gzip
+    handle /health {
+        respond "ready" 200
+    }
+    handle {
+        respond "CodeStyles" 200
+    }
+}

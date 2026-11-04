@@ -1,0 +1,165 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://plugins.dprint.dev/dprint/dprint-plugin-stylua/0.1.0/schema.json",
+  "type": "object",
+  "properties": {
+    "syntax": {
+      "description": "The Lua syntax to parse.",
+      "type": "string",
+      "default": "all",
+      "oneOf": [{
+        "const": "all",
+        "description": "Parses all supported syntaxes at once. Select a specific one when syntaxes conflict (ex. Lua 5.2 labels and Luau type assertions)."
+      }, {
+        "const": "lua51",
+        "description": "Lua 5.1."
+      }, {
+        "const": "lua52",
+        "description": "Lua 5.2."
+      }, {
+        "const": "lua53",
+        "description": "Lua 5.3."
+      }, {
+        "const": "lua54",
+        "description": "Lua 5.4."
+      }, {
+        "const": "luau",
+        "description": "Luau."
+      }, {
+        "const": "luajit",
+        "description": "LuaJIT."
+      }, {
+        "const": "cfxlua",
+        "description": "CfxLua (FiveM)."
+      }]
+    },
+    "lineWidth": {
+      "description": "The width of a line the formatter will try to stay under. Note that this limit will be exceeded in some cases.",
+      "default": 120,
+      "type": "number"
+    },
+    "useTabs": {
+      "description": "Whether to indent with tabs instead of spaces.",
+      "default": true,
+      "type": "boolean"
+    },
+    "indentWidth": {
+      "description": "The number of spaces for an indent. With tabs, this is the width of a tab when deciding where to wrap lines.",
+      "default": 4,
+      "type": "number"
+    },
+    "newLineKind": {
+      "description": "The kind of newline to use.",
+      "type": "string",
+      "default": "lf",
+      "oneOf": [{
+        "const": "auto",
+        "description": "For each file, uses the newline kind found at the end of the last line."
+      }, {
+        "const": "crlf",
+        "description": "Uses carriage return, line feed."
+      }, {
+        "const": "lf",
+        "description": "Uses line feed."
+      }, {
+        "const": "system",
+        "description": "Uses the system standard (ex. crlf on Windows)."
+      }]
+    },
+    "quoteStyle": {
+      "description": "The style of quotes to use in string literals.",
+      "type": "string",
+      "default": "autoPreferDouble",
+      "oneOf": [{
+        "const": "autoPreferDouble",
+        "description": "Uses double quotes, unless single quotes need fewer escapes."
+      }, {
+        "const": "autoPreferSingle",
+        "description": "Uses single quotes, unless double quotes need fewer escapes."
+      }, {
+        "const": "forceDouble",
+        "description": "Always uses double quotes."
+      }, {
+        "const": "forceSingle",
+        "description": "Always uses single quotes."
+      }]
+    },
+    "callParentheses": {
+      "description": "When to use parentheses around the arguments of a function call.",
+      "type": "string",
+      "default": "always",
+      "oneOf": [{
+        "const": "always",
+        "description": "Always uses parentheses."
+      }, {
+        "const": "noSingleString",
+        "description": "Omits the parentheses when the only argument is a string."
+      }, {
+        "const": "noSingleTable",
+        "description": "Omits the parentheses when the only argument is a table."
+      }, {
+        "const": "none",
+        "description": "Omits the parentheses when the only argument is a string or a table."
+      }, {
+        "const": "input",
+        "description": "Keeps the parentheses as they are in the input."
+      }]
+    },
+    "collapseSimpleStatement": {
+      "description": "Which simple statements to collapse onto a single line.",
+      "type": "string",
+      "default": "never",
+      "oneOf": [{
+        "const": "never",
+        "description": "Never collapses them."
+      }, {
+        "const": "input",
+        "description": "Keeps them collapsed or expanded as they are in the input."
+      }, {
+        "const": "functionOnly",
+        "description": "Collapses simple functions."
+      }, {
+        "const": "conditionalOnly",
+        "description": "Collapses simple if guards."
+      }, {
+        "const": "always",
+        "description": "Collapses simple functions and if guards."
+      }]
+    },
+    "blockNewlineGaps": {
+      "description": "Whether blocks keep the blank lines at their start and end.",
+      "type": "string",
+      "default": "never",
+      "oneOf": [{
+        "const": "never",
+        "description": "Removes them."
+      }, {
+        "const": "preserve",
+        "description": "Keeps them when they are in the input."
+      }]
+    },
+    "spaceAfterFunctionNames": {
+      "description": "Where to put a space between a function name and its parameters or arguments.",
+      "type": "string",
+      "default": "never",
+      "oneOf": [{
+        "const": "never",
+        "description": "Never."
+      }, {
+        "const": "definitions",
+        "description": "In function definitions."
+      }, {
+        "const": "calls",
+        "description": "In function calls."
+      }, {
+        "const": "always",
+        "description": "In function definitions and calls."
+      }]
+    },
+    "sortRequires": {
+      "description": "Whether to sort consecutive require statements by their variable name.",
+      "default": false,
+      "type": "boolean"
+    }
+  }
+}

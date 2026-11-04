@@ -1,0 +1,56 @@
+{
+  "plugins": [
+    {
+      "plugin": "shfmt",
+      "version": "0.1.2",
+      "source_commit": "ac5b9026bea861356e50311e1620500611c57c3b",
+      "source_url": "https://github.com/dprint/dprint-plugin-shfmt/tree/ac5b9026bea861356e50311e1620500611c57c3b",
+      "release_url": "https://github.com/dprint/dprint-plugin-shfmt/releases/tag/0.1.2",
+      "license_sources": [
+        {
+          "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-shfmt/ac5b9026bea861356e50311e1620500611c57c3b/LICENSE",
+          "bytes": 1171,
+          "sha256": "0e8b8c5b56c785ad26c29d87a83e21696678b2b88311b1d0acfd8334cd8a0d89"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-shfmt/ac5b9026bea861356e50311e1620500611c57c3b/third_party/mvdan-sh/LICENSE",
+          "bytes": 1488,
+          "sha256": "ce63850f77649f00d1394045e2794ffb09a5596beabac51c9548edd958845d7c"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-shfmt/ac5b9026bea861356e50311e1620500611c57c3b/third_party/jsonparser/LICENSE",
+          "bytes": 1070,
+          "sha256": "632b59709152e1b5bfd3e2794848bcd2f4c70e3e175646726dbf53439ea1dbe1"
+        }
+      ]
+    },
+    {
+      "plugin": "stylua",
+      "version": "0.1.0",
+      "source_commit": "e1979d8137502523387aae472ae74dc599f8c49f",
+      "source_url": "https://github.com/dprint/dprint-plugin-stylua/tree/e1979d8137502523387aae472ae74dc599f8c49f",
+      "release_url": "https://github.com/dprint/dprint-plugin-stylua/releases/tag/0.1.0",
+      "license_sources": [
+        {
+          "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-stylua/e1979d8137502523387aae472ae74dc599f8c49f/LICENSE",
+          "bytes": 1139,
+          "sha256": "f220330d3736fb4c0c5f4a361b7e926b08576709a5648a59b14b692e8fa3b598"
+        }
+      ]
+    },
+    {
+      "plugin": "dockerfile",
+      "version": "0.7.0",
+      "source_commit": "747f648275d02b19fcc20504ea5c9f8360e83ac7",
+      "source_url": "https://github.com/dprint/dprint-plugin-dockerfile/tree/747f648275d02b19fcc20504ea5c9f8360e83ac7",
+      "release_url": "https://github.com/dprint/dprint-plugin-dockerfile/releases/tag/0.7.0",
+      "license_sources": [
+        {
+          "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-dockerfile/747f648275d02b19fcc20504ea5c9f8360e83ac7/LICENSE",
+          "bytes": 1080,
+          "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674"
+        }
+      ]
+    }
+  ]
+}

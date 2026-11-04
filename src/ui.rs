@@ -897,6 +897,10 @@ fn pack_matches_preview(language: SourceLanguage, pack_id: &str) -> bool {
                         | SourceLanguage::Scss
                         | SourceLanguage::Yaml
                         | SourceLanguage::Sql
+                        | SourceLanguage::Shell
+                        | SourceLanguage::Lua
+                        | SourceLanguage::Luau
+                        | SourceLanguage::Dockerfile
                 )))
 }
 
@@ -906,6 +910,16 @@ fn pack_mutation_affects_preview(
     action: &PackAction,
 ) -> bool {
     !matches!(action, PackAction::Refresh) && pack_matches_preview(language, pack_id)
+}
+
+fn empty_settings_message(language: SourceLanguage) -> &'static str {
+    match language {
+        SourceLanguage::Go => "gofmt has no configurable style settings.",
+        SourceLanguage::Caddyfile => {
+            "caddy fmt uses fixed tabs and has no configurable style settings."
+        }
+        _ => "No matches in this tab",
+    }
 }
 
 fn native_language(language: SourceLanguage) -> Option<NativeLanguage> {
@@ -919,6 +933,12 @@ fn native_language(language: SourceLanguage) -> Option<NativeLanguage> {
         SourceLanguage::Scss => Some(NativeLanguage::Scss),
         SourceLanguage::Yaml => Some(NativeLanguage::Yaml),
         SourceLanguage::Sql => Some(NativeLanguage::Sql),
+        SourceLanguage::Shell => Some(NativeLanguage::Shell),
+        SourceLanguage::Lua => Some(NativeLanguage::Lua),
+        SourceLanguage::Luau => Some(NativeLanguage::Luau),
+        SourceLanguage::Dockerfile => Some(NativeLanguage::Dockerfile),
+        SourceLanguage::Caddyfile => Some(NativeLanguage::Caddyfile),
+
         SourceLanguage::Java => Some(NativeLanguage::Java),
         SourceLanguage::CSharp => Some(NativeLanguage::CSharp),
         SourceLanguage::C => Some(NativeLanguage::C),
@@ -1582,6 +1602,10 @@ impl PreviewWindow {
             .h_full()
             .gap_2()
             .child(div().text_lg().child("Settings"))
+            .when(self.source.language() == SourceLanguage::Shell, |panel| panel.child(div().text_sm().child("Shell uses pinned shfmt for .sh and .bash only, with auto, Bash or POSIX dialects. Simplify and minify are disabled. Source is never executed; system shfmt is not used.")))
+            .when(matches!(self.source.language(), SourceLanguage::Lua | SourceLanguage::Luau), |panel| panel.child(div().text_sm().child("Lua and Luau share StyLua settings. Unset syntax means lua54 for .lua and luau for .luau; an explicit syntax must match the selected language. Require sorting is disabled. No source or modules are executed.")))
+            .when(self.source.language() == SourceLanguage::Dockerfile, |panel| panel.child(div().text_sm().child("Dockerfile uses the pinned Dockerfile plugin, not a Docker build or linter. Review shell-form commands and literal content in the diff. No image is built, pulled or run.")))
+            .when(self.source.language() == SourceLanguage::Caddyfile, |panel| panel.child(div().text_sm().child("Caddyfile uses official caddy fmt with fixed tabs and no configurable style settings. Formatting is not Caddy semantic validation; configuration is never loaded or deployed.")))
             .when(self.source.language() == SourceLanguage::Go, |panel| panel.child(div().text_sm().child("Go uses gofmt's canonical style. There are no style controls; CodeStyles does not expose gofmt rewrite or simplify flags.")))
             .when(self.source.language() == SourceLanguage::Java, |panel| panel.child(div().text_sm().child("Java source formatting uses google-java-format with Google or AOSP style. Imports are preserved; no JDK, classpath or build discovery. Plain-text preview highlighting.")))
             .when(self.source.language() == SourceLanguage::CSharp, |panel| panel.child(div().text_sm().child("C# source formatting only, with explicit CSharpier settings. No solution/project evaluation, restore, analyzers, .editorconfig inheritance or generated-file discovery. Plain-text preview highlighting.")))
@@ -1642,7 +1666,7 @@ impl PreviewWindow {
                     .min_h_0()
                     .overflow_y_scroll()
                     .when(rows.is_empty(), |list| {
-                        list.child(div().py_3().text_sm().child(if self.source.language() == SourceLanguage::Go { "gofmt has no configurable style settings." } else { "No matches in this tab" }))
+                        list.child(div().py_3().text_sm().child(empty_settings_message(self.source.language())))
                     })
                     .children(rows),
             )
@@ -2051,6 +2075,10 @@ impl PreviewWindow {
                     SourceLanguage::Java => "Java uses google-java-format with Google or AOSP style and preserves imports. CodeStyles JSONC is not a native formatter config; configure external editor/CI tooling explicitly.",
                     SourceLanguage::CSharp => "C# uses CSharpier with isolated source formatting, not dotnet format: no solution loading, restore or analyzers. CodeStyles JSONC is not .csharpierrc; copy the supported settings to your external tooling explicitly.",
                     SourceLanguage::C | SourceLanguage::Cpp => "C/C++ use clang-format with explicit settings, not project .clang-format discovery. CodeStyles JSONC is not a .clang-format YAML file; configure external editor/CI tooling explicitly.",
+                    SourceLanguage::Shell => "Shell uses pinned shfmt for .sh and .bash only, with auto, Bash or POSIX dialects. Simplify and minify are disabled. Source is never executed; system shfmt is not used.",
+                    SourceLanguage::Lua | SourceLanguage::Luau => "Lua and Luau share StyLua settings. Unset syntax means lua54 for .lua and luau for .luau; an explicit syntax must match the selected language. Require sorting is disabled. No source or modules are executed.",
+                    SourceLanguage::Dockerfile => "Dockerfile uses the pinned Dockerfile plugin, not a Docker build or linter. Review shell-form commands and literal content in the diff. No image is built, pulled or run.",
+                    SourceLanguage::Caddyfile => "Caddyfile uses official caddy fmt with fixed tabs and no configurable style settings. Formatting is not Caddy semantic validation; configuration is never loaded or deployed.",
                     SourceLanguage::Go => "Go uses canonical gofmt with no style settings. Configure your normal Go editor tooling separately.",
                     SourceLanguage::Dart => "Dart / Flutter source uses the pinned Dart formatter. This does not install Flutter or run pub/analyzer commands. The three supported options are languageVersion, pageWidth, and trailingCommas.",
                     SourceLanguage::Html => "HTML uses pinned markup_fmt, with the managed TypeScript/JSON/Malva chain for supported script and style blocks. Templates and unsupported embedded languages are outside this scope. No external source is read.",
@@ -2254,7 +2282,7 @@ impl PreviewWindow {
             .map(|snapshot| snapshot.root.display().to_string())
             .unwrap_or_else(|| "the dedicated managed directory".into());
         let explanation = format!(
-            "Remove only the managed {} pack under {location}? Other language packs, project source files, and saved configuration are not removed. Formatting languages that depend on this pack will require reinstalling it; Web, YAML and SQL packs also depend on dprint.",
+            "Remove only the managed {} pack under {location}? Other language packs, project source files, and saved configuration are not removed. Formatting languages that depend on this pack will require reinstalling it; Web, YAML, SQL, Shell, Lua/Luau and Dockerfile packs also depend on dprint.",
             self.toolchain_controller.pack_id()
         );
         let prompt = window.prompt(
@@ -2319,11 +2347,11 @@ impl PreviewWindow {
         };
         div().id("language-support-content").flex().flex_col().flex_1().min_h_0().overflow_y_scroll().gap_3()
             .child(div().text_lg().child("Language support"))
-            .child(div().flex().flex_wrap().gap_2().children([("dprint", "dprint"), ("rustfmt", "Rust"), ("gofmt", "Go"), ("dartfmt", "Dart / Flutter"), ("vue", "Web / Vue"), ("yaml", "YAML"), ("sql", "SQL"), ("google-java-format", "Java"), ("csharpier", "C#"), ("clang-format", "C / C++")].into_iter().enumerate().map(|(index, (id, label))| Button::new(("pack-choice", index)).label(label).selected(self.toolchain_controller.pack_id() == id).disabled(blocked).on_click(cx.listener(move |this, _, _, cx| this.switch_pack(id, cx))))))
+            .child(div().flex().flex_wrap().gap_2().children([("dprint", "dprint"), ("rustfmt", "Rust"), ("gofmt", "Go"), ("dartfmt", "Dart / Flutter"), ("vue", "Web / Vue"), ("yaml", "YAML"), ("sql", "SQL"), ("shfmt", "Shell"), ("stylua", "Lua / Luau"), ("dockerfile", "Dockerfile"), ("caddyfmt", "Caddyfile"), ("google-java-format", "Java"), ("csharpier", "C#"), ("clang-format", "C / C++")].into_iter().enumerate().map(|(index, (id, label))| Button::new(("pack-choice", index)).label(label).selected(self.toolchain_controller.pack_id() == id).disabled(blocked).on_click(cx.listener(move |this, _, _, cx| this.switch_pack(id, cx))))))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
                 .child(div().child("Offline settings · no formatter installation required"))
-                .child(div().text_sm().child("TypeScript / JavaScript / JSX / TSX · JSON / JSONC · Markdown · TOML · Python / Python Stub · HTML / CSS / SCSS · YAML · SQL"))
-                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Install dprint to format these languages. Its engine and five pinned WASM plugins are one verified optional pack. HTML/CSS/SCSS/Vue also require the Web / Vue pack; YAML and SQL each require their own pack. Settings, schemas, and samples remain available offline. Installation does not change project plugin references.")))
+                .child(div().text_sm().child("TypeScript / JavaScript / JSX / TSX · JSON / JSONC · Markdown · TOML · Python / Python Stub · HTML / CSS / SCSS · YAML · SQL · Shell · Lua / Luau · Dockerfile"))
+                .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Install dprint to format these languages. Its engine and five pinned WASM plugins are one verified optional pack. HTML/CSS/SCSS/Vue also require the Web / Vue pack; YAML, SQL, Shell, Lua/Luau and Dockerfile each require their own pack. Caddyfile uses a separate official Caddy pack. Settings, schemas, and samples remain available offline. Installation does not change project plugin references.")))
             .child(div().p_3().border_1().border_color(cx.theme().border).rounded_lg().flex().flex_col().gap_2()
                 .child(div().child(format!("{} · managed optional language pack", self.toolchain_controller.pack_id())))
                 .child(div().text_sm().child(state))
@@ -2749,7 +2777,12 @@ fn highlight_language(language: SourceLanguage) -> &'static str {
         | SourceLanguage::Java
         | SourceLanguage::CSharp
         | SourceLanguage::C
-        | SourceLanguage::Cpp => "text",
+        | SourceLanguage::Cpp
+        | SourceLanguage::Shell
+        | SourceLanguage::Lua
+        | SourceLanguage::Luau
+        | SourceLanguage::Dockerfile
+        | SourceLanguage::Caddyfile => "text",
         SourceLanguage::Vue | SourceLanguage::Html => "html",
         SourceLanguage::Css | SourceLanguage::Scss | SourceLanguage::Yaml | SourceLanguage::Sql => {
             "text"
@@ -3162,6 +3195,10 @@ mod tests {
                         | SourceLanguage::Scss
                         | SourceLanguage::Yaml
                         | SourceLanguage::Sql
+                        | SourceLanguage::Shell
+                        | SourceLanguage::Lua
+                        | SourceLanguage::Luau
+                        | SourceLanguage::Dockerfile
                 );
             assert_eq!(
                 super::pack_matches_preview(language, "dprint"),
@@ -3220,6 +3257,37 @@ mod tests {
             "gofmt"
         ));
         assert!(super::pack_matches_preview(SourceLanguage::Go, "gofmt"));
+    }
+
+    #[test]
+    fn new_pack_changes_invalidate_only_their_dependents() {
+        use codestyles::comparison::SourceLanguage;
+        for (language, pack) in [
+            (SourceLanguage::Shell, "shfmt"),
+            (SourceLanguage::Lua, "stylua"),
+            (SourceLanguage::Luau, "stylua"),
+            (SourceLanguage::Dockerfile, "dockerfile"),
+            (SourceLanguage::Caddyfile, "caddyfmt"),
+        ] {
+            assert!(super::pack_matches_preview(language, pack));
+            assert_eq!(
+                super::pack_matches_preview(language, "dprint"),
+                language != SourceLanguage::Caddyfile
+            );
+            assert!(!super::pack_matches_preview(language, "vue"));
+            for unrelated in ["shfmt", "stylua", "dockerfile", "caddyfmt"] {
+                assert_eq!(
+                    super::pack_matches_preview(language, unrelated),
+                    unrelated == pack
+                );
+            }
+        }
+        assert!(super::empty_settings_message(SourceLanguage::Caddyfile).contains("fixed tabs"));
+        assert!(super::empty_settings_message(SourceLanguage::Go).contains("no configurable"));
+        assert_eq!(
+            super::empty_settings_message(SourceLanguage::Lua),
+            "No matches in this tab"
+        );
     }
 
     #[test]
@@ -3286,6 +3354,19 @@ mod tests {
             (SourceLanguage::Scss, "vue", NativeLanguage::Scss),
             (SourceLanguage::Yaml, "yaml", NativeLanguage::Yaml),
             (SourceLanguage::Sql, "sql", NativeLanguage::Sql),
+            (SourceLanguage::Shell, "shfmt", NativeLanguage::Shell),
+            (SourceLanguage::Lua, "stylua", NativeLanguage::Lua),
+            (SourceLanguage::Luau, "stylua", NativeLanguage::Luau),
+            (
+                SourceLanguage::Dockerfile,
+                "dockerfile",
+                NativeLanguage::Dockerfile,
+            ),
+            (
+                SourceLanguage::Caddyfile,
+                "caddyfmt",
+                NativeLanguage::Caddyfile,
+            ),
             (
                 SourceLanguage::Java,
                 "google-java-format",
@@ -3565,6 +3646,11 @@ mod tests {
                     | SourceLanguage::Scss
                     | SourceLanguage::Yaml
                     | SourceLanguage::Sql
+                    | SourceLanguage::Shell
+                    | SourceLanguage::Lua
+                    | SourceLanguage::Luau
+                    | SourceLanguage::Dockerfile
+                    | SourceLanguage::Caddyfile
                     | SourceLanguage::Java
                     | SourceLanguage::CSharp
                     | SourceLanguage::C

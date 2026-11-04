@@ -1,0 +1,119 @@
+{
+  "format_version": 1,
+  "verified_at_utc": "2026-11-04T03:30:59.157547+00:00",
+  "scope": "Source-level dependency/invocation verification, not a complete transitive license or semantic equivalence audit.",
+  "plugins": [
+    {
+      "plugin": "shfmt",
+      "version": "0.1.2",
+      "source_commit": "ac5b9026bea861356e50311e1620500611c57c3b",
+      "source_url": "https://github.com/dprint/dprint-plugin-shfmt/tree/ac5b9026bea861356e50311e1620500611c57c3b",
+      "tag_commit_receipt": {
+        "url": "https://api.github.com/repos/dprint/dprint-plugin-shfmt/commits/0.1.2",
+        "bytes": 4489,
+        "sha256": "c1081713e314b3c6e74de442a1b81ee651f125faf2c1d89ee4eb4d43d141054f"
+      },
+      "dependency_manifest": {
+        "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-shfmt/ac5b9026bea861356e50311e1620500611c57c3b/go.mod",
+        "bytes": 129,
+        "sha256": "a50b8217befc15afc65463ca327b580e9f55f849ede5277717469f7ccca51fca"
+      },
+      "dependencies": [
+        {
+          "name": "mvdan/sh",
+          "version": "3.14.1",
+          "license": "BSD-3-Clause",
+          "source_commit": "a3f0c75d21d918756fa38de8b5d3429efde7948b",
+          "source_url": "https://github.com/mvdan/sh/tree/a3f0c75d21d918756fa38de8b5d3429efde7948b",
+          "tag_commit_receipt": {
+            "url": "https://api.github.com/repos/mvdan/sh/commits/v3.14.1",
+            "bytes": 5406,
+            "sha256": "864531e616c112c335b28a5047519b85968e9303fe255d67b86cbc798f6f80e0"
+          },
+          "license_receipt": {
+            "url": "https://raw.githubusercontent.com/mvdan/sh/a3f0c75d21d918756fa38de8b5d3429efde7948b/LICENSE",
+            "bytes": 1488,
+            "sha256": "ce63850f77649f00d1394045e2794ffb09a5596beabac51c9548edd958845d7c"
+          }
+        },
+        {
+          "name": "buger/jsonparser",
+          "version": "1.6.1",
+          "license": "MIT",
+          "source_url": "https://github.com/buger/jsonparser/tree/v1.6.1"
+        }
+      ]
+    },
+    {
+      "plugin": "stylua",
+      "version": "0.1.0",
+      "source_commit": "e1979d8137502523387aae472ae74dc599f8c49f",
+      "source_url": "https://github.com/dprint/dprint-plugin-stylua/tree/e1979d8137502523387aae472ae74dc599f8c49f",
+      "tag_commit_receipt": {
+        "url": "https://api.github.com/repos/dprint/dprint-plugin-stylua/commits/0.1.0",
+        "bytes": 5531,
+        "sha256": "a6a2f88d61645aa449e810cdd55e35298a17151bb7e1787ca2b5f71f80274c73"
+      },
+      "lockfile": {
+        "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-stylua/e1979d8137502523387aae472ae74dc599f8c49f/Cargo.lock",
+        "bytes": 26971,
+        "sha256": "f489e9348e38fe5193f24ed62af279982938529aa02b06677275a6a37fde9e39"
+      },
+      "dependency_manifest": {
+        "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-stylua/e1979d8137502523387aae472ae74dc599f8c49f/Cargo.toml",
+        "bytes": 1026,
+        "sha256": "ad68dbff6e3fe7cff0130cd43a9b89669743787dec23260b31277428f47c1316"
+      },
+      "dependencies": [
+        {
+          "name": "StyLua",
+          "version": "2.6.0",
+          "license": "MPL-2.0",
+          "source_commit": "56f9630407f6bf6ee524fb1d7fe71f005a570478",
+          "source_url": "https://github.com/JohnnyMorganz/StyLua/tree/56f9630407f6bf6ee524fb1d7fe71f005a570478",
+          "source_archive_url": "https://github.com/JohnnyMorganz/StyLua/archive/56f9630407f6bf6ee524fb1d7fe71f005a570478.tar.gz",
+          "tag_commit_receipt": {
+            "url": "https://api.github.com/repos/JohnnyMorganz/StyLua/commits/v2.6.0",
+            "bytes": 15910,
+            "sha256": "6ccc1a23cba6ee5f11f03c0dd5222fcdcb73876c9561c5f9b66aa7c3284e042c"
+          },
+          "crate_sha256": "266dd1a94f4f6743235c61d05836aac3e9ba034dadf9bf27b9f032f266f3b8eb",
+          "license_receipt": {
+            "url": "https://raw.githubusercontent.com/JohnnyMorganz/StyLua/56f9630407f6bf6ee524fb1d7fe71f005a570478/LICENSE.md",
+            "bytes": 16724,
+            "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+          },
+          "included_license": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+          "source_notice": "licenses/stylua-0.1.0-SOURCE.txt",
+          "wrapper_default_features": false,
+          "wrapper_dependency_features": [
+            "lua52",
+            "lua53",
+            "lua54",
+            "luau",
+            "luajit",
+            "cfxlua"
+          ]
+        }
+      ],
+      "formatter_source": {
+        "url": "https://raw.githubusercontent.com/dprint/dprint-plugin-stylua/e1979d8137502523387aae472ae74dc599f8c49f/src/format_text.rs",
+        "bytes": 4745,
+        "sha256": "c7517051cf2c6e13b17eface8315ce4fd8ae6d4c17caf8aeec7821bdcb9b9161"
+      },
+      "output_verification": "None",
+      "limitation": "Pinned wrapper disables upstream output verification. Parsing and idempotence do not establish AST or runtime semantic equivalence."
+    },
+    {
+      "plugin": "dockerfile",
+      "version": "0.7.0",
+      "source_commit": "747f648275d02b19fcc20504ea5c9f8360e83ac7",
+      "source_url": "https://github.com/dprint/dprint-plugin-dockerfile/tree/747f648275d02b19fcc20504ea5c9f8360e83ac7",
+      "tag_commit_receipt": {
+        "url": "https://api.github.com/repos/dprint/dprint-plugin-dockerfile/commits/0.7.0",
+        "bytes": 5595,
+        "sha256": "b64d5ec803929b31da7dde76420d1b24b7690eb477e84a6f9ae8bfae16cd532e"
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "title": "Caddyfile formatting (official caddy fmt)",
+  "description": "Fixed tab-based formatting, with no configurable style options. Formatting is not Caddy semantic validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

@@ -390,6 +390,61 @@
       "path": "licenses/dprint.txt",
       "bytes": 1080,
       "sha256": "f49eac7bc59816a4b7fffd64914169ef46deb636f94b77eaa274e7352983c3fa"
+    },
+    {
+      "path": "schemas/shfmt-0.1.2.json",
+      "bytes": 2513,
+      "sha256": "fc19f09f2d2e9d57c76494c73d75afc1502f5707f198b2260c85b2ad05c98780"
+    },
+    {
+      "path": "schemas/stylua-0.1.0.json",
+      "bytes": 5304,
+      "sha256": "bf7833c01f41db46c9a165b3527d4d41aa4d7cfc04d207520798e582aaec9246"
+    },
+    {
+      "path": "schemas/dockerfile-0.7.0.json",
+      "bytes": 1902,
+      "sha256": "a67adb251b7135a612b06b30b5f9cac8de16845e74786f6fc99b36667d2573bc"
+    },
+    {
+      "path": "schemas/caddyfmt.json",
+      "bytes": 261,
+      "sha256": "b3d33d380bd279bb2cd4c736468828ff20811d368691db9a25a1a99b1455be5b"
+    },
+    {
+      "path": "licenses/shfmt-0.1.2.txt",
+      "bytes": 3807,
+      "sha256": "e0a8657e7764445e84c87e1758a735bbabcc74a4d8dba106f24fe999c73ee654"
+    },
+    {
+      "path": "licenses/stylua-0.1.0.txt",
+      "bytes": 1139,
+      "sha256": "f220330d3736fb4c0c5f4a361b7e926b08576709a5648a59b14b692e8fa3b598"
+    },
+    {
+      "path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+      "bytes": 16724,
+      "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+    },
+    {
+      "path": "licenses/stylua-0.1.0-SOURCE.txt",
+      "bytes": 567,
+      "sha256": "ffca0921cce6dd15f3940c12f6faef4dbc94b92d09e3aa2aaffa8b98d3477efd"
+    },
+    {
+      "path": "licenses/dockerfile-0.7.0.txt",
+      "bytes": 1080,
+      "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674"
+    },
+    {
+      "path": "licenses/caddy-2.11.7.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "script-formatter-source-review.json",
+      "bytes": 5473,
+      "sha256": "1c0a46bbc6eb281afddfc6ddf16911dc53b4aa9107414af750ad3c0d6f8faee4"
     }
   ]
 }

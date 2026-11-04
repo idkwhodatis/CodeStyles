@@ -25,6 +25,10 @@ pub enum PinnedPlugin {
     Malva,
     PrettyYaml,
     Sql,
+    Shfmt,
+    Stylua,
+    Dockerfile,
+    Caddyfmt,
 }
 
 impl PinnedPlugin {
@@ -53,6 +57,10 @@ impl PinnedPlugin {
             Self::Malva => "malva",
             Self::PrettyYaml => "yaml",
             Self::Sql => "sql",
+            Self::Shfmt => "shfmt",
+            Self::Stylua => "stylua",
+            Self::Dockerfile => "dockerfile",
+            Self::Caddyfmt => "caddyfmt",
         }
     }
     pub fn title(self) -> &'static str {
@@ -72,6 +80,10 @@ impl PinnedPlugin {
             Self::Malva => "CSS / SCSS / Vue styles",
             Self::PrettyYaml => "YAML (Pretty YAML)",
             Self::Sql => "SQL",
+            Self::Shfmt => "Shell (shfmt)",
+            Self::Stylua => "Lua / Luau (StyLua)",
+            Self::Dockerfile => "Dockerfile",
+            Self::Caddyfmt => "Caddyfile (caddy fmt, fixed tabs)",
         }
     }
     pub fn version(self) -> &'static str {
@@ -91,6 +103,10 @@ impl PinnedPlugin {
             Self::Malva => "0.16.0",
             Self::PrettyYaml => "0.6.0",
             Self::Sql => "0.4.1",
+            Self::Shfmt => "0.1.2",
+            Self::Stylua => "0.1.0",
+            Self::Dockerfile => "0.7.0",
+            Self::Caddyfmt => "2.11.7",
         }
     }
     pub fn url(self) -> &'static str {
@@ -110,6 +126,10 @@ impl PinnedPlugin {
             Self::Malva => "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm",
             Self::PrettyYaml => "https://plugins.dprint.dev/g-plane/pretty_yaml-v0.6.0.wasm",
             Self::Sql => "https://plugins.dprint.dev/sql-0.4.1.wasm",
+            Self::Shfmt => "https://plugins.dprint.dev/shfmt-0.1.2.wasm",
+            Self::Stylua => "https://plugins.dprint.dev/stylua-0.1.0.wasm",
+            Self::Dockerfile => "https://plugins.dprint.dev/dockerfile-0.7.0.wasm",
+            Self::Caddyfmt => "",
         }
     }
 
@@ -131,6 +151,10 @@ impl PinnedPlugin {
             Self::Malva => "malva-0.16.0.wasm",
             Self::PrettyYaml => "pretty_yaml-0.6.0.wasm",
             Self::Sql => "sql-0.4.1.wasm",
+            Self::Shfmt => "shfmt-0.1.2.wasm",
+            Self::Stylua => "stylua-0.1.0.wasm",
+            Self::Dockerfile => "dockerfile-0.7.0.wasm",
+            Self::Caddyfmt => "",
         }
     }
 
@@ -149,6 +173,10 @@ impl PinnedPlugin {
                 | Self::Malva
                 | Self::PrettyYaml
                 | Self::Sql
+                | Self::Shfmt
+                | Self::Stylua
+                | Self::Dockerfile
+                | Self::Caddyfmt
         ) {
             if document.value(&["extends"])?.is_some()
                 || document
@@ -180,7 +208,18 @@ impl PinnedPlugin {
             value.as_str().is_some_and(|url| {
                 Self::ALL
                     .iter()
-                    .chain([Self::Markup, Self::Malva, Self::PrettyYaml, Self::Sql].iter())
+                    .chain(
+                        [
+                            Self::Markup,
+                            Self::Malva,
+                            Self::PrettyYaml,
+                            Self::Sql,
+                            Self::Shfmt,
+                            Self::Stylua,
+                            Self::Dockerfile,
+                        ]
+                        .iter(),
+                    )
                     .any(|plugin| plugin.url() == url)
             })
         }) {
@@ -766,7 +805,7 @@ impl PluginSchema {
 
 #[derive(Clone, Debug)]
 pub struct SchemaCatalog {
-    schemas: [PluginSchema; 15],
+    schemas: [PluginSchema; 19],
 }
 
 impl SchemaCatalog {
@@ -816,6 +855,38 @@ impl SchemaCatalog {
             .remove("default");
         sql["properties"]["dialect"]["description"] = Value::String(
             "Required explicit dialect. CodeStyles initially supports PostgreSQL, MySQL and SQLite non-procedural statements only; no auto-detection or generic default.".into());
+        // Preserve exact upstream resources, projecting the bounded managed scope.
+        let mut shfmt: Value =
+            serde_json::from_str(include_str!("../resources/schemas/shfmt-0.1.2.json"))
+                .map_err(|e| format!("Shell schema: {e}"))?;
+        shfmt["properties"]["dialect"]["oneOf"]
+            .as_array_mut()
+            .expect("pinned enum")
+            .retain(|choice| matches!(choice["const"].as_str(), Some("auto" | "bash" | "posix")));
+        shfmt["properties"]["dialect"]["description"] = Value::String("Shell files (.sh and .bash) only. Supported dialects: auto, bash and posix; no shell commands are executed.".into());
+        for key in ["simplify", "minify"] {
+            shfmt["properties"][key] = serde_json::json!({"type":"boolean", "const":false, "default":false,
+                "description":"Fixed false in CodeStyles: source rewriting and comment removal are outside formatting scope."});
+        }
+        let mut stylua: Value =
+            serde_json::from_str(include_str!("../resources/schemas/stylua-0.1.0.json"))
+                .map_err(|e| format!("StyLua schema: {e}"))?;
+        stylua["properties"]["syntax"]["oneOf"]
+            .as_array_mut()
+            .expect("pinned enum")
+            .retain(|choice| {
+                matches!(
+                    choice["const"].as_str(),
+                    Some("lua51" | "lua52" | "lua53" | "lua54" | "luajit" | "luau")
+                )
+            });
+        stylua["properties"]["syntax"]
+            .as_object_mut()
+            .expect("pinned field")
+            .remove("default");
+        stylua["properties"]["syntax"]["description"] = Value::String("When unset, CodeStyles uses lua54 for .lua and luau for .luau without changing saved JSONC. Lua permits lua51/52/53/54 or luajit; Luau permits luau only. A conflicting explicit syntax is rejected.".into());
+        stylua["properties"]["sortRequires"] = serde_json::json!({"type":"boolean", "const":false, "default":false,
+            "description":"Fixed false in CodeStyles: reordering require calls may change execution order."});
         Ok(Self {
             schemas: [
                 PluginSchema::from_json(PinnedPlugin::TypeScript, &typescript)?,
@@ -863,6 +934,20 @@ impl SchemaCatalog {
                 )?,
                 PluginSchema::from_json(PinnedPlugin::PrettyYaml, &yaml)?,
                 PluginSchema::from_json(PinnedPlugin::Sql, &sql)?,
+                PluginSchema::from_json(PinnedPlugin::Shfmt, &shfmt)?,
+                PluginSchema::from_json(PinnedPlugin::Stylua, &stylua)?,
+                PluginSchema::from_json(
+                    PinnedPlugin::Dockerfile,
+                    &serde_json::from_str(include_str!(
+                        "../resources/schemas/dockerfile-0.7.0.json"
+                    ))
+                    .map_err(|e| format!("Dockerfile schema: {e}"))?,
+                )?,
+                PluginSchema::from_json(
+                    PinnedPlugin::Caddyfmt,
+                    &serde_json::from_str(include_str!("../resources/schemas/caddyfmt.json"))
+                        .map_err(|e| format!("Caddyfile schema: {e}"))?,
+                )?,
             ],
         })
     }
@@ -884,6 +969,10 @@ impl SchemaCatalog {
             PinnedPlugin::ClangFormat => 12,
             PinnedPlugin::PrettyYaml => 13,
             PinnedPlugin::Sql => 14,
+            PinnedPlugin::Shfmt => 15,
+            PinnedPlugin::Stylua => 16,
+            PinnedPlugin::Dockerfile => 17,
+            PinnedPlugin::Caddyfmt => 18,
         }]
     }
 
@@ -943,6 +1032,10 @@ impl SchemaCatalog {
             PinnedPlugin::Malva,
             PinnedPlugin::PrettyYaml,
             PinnedPlugin::Sql,
+            PinnedPlugin::Shfmt,
+            PinnedPlugin::Stylua,
+            PinnedPlugin::Dockerfile,
+            PinnedPlugin::Caddyfmt,
             PinnedPlugin::GoogleJavaFormat,
             PinnedPlugin::CSharpier,
             PinnedPlugin::ClangFormat,
@@ -954,6 +1047,15 @@ impl SchemaCatalog {
                 && !section.is_object()
             {
                 return Err(format!("{} must be an object.", plugin.section()));
+            }
+            if plugin == PinnedPlugin::Caddyfmt
+                && let Some(Value::Object(options)) = document.value(&["caddyfmt"])?
+                && !options.is_empty()
+            {
+                return Err(
+                    "caddyfmt has no configurable settings; official caddy fmt uses fixed tabs."
+                        .into(),
+                );
             }
             if plugin == PinnedPlugin::Rustfmt
                 && let Some(Value::Object(options)) = document.value(&["rustfmt"])?
@@ -1320,6 +1422,76 @@ mod tests {
     }
 
     #[test]
+    fn shell_lua_docker_and_caddy_settings_are_offline_and_conservative() {
+        let catalog = SchemaCatalog::bundled().unwrap();
+        let mut doc = document(json!({"unknown":{"keep":true}}));
+        let original = format!("// preserve comment\n{}", doc.draft_text());
+        doc.replace_draft_text(&original).unwrap();
+        for plugin in [
+            PinnedPlugin::Shfmt,
+            PinnedPlugin::Stylua,
+            PinnedPlugin::Dockerfile,
+            PinnedPlugin::Caddyfmt,
+        ] {
+            catalog.available(&doc, plugin).unwrap();
+            assert!(!PinnedPlugin::ALL.contains(&plugin));
+            for field in catalog
+                .fields(plugin)
+                .iter()
+                .filter(|field| field.kind.is_supported())
+            {
+                let value = field.default.clone().unwrap_or_else(|| match &field.kind {
+                    FieldKind::Enum(choices) => choices[0].value.clone(),
+                    FieldKind::Boolean => json!(false),
+                    _ => panic!("new field requires test value: {}", field.name),
+                });
+                field.set(&mut doc, plugin, value.clone()).unwrap();
+                assert_eq!(field.state(&doc, plugin).unwrap().explicit, Some(value));
+                field.unset(&mut doc, plugin).unwrap();
+            }
+        }
+        assert!(doc.draft_text().starts_with("// preserve comment"));
+        assert_eq!(doc.value(&["unknown", "keep"]).unwrap(), Some(json!(true)));
+        assert!(catalog.fields(PinnedPlugin::Caddyfmt).is_empty());
+        assert!(PinnedPlugin::Caddyfmt.url().is_empty());
+        assert!(
+            catalog
+                .validate_document(&document(json!({"caddyfmt":{"useTabs":false}})))
+                .is_err()
+        );
+        for (plugin, key) in [
+            (PinnedPlugin::Shfmt, "simplify"),
+            (PinnedPlugin::Shfmt, "minify"),
+            (PinnedPlugin::Stylua, "sortRequires"),
+        ] {
+            let field = catalog.schema(plugin).field(key).unwrap();
+            assert_eq!(field.kind, FieldKind::Const(json!(false)));
+            assert!(field.validate(&json!(true)).is_err());
+        }
+        let dialect = catalog
+            .schema(PinnedPlugin::Shfmt)
+            .field("dialect")
+            .unwrap();
+        for value in ["auto", "bash", "posix"] {
+            assert!(dialect.validate(&json!(value)).is_ok());
+        }
+        for value in ["mksh", "bats", "zsh"] {
+            assert!(dialect.validate(&json!(value)).is_err());
+        }
+        let syntax = catalog
+            .schema(PinnedPlugin::Stylua)
+            .field("syntax")
+            .unwrap();
+        assert!(syntax.default.is_none());
+        for value in ["all", "cfxlua"] {
+            assert!(syntax.validate(&json!(value)).is_err());
+        }
+        for value in ["lua51", "lua52", "lua53", "lua54", "luajit", "luau"] {
+            assert!(syntax.validate(&json!(value)).is_ok());
+        }
+    }
+
+    #[test]
     fn yaml_sql_settings_are_offline_lossless_and_limit_dialect_choices() {
         let catalog = SchemaCatalog::bundled().unwrap();
         let mut doc = document(json!({"unknown":{"keep":true}}));
@@ -1507,7 +1679,7 @@ mod tests {
     #[test]
     fn broad_categories_cover_every_field_for_all_languages() {
         let catalog = SchemaCatalog::bundled().unwrap();
-        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 23);
+        assert_eq!(crate::comparison::SourceLanguage::ALL.len(), 28);
         for language in crate::comparison::SourceLanguage::ALL {
             let fields = catalog.fields(language.plugin());
             let mut seen = std::collections::HashSet::new();
@@ -1522,7 +1694,13 @@ mod tests {
                 }
             }
             assert_eq!(seen.len(), fields.len(), "{}", language.display_name());
-            assert_eq!(seen.is_empty(), language.plugin() == PinnedPlugin::Gofmt);
+            assert_eq!(
+                seen.is_empty(),
+                matches!(
+                    language.plugin(),
+                    PinnedPlugin::Gofmt | PinnedPlugin::Caddyfmt
+                )
+            );
         }
     }
 
@@ -1540,7 +1718,10 @@ mod tests {
             }
             assert_eq!(
                 categories.is_empty(),
-                language.plugin() == PinnedPlugin::Gofmt
+                matches!(
+                    language.plugin(),
+                    PinnedPlugin::Gofmt | PinnedPlugin::Caddyfmt
+                )
             );
             assert!(!categories.contains(&"All"));
             assert!(!categories.contains(&"General"));

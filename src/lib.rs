@@ -22,4 +22,6 @@ pub mod native_config;
 
 pub mod web_source;
 
+pub mod caddyfmt;
+pub mod script_source;
 pub mod sql_scope;

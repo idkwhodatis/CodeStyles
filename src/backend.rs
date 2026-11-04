@@ -28,6 +28,7 @@ pub struct Backend {
     managed_dprint: bool,
     rustfmt: crate::rustfmt::RustfmtRuntime,
     native: crate::native_format::NativeRuntime,
+    caddyfmt: crate::caddyfmt::CaddyfmtRuntime,
     managed: Arc<Mutex<Option<crate::toolchains::ToolchainManager>>>,
 }
 
@@ -40,6 +41,7 @@ impl Backend {
             managed_dprint: false,
             rustfmt: Default::default(),
             native: Default::default(),
+            caddyfmt: Default::default(),
             managed: Default::default(),
         }
     }
@@ -88,6 +90,7 @@ impl Backend {
     pub fn with_toolchain_manager(mut self, manager: crate::toolchains::ToolchainManager) -> Self {
         self.rustfmt = crate::rustfmt::RustfmtRuntime::with_manager(manager.clone());
         self.native = crate::native_format::NativeRuntime::with_manager(manager.clone());
+        self.caddyfmt = crate::caddyfmt::CaddyfmtRuntime::with_manager(manager.clone());
         self.managed = Arc::new(Mutex::new(Some(manager)));
         self
     }
@@ -122,18 +125,36 @@ impl Backend {
         if request.source.len() > 32 * 1024 * 1024 {
             return Err("Source exceeds the 32 MiB limit.".into());
         }
-        if request
-            .source_path
-            .extension()
-            .is_some_and(|extension| extension == "rs")
+        let script = crate::script_source::ScriptLanguage::checked_from_path(&request.source_path)?;
+        // Source and settings guards run before runtime resolution or invoking
+        // any formatter. A failure leaves both source and saved config untouched.
+        if let Some(language) = script {
+            let settings = crate::config::validate_managed_language_config(
+                request.config.source_text(),
+                language.extension(),
+            )?;
+            crate::script_source::validate_source(language, &request.source, &settings)?;
+            if language == crate::script_source::ScriptLanguage::Caddyfile {
+                return self.caddyfmt.format(request, cancelled, self.timeout);
+            }
+        }
+        if script.is_none()
+            && request
+                .source_path
+                .extension()
+                .is_some_and(|extension| extension == "rs")
         {
             return self.rustfmt.format(request, cancelled, self.timeout);
         }
-        let extension = request
-            .source_path
-            .extension()
-            .and_then(|value| value.to_str());
-        if crate::native_format::NativeLanguage::from_path(&request.source_path).is_some() {
+        let extension = script.map(|language| language.extension()).or_else(|| {
+            request
+                .source_path
+                .extension()
+                .and_then(|value| value.to_str())
+        });
+        if script.is_none()
+            && crate::native_format::NativeLanguage::from_path(&request.source_path).is_some()
+        {
             return self.native.format(request, cancelled, self.timeout);
         }
         if let Some(extension @ ("html" | "htm" | "css" | "scss" | "yaml" | "yml" | "sql")) =
@@ -163,6 +184,9 @@ impl Backend {
             Some("vue" | "html" | "htm" | "css" | "scss") => Some("vue"),
             Some("yaml" | "yml") => Some("yaml"),
             Some("sql") => Some("sql"),
+            Some("sh") => Some("shfmt"),
+            Some("lua" | "luau") => Some("stylua"),
+            Some("dockerfile") => Some("dockerfile"),
             _ => None,
         };
         let draft = if let Some(pack) = pack {
@@ -218,6 +242,8 @@ impl Backend {
         // stdin hint only; project reads/review/writes retain the actual path.
         if extension == Some("htm") {
             stdin_path.push(request.source_path.with_extension("html"));
+        } else if extension == Some("dockerfile") {
+            stdin_path.push("Dockerfile");
         } else {
             stdin_path.push(&request.source_path);
         }
@@ -292,7 +318,12 @@ impl Backend {
         if cancelled.load(Ordering::Acquire) {
             return Err("Formatting cancelled.".into());
         }
-        String::from_utf8(output).map_err(|e| format!("dprint returned invalid UTF-8: {e}"))
+        let output =
+            String::from_utf8(output).map_err(|e| format!("dprint returned invalid UTF-8: {e}"))?;
+        if let Some(language) = script {
+            crate::script_source::validate_output(language, &request.source, &output)?;
+        }
+        Ok(output)
     }
 }
 

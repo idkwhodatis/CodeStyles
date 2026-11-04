@@ -61,6 +61,12 @@ pub enum NativeLanguage {
     Scss,
     Yaml,
     Sql,
+    Shell,
+    Lua,
+    Luau,
+    Dockerfile,
+    Caddyfile,
+
     Java,
     CSharp,
     C,
@@ -82,6 +88,11 @@ impl NativeLanguage {
             Self::Scss => "SCSS",
             Self::Yaml => "YAML",
             Self::Sql => "SQL",
+            Self::Shell => "Shell",
+            Self::Lua => "Lua",
+            Self::Luau => "Luau",
+            Self::Dockerfile => "Dockerfile",
+            Self::Caddyfile => "Caddyfile",
         }
     }
     fn extension(self) -> &'static str {
@@ -99,10 +110,16 @@ impl NativeLanguage {
             Self::Scss => "scss",
             Self::Yaml => "yaml",
             Self::Sql => "sql",
+            Self::Shell => "sh",
+            Self::Lua => "lua",
+            Self::Luau => "luau",
+            Self::Dockerfile => "dockerfile",
+            Self::Caddyfile => "caddyfile",
         }
     }
     fn supports_extension(self, extension: &std::ffi::OsStr) -> bool {
         match self {
+            Self::Shell => matches!(extension.to_str(), Some("sh" | "bash")),
             Self::Html => matches!(extension.to_str(), Some("html" | "htm")),
             Self::Yaml => matches!(extension.to_str(), Some("yaml" | "yml")),
             Self::C => matches!(extension.to_str(), Some("c" | "h")),
@@ -113,6 +130,28 @@ impl NativeLanguage {
             _ => extension == self.extension(),
         }
     }
+    fn supports_path(self, path: &Path) -> bool {
+        use crate::script_source::ScriptLanguage;
+        let Ok(script) = ScriptLanguage::checked_from_path(path) else {
+            return false;
+        };
+        let expected = match self {
+            Self::Shell => Some(ScriptLanguage::Shell),
+            Self::Lua => Some(ScriptLanguage::Lua),
+            Self::Luau => Some(ScriptLanguage::Luau),
+            Self::Dockerfile => Some(ScriptLanguage::Dockerfile),
+            Self::Caddyfile => Some(ScriptLanguage::Caddyfile),
+            _ => None,
+        };
+        if expected.is_some() {
+            return script == expected;
+        }
+        script.is_none()
+            && path
+                .extension()
+                .is_some_and(|extension| self.supports_extension(extension))
+    }
+
     /// The selected project language disambiguates shared .h headers. This is
     /// only an stdin language hint: reads, fingerprints, diffs and writes retain
     /// the reviewed real path, and native formatters never discover this path.
@@ -138,12 +177,25 @@ impl NativeLanguage {
             Self::Scss => "dprint SCSS WASM",
             Self::Yaml => "dprint YAML WASM",
             Self::Sql => "dprint SQL WASM",
+            Self::Shell => "dprint shfmt WASM",
+            Self::Lua | Self::Luau => "dprint StyLua WASM",
+            Self::Dockerfile => "dprint Dockerfile WASM",
+            Self::Caddyfile => "Caddy fmt",
         }
     }
     fn requires_dprint(self) -> bool {
         matches!(
             self,
-            Self::Vue | Self::Html | Self::Css | Self::Scss | Self::Yaml | Self::Sql
+            Self::Vue
+                | Self::Html
+                | Self::Css
+                | Self::Scss
+                | Self::Yaml
+                | Self::Sql
+                | Self::Shell
+                | Self::Lua
+                | Self::Luau
+                | Self::Dockerfile
         )
     }
     fn excluded_directory(self, name: &str) -> bool {
@@ -158,7 +210,13 @@ impl NativeLanguage {
                 Self::Vue | Self::Html | Self::Css | Self::Scss => {
                     matches!(name, "node_modules" | "dist" | ".nuxt")
                 }
-                Self::Yaml | Self::Sql => matches!(
+                Self::Yaml
+                | Self::Sql
+                | Self::Shell
+                | Self::Lua
+                | Self::Luau
+                | Self::Dockerfile
+                | Self::Caddyfile => matches!(
                     name,
                     "node_modules" | "dist" | "build" | "target" | "vendor"
                 ),
@@ -211,6 +269,14 @@ impl NativeLanguage {
                 "_clang-format",
                 "CMakeLists.txt",
                 "compile_commands.json",
+            ],
+            Self::Shell | Self::Lua | Self::Luau | Self::Dockerfile | Self::Caddyfile => &[
+                ".gitignore",
+                ".ignore",
+                ".editorconfig",
+                ".stylua.toml",
+                "stylua.toml",
+                ".dockerignore",
             ],
             Self::Vue | Self::Html | Self::Css | Self::Scss | Self::Yaml | Self::Sql => &[
                 ".gitignore",
@@ -976,6 +1042,7 @@ impl Backend {
                 NativeLanguage::Css | NativeLanguage::Scss => "Selected CSS or SCSS scope only, using verified Malva WASM and explicit settings. It skips node_modules/dist/.nuxt and symlinks. Imports are not resolved and other stylesheet languages are not included.",
                 NativeLanguage::Yaml => "YAML-only project mode includes .yaml/.yml with explicit verified WASM settings. Helm/Jinja templates are unsupported. It skips node_modules/dist/build/target/vendor and symlinks; package lock metadata is protected.",
                 NativeLanguage::Sql => "SQL-only project mode uses explicit verified WASM settings. Templated and procedural SQL are outside the supported scope. It skips node_modules/dist/build/target/vendor and symlinks; no database connection or dialect inference is performed.",
+                NativeLanguage::Shell | NativeLanguage::Lua | NativeLanguage::Luau | NativeLanguage::Dockerfile | NativeLanguage::Caddyfile => "Selected script/configuration language only. Explicit verified runtime, no script execution, import resolution, image build or server startup. Unsupported source/settings fail closed; Check/review/apply retains staleness and trust protections.",
                 NativeLanguage::Dart => "Dart-only project mode respects local .gitignore/.ignore and skips build/.dart_tool/.git and symlinks. Explicit snapshot formatting settings only; protected project metadata is not automatically inherited. Flutter support means Dart source only.",
             }.into(),
             review: Some(review),
@@ -1373,6 +1440,8 @@ fn validate_native_project_config(text: &str, language: NativeLanguage) -> Resul
         crate::native_format::options(text, crate::native_format::NativeLanguage::Dart)?;
     } else if language == NativeLanguage::Vue {
         crate::config::validate_vue_config(text)?;
+    } else if language == NativeLanguage::Caddyfile {
+        crate::caddyfmt::options(text)?;
     } else if language.requires_dprint() {
         crate::config::validate_managed_language_config(text, language.extension())?;
     } else {
@@ -1524,11 +1593,7 @@ fn native_scope(request: &ProjectRequest, cancelled: &AtomicBool) -> Result<Nati
                     }
                 }
             }
-        } else if kind.is_some_and(|kind| kind.is_file())
-            && path
-                .extension()
-                .is_some_and(|extension| language.supports_extension(extension))
-        {
+        } else if kind.is_some_and(|kind| kind.is_file()) && language.supports_path(path) {
             files.insert(request.safe_file(path)?);
         }
     }
@@ -1937,7 +2002,13 @@ mod tests {
                 | NativeLanguage::Html
                 | NativeLanguage::Css
                 | NativeLanguage::Scss => "node_modules",
-                NativeLanguage::Yaml | NativeLanguage::Sql => "build",
+                NativeLanguage::Yaml
+                | NativeLanguage::Sql
+                | NativeLanguage::Shell
+                | NativeLanguage::Lua
+                | NativeLanguage::Luau
+                | NativeLanguage::Dockerfile
+                | NativeLanguage::Caddyfile => "build",
                 NativeLanguage::Java => "target",
                 NativeLanguage::CSharp => "obj",
                 NativeLanguage::C | NativeLanguage::Cpp => "build",
@@ -2333,6 +2404,154 @@ mod tests {
         );
         fs::write(descriptor, "changed").unwrap();
         assert!(verify_configs(&protected).is_err());
+    }
+    #[test]
+    fn script_scopes_respect_basenames_ignores_and_protected_configuration() {
+        for (language, expected) in [
+            (NativeLanguage::Shell, vec!["source.sh", "source.bash"]),
+            (NativeLanguage::Lua, vec!["source.lua"]),
+            (NativeLanguage::Luau, vec!["source.luau"]),
+            (
+                NativeLanguage::Dockerfile,
+                vec![
+                    "Dockerfile",
+                    "Dockerfile.dev",
+                    "Dockerfile.lua",
+                    "Dockerfile.rs",
+                    "source.dockerfile",
+                ],
+            ),
+            (
+                NativeLanguage::Caddyfile,
+                vec![
+                    "Caddyfile",
+                    "Caddyfile.local",
+                    "Caddyfile.lua",
+                    "Caddyfile.rs",
+                    "source.caddyfile",
+                ],
+            ),
+        ] {
+            let (_dir, document, request) = native_fixture(language);
+            let root = request.root();
+            fs::write(root.join(".ignore"), "ignored.*\n").unwrap();
+            for name in [
+                "source.sh",
+                "source.bash",
+                "source.lua",
+                "source.luau",
+                "Dockerfile",
+                "Dockerfile.dev",
+                "Dockerfile.lua",
+                "Dockerfile.rs",
+                "source.dockerfile",
+                "Caddyfile",
+                "Caddyfile.local",
+                "Caddyfile.lua",
+                "Caddyfile.rs",
+                "source.caddyfile",
+                "DockerfileBackup",
+                "Caddyfile.",
+                "source.zsh",
+                "ignored.lua",
+                "ignored.sh",
+            ] {
+                fs::write(root.join(name), "source").unwrap();
+            }
+            fs::create_dir(root.join("vendor")).unwrap();
+            fs::write(
+                root.join("vendor")
+                    .join(format!("skip.{}", language.extension())),
+                "skip",
+            )
+            .unwrap();
+            fs::write(root.join(".editorconfig"), "root = true").unwrap();
+            let (files, configs) = native_scope(&request, &AtomicBool::new(false)).unwrap();
+            assert_eq!(
+                files,
+                expected.iter().map(|name| root.join(name)).collect(),
+                "{language:?}"
+            );
+            assert!(configs.contains_key(&root.join(".editorconfig")));
+            fs::write(root.join(".editorconfig"), "changed").unwrap();
+            assert!(verify_configs(&configs).is_err());
+            assert!(
+                ProjectRequest::new_native(
+                    root.to_path_buf(),
+                    &document,
+                    ProjectAction::Check,
+                    false,
+                    language
+                )
+                .is_err()
+            );
+            assert_eq!(
+                language.requires_dprint(),
+                language != NativeLanguage::Caddyfile
+            );
+            let mut dirty = document.clone();
+            dirty.replace_draft_text("{\"custom\":true}").unwrap();
+            assert!(
+                ProjectRequest::new_native(
+                    root.to_path_buf(),
+                    &dirty,
+                    ProjectAction::Check,
+                    true,
+                    language
+                )
+                .is_err()
+            );
+        }
+        for language in [
+            NativeLanguage::Rust,
+            NativeLanguage::Lua,
+            NativeLanguage::Luau,
+            NativeLanguage::Shell,
+        ] {
+            assert!(!language.supports_path(Path::new("Dockerfile.lua")));
+            assert!(!language.supports_path(Path::new("Caddyfile.rs")));
+        }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn non_utf8_script_names_do_not_fall_back_to_another_backend() {
+        use std::os::unix::ffi::OsStringExt;
+        for (language, prefix, extension) in [
+            (NativeLanguage::Rust, "Caddyfile.", ".rs"),
+            (NativeLanguage::Cpp, "Dockerfile.", ".cpp"),
+        ] {
+            let mut name = prefix.as_bytes().to_vec();
+            name.push(0xff);
+            name.extend_from_slice(extension.as_bytes());
+            assert!(!language.supports_path(Path::new(&std::ffi::OsString::from_vec(name))));
+            // Existing unrelated native OsString filenames retain their support.
+            let mut ordinary = vec![0xff];
+            ordinary.extend_from_slice(extension.as_bytes());
+            assert!(language.supports_path(Path::new(&std::ffi::OsString::from_vec(ordinary))));
+        }
+
+        for (language, extension) in [
+            (NativeLanguage::Shell, "sh"),
+            (NativeLanguage::Shell, "bash"),
+            (NativeLanguage::Lua, "lua"),
+            (NativeLanguage::Luau, "luau"),
+            (NativeLanguage::Dockerfile, "dockerfile"),
+            (NativeLanguage::Caddyfile, "caddyfile"),
+        ] {
+            let mut name = vec![0xff, b'.'];
+            name.extend_from_slice(extension.as_bytes());
+            let name = std::ffi::OsString::from_vec(name);
+            assert!(!language.supports_path(Path::new(&name)));
+            let (_dir, _doc, request) = native_fixture(language);
+            fs::write(request.root().join(name), "source").unwrap();
+            assert!(
+                native_scope(&request, &AtomicBool::new(false))
+                    .unwrap()
+                    .0
+                    .is_empty()
+            );
+        }
     }
 }
 

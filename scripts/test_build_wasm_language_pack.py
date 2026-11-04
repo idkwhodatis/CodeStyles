@@ -63,7 +63,7 @@ class WasmLanguagePackTests(unittest.TestCase):
                     self.assertEqual(provenance['requires_dprint_pack'], '0.63.0-p1')
                     self.assertEqual(provenance['target'], 'universal-wasm')
                     self.assertEqual(provenance['toolchain'], name)
-                    self.assertEqual(len(provenance['sources']), 3)
+                    self.assertEqual(len(provenance['sources']), len(self.packs[name]['assets']))
 
     def test_corrupt_wasm_license_and_schema_fail_without_partial_output(self):
         for name, pack in self.packs.items():

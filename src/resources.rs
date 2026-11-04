@@ -108,6 +108,20 @@ pub fn backend_from_root(root: &Path) -> Result<Backend, String> {
         ));
         assets.push(format!("licenses/dprint-plugin-{}.txt", plugin.section()));
     }
+    for name in [
+        "schemas/caddyfmt.json",
+        "schemas/shfmt-0.1.2.json",
+        "schemas/stylua-0.1.0.json",
+        "schemas/dockerfile-0.7.0.json",
+        "licenses/shfmt-0.1.2.txt",
+        "licenses/stylua-0.1.0.txt",
+        "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+        "licenses/stylua-0.1.0-SOURCE.txt",
+        "licenses/dockerfile-0.7.0.txt",
+        "licenses/caddy-2.11.7.txt",
+    ] {
+        assets.push(name.to_owned());
+    }
     for name in assets {
         let entry = files
             .iter()
