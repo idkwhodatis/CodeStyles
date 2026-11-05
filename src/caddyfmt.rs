@@ -1,5 +1,5 @@
-//! Managed, isolated `caddy fmt -` only. No config loading, adapt/validate,
-//! imports, network services, PATH discovery or implicit downloads.
+//! Managed, isolated Caddy formatter-only WASM through verified dprint.
+//! Exact upstream one-pass formatting; no server, imports or config loading.
 use crate::{
     backend::FormatRequest,
     script_source::{self, ScriptLanguage},
@@ -41,7 +41,7 @@ impl CaddyfmtRuntime {
         let started = Instant::now();
         let settings = options(request.config.source_text())?;
         script_source::validate_source(ScriptLanguage::Caddyfile, &request.source, &settings)?;
-        let runtime = {
+        let (runtime, engine) = {
             let mut manager = loop {
                 if cancel.load(Ordering::Acquire) {
                     return Err("Caddyfile formatting cancelled.".into());
@@ -62,21 +62,36 @@ impl CaddyfmtRuntime {
             if manager.is_none() {
                 *manager = Some(ToolchainManager::discover()?);
             }
-            manager
-                .as_ref()
-                .unwrap()
+            let manager = manager.as_ref().unwrap();
+            let runtime = manager
                 .resolve_cancellable("caddyfmt", &cancel)
                 .map_err(|e| {
                     format!(
                         "Install Caddyfile support from Language support before formatting. {e}"
                     )
-                })?
+                })?;
+            let engine = manager.resolve_cancellable("dprint", &cancel).map_err(|e| {
+                format!("Caddyfile support requires the managed dprint engine. Install or repair dprint in Language support. {e}")
+            })?;
+            (runtime, engine)
         };
+        if !runtime.executable.as_os_str().is_empty() || runtime.wasm_plugins.len() != 1 {
+            return Err(
+                "Caddyfile support requires the complete verified formatter WASM pack.".into(),
+            );
+        }
         let remaining = timeout
             .checked_sub(started.elapsed())
             .filter(|d| !d.is_zero())
             .ok_or("Caddyfile formatting timed out verifying managed runtime.")?;
-        let output = format_with_runtime(&runtime.executable, &request.source, cancel, remaining)?;
+        // Keep both pack leases alive until all formatter pipes/processes exit.
+        let output = format_with_runtime(
+            &engine.executable,
+            &runtime.wasm_plugins[0],
+            &request.source,
+            cancel,
+            remaining,
+        )?;
         script_source::validate_output(ScriptLanguage::Caddyfile, &request.source, &output)?;
         Ok(output)
     }
@@ -84,6 +99,7 @@ impl CaddyfmtRuntime {
 
 fn format_with_runtime(
     executable: &Path,
+    plugin: &Path,
     source: &str,
     cancel: Arc<AtomicBool>,
     timeout: Duration,
@@ -91,11 +107,37 @@ fn format_with_runtime(
     let directory = tempfile::tempdir()
         .map_err(|e| format!("Cannot create isolated Caddyfile workspace: {e}"))?;
     let workspace = directory.path().canonicalize().map_err(|e| e.to_string())?;
+    let plugin = plugin
+        .canonicalize()
+        .map_err(|e| format!("Cannot locate verified Caddy formatter: {e}"))?;
+    let plugin = plugin
+        .to_str()
+        .ok_or("Caddy formatter plugin path must be UTF-8.")?;
+    let config = workspace.join("dprint.json");
+    // Only the verified Caddy formatter is loaded. Caller plugins, styles,
+    // configuration discovery, includes and project metadata cannot affect it.
+    std::fs::write(
+        &config,
+        serde_json::json!({
+            "caddyfmt": {}, "plugins": [plugin], "incremental": false,
+        })
+        .to_string(),
+    )
+    .map_err(|e| format!("Cannot prepare Caddy formatter config: {e}"))?;
     let mut command = Command::new(executable);
     command
         .env_clear()
         .current_dir(&workspace)
-        .args(["fmt", "-"]);
+        .args([
+            "fmt",
+            "--config-discovery=false",
+            "--skip-stable-format",
+            "--log-level=silent",
+            "--stdin=Caddyfile",
+            "--config",
+        ])
+        .arg(&config)
+        .env("DPRINT_CACHE_DIR", workspace.join("cache"));
     for key in [
         "HOME",
         "USERPROFILE",
@@ -239,10 +281,11 @@ mod tests {
     #[test]
     fn invocation_has_only_fmt_stdin_and_isolated_environment() {
         let (_dir, executable) = fixture(
-            "test \"$#\" = 2 && test \"$1\" = fmt && test \"$2\" = - || exit 4\ntest \"$HOME\" = \"$PWD\" || exit 5\ntest -z \"$CADDY_TEST_SECRET\" || exit 6\n/bin/cat",
+            "test \"$#\" = 7 && test \"$1\" = fmt && test \"$2\" = --config-discovery=false && test \"$3\" = --skip-stable-format && test \"$4\" = --log-level=silent && test \"$5\" = --stdin=Caddyfile && test \"$6\" = --config || exit 4\ntest \"$HOME\" = \"$PWD\" || exit 5\ntest -z \"$CADDY_TEST_SECRET\" || exit 6\ntest \"$DPRINT_CACHE_DIR\" = \"$PWD/cache\" && test -f \"$7\" || exit 7\n/bin/cat",
         );
         assert_eq!(
             format_with_runtime(
+                &executable,
                 &executable,
                 "localhost {}\n",
                 Arc::new(AtomicBool::new(false)),
@@ -259,6 +302,7 @@ mod tests {
         assert!(
             format_with_runtime(
                 &executable,
+                &executable,
                 "input",
                 Arc::new(AtomicBool::new(false)),
                 Duration::from_secs(2)
@@ -270,6 +314,7 @@ mod tests {
         assert!(
             format_with_runtime(
                 &executable,
+                &executable,
                 "input",
                 Arc::new(AtomicBool::new(false)),
                 Duration::from_millis(30)
@@ -280,6 +325,7 @@ mod tests {
         assert!(started.elapsed() < Duration::from_secs(3));
         assert!(
             format_with_runtime(
+                &executable,
                 &executable,
                 "input",
                 Arc::new(AtomicBool::new(true)),

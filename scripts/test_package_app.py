@@ -169,6 +169,16 @@ class PackageTests(unittest.TestCase):
                     self.assertIn(f'Architecture: {expected}\n', text)
                     self.assertIn('Version: 1.2.3\n', text)
                     self.assertIn('Depends: libc6 (>= 2.28)', text)
+                    depends = next(line.removeprefix('Depends: ') for line in text.splitlines()
+                                   if line.startswith('Depends: '))
+                    dependency_groups = depends.split(', ')
+                    self.assertIn('xdg-desktop-portal (>= 1.0)', dependency_groups)
+                    self.assertIn('xdg-desktop-portal-gtk | xdg-desktop-portal-kde | '
+                                  'xdg-desktop-portal-gnome', dependency_groups)
+                    # A backend for another portal (e.g. wlr's screen capture)
+                    # must not satisfy the file picker's runtime requirement.
+                    self.assertNotIn('xdg-desktop-portal-backend', depends)
+                    self.assertNotIn('xdg-desktop-portal-wlr', depends)
                     checksums = control.extractfile('md5sums').read().decode().splitlines()
                 with tarfile.open(fileobj=io.BytesIO(members['data.tar.gz'])) as data:
                     names = data.getnames()
@@ -186,6 +196,8 @@ class PackageTests(unittest.TestCase):
                 if shutil.which('dpkg-deb'):
                     result = subprocess.check_output(['dpkg-deb', '--field', str(output), 'Architecture'], text=True)
                     self.assertEqual(result.strip(), expected)
+                    result = subprocess.check_output(['dpkg-deb', '--field', str(output), 'Depends'], text=True)
+                    self.assertEqual(result.strip(), depends)
                     subprocess.run(['dpkg-deb', '--contents', str(output)], check=True, stdout=subprocess.DEVNULL)
 
     def test_resource_corruption_missing_file_and_target_fail_closed(self):

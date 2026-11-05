@@ -61,7 +61,8 @@ source guards. See [the YAML safety override, exact source scope and release gat
 
 These five editor modes have offline examples/settings, preview/Diff and selected-language
 project Check/review/apply. Shell, Lua/Luau and Dockerfile use optional pinned WASM
-packs with managed dprint; Caddyfile uses an independent managed `caddy fmt -` pack.
+packs with managed dprint. Caddyfile uses a separate formatter-only WASM pack
+with the managed dprint engine, preserving one pass of upstream `caddy fmt`.
 Nothing is discovered from PATH or downloaded implicitly. All 24 new platform
 entries remain unpublished and download-disabled pending release acceptance.
 
@@ -256,6 +257,11 @@ For Linux x86-64:
 ```sh
 cargo run --locked
 ```
+
+Linux native file dialogs also need `xdg-desktop-portal` plus a FileChooser-capable
+backend (GTK, KDE or GNOME) in the graphical session. This applies to both X11 and
+Wayland, including portable installs; `xdg-desktop-portal-wlr` alone is not enough.
+See [Linux file dialog requirements and troubleshooting](DISTRIBUTION.md#linux-file-dialogs).
 
 Other application targets: `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-apple-darwin`,
 `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc`. Build on the corresponding

@@ -434,19 +434,16 @@ impl ToolchainManager {
             }
             runtime_entrypoints(spec)?;
         } else if id == "caddyfmt" {
-            let executable = if self.target.contains("windows") {
-                "bin/caddy.exe"
-            } else {
-                "bin/caddy"
-            };
-            if version != "caddy-2.11.7"
-                || spec["kind"] != "native"
-                || spec["executable"] != executable
+            if version != "caddy-2.11.7-wasm-p1"
+                || spec["kind"] != "wasm"
+                || spec["requires_dprint_pack"] != DPRINT_PACK_VERSION
+                || spec["wasm_plugins"] != json!(["plugins/caddyfmt-2.11.7-p1.wasm"])
                 || spec["environment"] != json!({})
-                || spec.get("wasm_plugins").is_some()
+                || spec.get("executable").is_some()
             {
-                return Err("Unsupported managed Caddy formatter contract.".into());
+                return Err("Unsupported managed Caddy formatter WASM/dprint contract.".into());
             }
+            runtime_entrypoints(spec)?;
         } else if spec["kind"] == "dprint" {
             return Err("The dprint runtime kind is reserved for the dprint pack.".into());
         }
@@ -2482,7 +2479,8 @@ mod caddy_host_contract_tests {
         manager.spec("caddyfmt").unwrap();
         assert!(manager.download_available("caddyfmt").is_err());
         for (key, bad) in [
-            ("kind", json!("wasm")),
+            ("kind", json!("native")),
+            ("requires_dprint_pack", json!("0.63.0-p2")),
             ("executable", json!("bin/other")),
             ("environment", json!({"CADDY_ADMIN":"localhost:2019"})),
             ("wasm_plugins", json!([])),

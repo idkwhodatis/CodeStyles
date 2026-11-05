@@ -1,11 +1,168 @@
 {
-  "format_version": 1,
-  "version": "caddy-2.11.7",
+  "format_version": 2,
+  "version": "caddy-2.11.7-wasm-p1",
+  "requires_dprint_pack": "0.63.0-p1",
   "upstream_version": "2.11.7",
   "license": "Apache-2.0",
-  "source_url": "https://github.com/caddyserver/caddy/tree/v2.11.7",
-  "release_url": "https://github.com/caddyserver/caddy/releases/tag/v2.11.7",
-  "targets": {
+  "source_commit": "72dd0fb067f6d7826c7f79907670ba4a713bfe37",
+  "source_url": "https://github.com/caddyserver/caddy/tree/72dd0fb067f6d7826c7f79907670ba4a713bfe37",
+  "wasm": {
+    "path": "plugins/caddyfmt-2.11.7-p1.wasm",
+    "bytes": 550254,
+    "sha256": "0ed1cea807384b5b79fb172e8619679f9563aa594c3fba4b53635c3fa88be9a5"
+  },
+  "build": {
+    "host": "x86_64-unknown-linux-gnu",
+    "go": "1.26.10",
+    "tinygo": "0.43.0",
+    "llvm": "22.1.4",
+    "binaryen": "133",
+    "archives": [
+      {
+        "component": "go",
+        "name": "go1.26.10.linux-amd64.tar.gz",
+        "url": "https://go.dev/dl/go1.26.10.linux-amd64.tar.gz",
+        "bytes": 66936659,
+        "sha256": "ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+      },
+      {
+        "component": "tinygo",
+        "name": "tinygo0.43.0.linux-amd64.tar.gz",
+        "url": "https://github.com/tinygo-org/tinygo/releases/download/v0.43.0/tinygo0.43.0.linux-amd64.tar.gz",
+        "bytes": 186793787,
+        "sha256": "ca9fc6d055e3889462dea4450a2e42a92242d88b5c362a7ec39bdb563413d78a"
+      },
+      {
+        "component": "binaryen",
+        "name": "binaryen-version_133-x86_64-linux.tar.gz",
+        "url": "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz",
+        "bytes": 111200018,
+        "sha256": "2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
+      }
+    ],
+    "flags": [
+      "-trimpath",
+      "-p",
+      "2",
+      "-target=wasm-unknown",
+      "-scheduler=none",
+      "-gc=precise",
+      "-ldflags=-extldflags '-z stack-size=8388608'",
+      "-no-debug",
+      "-opt=2"
+    ]
+  },
+  "source_files": {
+    "formatters/caddyfmt/LICENSE": {
+      "bytes": 1068,
+      "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf"
+    },
+    "formatters/caddyfmt/README.md": {
+      "bytes": 2156,
+      "sha256": "b4ff56be0b792269abea52517cd532e2614f7ff30431c577854cc26737eb9377"
+    },
+    "formatters/caddyfmt/adapter.go": {
+      "bytes": 2550,
+      "sha256": "f29decccf3d5920a9b3dac299944518006f8e14b6afdd765c4dfc755fb6b17ed"
+    },
+    "formatters/caddyfmt/adapter_test.go": {
+      "bytes": 1198,
+      "sha256": "7319f51c9e349533addb232294de78cb366b4e2560cff6d4315ac52f55a77876"
+    },
+    "formatters/caddyfmt/go.mod": {
+      "bytes": 38,
+      "sha256": "918166a149261f1312567b8941108e332cdab1201a68639b80a56eae250036f9"
+    },
+    "formatters/caddyfmt/internal/caddyfile/formatter.go": {
+      "bytes": 8493,
+      "sha256": "45ce3d09896bf29273acdb97a1fe3fd6ef4cd0675d6debcd5b3ede445d009f70"
+    },
+    "formatters/caddyfmt/internal/caddyfile/formatter_test.go": {
+      "bytes": 7806,
+      "sha256": "942e4a9491513d427530590ba5213bffeee13fa708c5ece1213e46a835e221f5"
+    },
+    "formatters/caddyfmt/internal/caddyfile/heredoc.go": {
+      "bytes": 854,
+      "sha256": "a6a808ed868fb4bf45a3c493f27b02bb11182070e877183bff76544a715771ce"
+    },
+    "formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt": {
+      "bytes": 1453,
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+    },
+    "formatters/caddyfmt/licenses/LLVM-compiler-rt.txt": {
+      "bytes": 16708,
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    "formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt": {
+      "bytes": 1835,
+      "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766"
+    },
+    "formatters/caddyfmt/main.go": {
+      "bytes": 2810,
+      "sha256": "121c99ef85a8e804f516bdfa2df4512f67d27a8bb3588b3acf63ce1d8148fb06"
+    },
+    "scripts/caddy_wasm_start.py": {
+      "bytes": 2002,
+      "sha256": "2c3695b3b7465cdef76d4d073f31a41aaedb597e7d2c206b3eb53fd978578241"
+    },
+    "scripts/compile_caddy_formatter_wasm.py": {
+      "bytes": 4401,
+      "sha256": "88b5caa09f600e1b3e9a9c683654713bb7556d6c1ca894dc01ffedcbaa087047"
+    },
+    "scripts/test_compile_caddy_formatter_wasm.py": {
+      "bytes": 3730,
+      "sha256": "44806de9d229559a04aefe219f478beaa72cdd7256de296b9f3ffd9b25cce296"
+    }
+  },
+  "pack_assets": [
+    {
+      "source": "resources/schemas/caddyfmt.json",
+      "path": "schemas/caddyfmt.json",
+      "bytes": 305,
+      "sha256": "7644611341e603da18130c0bcb1d223be0f0f446d5504c6f6f22acc0c0d5fc45"
+    },
+    {
+      "source": "resources/licenses/caddy-2.11.7.txt",
+      "path": "licenses/caddy-2.11.7.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "source": "resources/licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+      "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+      "bytes": 1009,
+      "sha256": "a7583ec0d7f69fc6811d652d932e788282143c5d919c812e67528ceba00cf425"
+    },
+    {
+      "source": "resources/licenses/caddyfmt-Go-BSD-3-Clause.txt",
+      "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+      "bytes": 1453,
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+    },
+    {
+      "source": "resources/licenses/caddyfmt-LLVM-compiler-rt.txt",
+      "path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+      "bytes": 16708,
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    {
+      "source": "resources/licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+      "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+      "bytes": 1835,
+      "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766"
+    },
+    {
+      "source": "LICENSE",
+      "path": "licenses/caddyfmt-adapter-MIT.txt",
+      "bytes": 1068,
+      "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf"
+    }
+  ],
+  "native_reference_archives": {
     "x86_64-unknown-linux-gnu": {
       "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_amd64.tar.gz",
       "bytes": 18113754,

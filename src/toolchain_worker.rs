@@ -72,6 +72,10 @@ impl ToolchainController {
             "google-java-format" => "google-java-format",
             "csharpier" => "csharpier",
             "clang-format" => "clang-format",
+            "shfmt" => "shfmt",
+            "stylua" => "stylua",
+            "dockerfile" => "dockerfile",
+            "caddyfmt" => "caddyfmt",
             _ => return Err("Unknown language pack. Only built-in pack IDs are allowed.".into()),
         };
         // Pin both pack and managed root for the lifetime of this worker.
@@ -274,13 +278,23 @@ mod tests {
     }
 
     #[test]
-    fn controllers_accept_only_fixed_pack_ids_and_pin_identity() {
-        for id in [
-            "dprint", "rustfmt", "gofmt", "dartfmt", "vue", "yaml", "sql",
-        ] {
-            let controller = ToolchainController::for_pack(id).unwrap();
+    fn every_builtin_catalog_pack_constructs_an_idle_controller_with_pinned_identity() {
+        let catalog: serde_json::Value =
+            serde_json::from_str(include_str!("../resources/toolchains.json")).unwrap();
+        let packs = catalog["toolchains"].as_object().unwrap();
+        assert!(!packs.is_empty());
+        for id in packs.keys() {
+            let mut controller = ToolchainController::for_pack(id)
+                .unwrap_or_else(|error| panic!("Built-in pack {id} has no controller: {error}"));
             assert_eq!(controller.pack_id(), id);
+            assert!(!controller.is_running());
+            assert!(controller.progress().is_none());
+            assert!(controller.poll().is_none());
         }
+    }
+
+    #[test]
+    fn controllers_reject_unknown_pack_ids() {
         for id in ["", "../rustfmt", "https://example.com/tool", "other"] {
             assert!(ToolchainController::for_pack(id).is_err());
         }
@@ -347,12 +361,37 @@ mod extended_pack_tests {
     fn extended_pack_ids_are_explicit_and_unpublished() {
         let dir = tempfile::tempdir().unwrap();
         let manager = ToolchainManager::at_managed_root(dir.path().join("managed")).unwrap();
-        for id in ["google-java-format", "csharpier", "clang-format"] {
+        for (id, has_pinned_footprint) in [
+            ("google-java-format", false),
+            ("csharpier", false),
+            ("clang-format", false),
+            ("shfmt", true),
+            ("stylua", true),
+            ("dockerfile", true),
+            ("caddyfmt", true),
+        ] {
             let worker = ToolchainController::for_pack(id).unwrap();
             assert_eq!(worker.pack_id(), id);
             assert_eq!(manager.status(id).unwrap(), ToolchainStatus::Missing);
             assert!(manager.download_available(id).is_err());
-            assert!(manager.footprint(id).unwrap().is_none());
+            // An unpublished pack can still have pinned archive size metadata.
+            // Only the three native candidates currently lack that metadata.
+            let footprint = manager.footprint(id).unwrap();
+            assert_eq!(
+                footprint.is_some(),
+                has_pinned_footprint,
+                "Unexpected pinned footprint availability for {id}"
+            );
+            if let Some(footprint) = footprint {
+                assert!(footprint.download_bytes.is_some_and(|bytes| bytes > 0));
+                assert!(
+                    footprint
+                        .installed_payload_bytes
+                        .is_some_and(|bytes| bytes > 0)
+                );
+                assert!(footprint.installed_payload_limit_bytes > 0);
+                assert!(footprint.staging_payload_limit_bytes > 0);
+            }
         }
         for id in [
             "java",

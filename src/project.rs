@@ -180,10 +180,12 @@ impl NativeLanguage {
             Self::Shell => "dprint shfmt WASM",
             Self::Lua | Self::Luau => "dprint StyLua WASM",
             Self::Dockerfile => "dprint Dockerfile WASM",
-            Self::Caddyfile => "Caddy fmt",
+            Self::Caddyfile => "Caddy formatter WASM through dprint",
         }
     }
-    fn requires_dprint(self) -> bool {
+    // Caddy also requires dprint, but its dedicated runner retains stronger
+    // isolation and preflight-before-runtime semantics.
+    fn uses_shared_dprint_runner(self) -> bool {
         matches!(
             self,
             Self::Vue
@@ -575,7 +577,7 @@ impl Backend {
             && (request.native_language.is_none()
                 || request
                     .native_language
-                    .is_some_and(NativeLanguage::requires_dprint))
+                    .is_some_and(NativeLanguage::uses_shared_dprint_runner))
         {
             let (backend, _lease) = self.resolve_dprint(&cancelled)?;
             return backend.execute_project(request, cancelled);
@@ -1442,7 +1444,7 @@ fn validate_native_project_config(text: &str, language: NativeLanguage) -> Resul
         crate::config::validate_vue_config(text)?;
     } else if language == NativeLanguage::Caddyfile {
         crate::caddyfmt::options(text)?;
-    } else if language.requires_dprint() {
+    } else if language.uses_shared_dprint_runner() {
         crate::config::validate_managed_language_config(text, language.extension())?;
     } else {
         let formatter_language = match language {
@@ -2078,7 +2080,7 @@ mod tests {
             );
             assert!(configs.contains_key(&root.join(".ignore")));
             assert_eq!(fs::read(root.join("source.yaml")).unwrap(), before);
-            assert!(language.requires_dprint());
+            assert!(language.uses_shared_dprint_runner());
             for path in files {
                 assert_eq!(language.formatting_path(&path), path);
             }
@@ -2486,7 +2488,7 @@ mod tests {
                 .is_err()
             );
             assert_eq!(
-                language.requires_dprint(),
+                language.uses_shared_dprint_runner(),
                 language != NativeLanguage::Caddyfile
             );
             let mut dirty = document.clone();

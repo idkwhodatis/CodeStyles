@@ -83,7 +83,7 @@ impl PinnedPlugin {
             Self::Shfmt => "Shell (shfmt)",
             Self::Stylua => "Lua / Luau (StyLua)",
             Self::Dockerfile => "Dockerfile",
-            Self::Caddyfmt => "Caddyfile (caddy fmt, fixed tabs)",
+            Self::Caddyfmt => "Caddyfile (Caddy formatter WASM, fixed tabs)",
         }
     }
     pub fn version(self) -> &'static str {
@@ -154,7 +154,7 @@ impl PinnedPlugin {
             Self::Shfmt => "shfmt-0.1.2.wasm",
             Self::Stylua => "stylua-0.1.0.wasm",
             Self::Dockerfile => "dockerfile-0.7.0.wasm",
-            Self::Caddyfmt => "",
+            Self::Caddyfmt => "caddyfmt-2.11.7-p1.wasm",
         }
     }
 

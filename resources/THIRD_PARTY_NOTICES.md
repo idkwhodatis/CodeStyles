@@ -32,7 +32,7 @@ target-feature license audit remains required before runtime redistribution.
 ## Optional Shell, Lua, Dockerfile and Caddyfile candidates
 
 All candidates remain disabled and unpublished pending transitive license and
-native validation. Upstream releases are used unchanged.
+native validation. The first three use unchanged upstream plugin releases.
 
 - dprint-plugin-shfmt 0.1.2: MIT; includes mvdan/sh 3.14.1 (BSD-3-Clause)
   and buger/jsonparser 1.6.1 (MIT). Combined notices: licenses/shfmt-0.1.2.txt.
@@ -41,9 +41,13 @@ native validation. Upstream releases are used unchanged.
   and licenses/stylua-0.1.0-SOURCE.txt. The wrapper disables upstream output
   verification; parsing/idempotence do not prove semantic equivalence.
 - dprint-plugin-dockerfile 0.7.0: MIT, licenses/dockerfile-0.7.0.txt.
-- Caddy 2.11.7: Apache-2.0, licenses/caddy-2.11.7.txt. Source:
-  https://github.com/caddyserver/caddy/tree/v2.11.7. Complete upstream binary
-  packaged; CodeStyles invokes only fmt -, never server startup or adaptation.
+- Caddy formatter 2.11.7: Apache-2.0, licenses/caddy-2.11.7.txt. Exact
+  formatter source is compiled into a CodeStyles MIT WASM adapter, not the
+  upstream server binary. It requires the managed dprint engine. Source and
+  extraction details: licenses/caddyfmt-2.11.7-p1-SOURCE.txt and formatters/caddyfmt.
+  Runtime notices: caddyfmt-Go-BSD-3-Clause.txt, caddyfmt-TinyGo-BSD-3-Clause.txt,
+  and caddyfmt-LLVM-compiler-rt.txt under licenses/. Final linked-feature review
+  remains pending. No server startup, config adaptation or imports are provided.
 
 Source pins and review: script-formatter-sources.json,
 script-formatter-source-review.json, caddy-formatter-sources.json and

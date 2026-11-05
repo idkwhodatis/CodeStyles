@@ -408,8 +408,8 @@
     },
     {
       "path": "schemas/caddyfmt.json",
-      "bytes": 261,
-      "sha256": "b3d33d380bd279bb2cd4c736468828ff20811d368691db9a25a1a99b1455be5b"
+      "bytes": 305,
+      "sha256": "7644611341e603da18130c0bcb1d223be0f0f446d5504c6f6f22acc0c0d5fc45"
     },
     {
       "path": "licenses/shfmt-0.1.2.txt",
@@ -445,6 +445,26 @@
       "path": "script-formatter-source-review.json",
       "bytes": 5473,
       "sha256": "1c0a46bbc6eb281afddfc6ddf16911dc53b4aa9107414af750ad3c0d6f8faee4"
+    },
+    {
+      "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+      "bytes": 1009,
+      "sha256": "a7583ec0d7f69fc6811d652d932e788282143c5d919c812e67528ceba00cf425"
+    },
+    {
+      "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+      "bytes": 1453,
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+    },
+    {
+      "path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+      "bytes": 16708,
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    {
+      "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+      "bytes": 1835,
+      "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766"
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
-  "title": "Caddyfile formatting (official caddy fmt)",
-  "description": "Fixed tab-based formatting, with no configurable style options. Formatting is not Caddy semantic validation.",
+  "title": "Caddyfile formatting (Caddy formatter source, WASM)",
+  "description": "Fixed tab-based formatting through the managed dprint engine, with no configurable style options. Formatting is not Caddy semantic validation.",
   "type": "object",
   "additionalProperties": false,
   "properties": {}

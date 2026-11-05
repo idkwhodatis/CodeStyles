@@ -48,8 +48,13 @@ are not claimed byte-identical between builds.
 - `.deb` creation uses only Python; it does not require `dpkg`, root, or Debian as
   the build host. `Architecture` is `amd64` or `arm64`, and all installed files
   are root-owned in the archive. Dependencies declare glibc **2.28** and the GUI
-  libraries that can be loaded at runtime. `--deb-depends` accepts an explicitly
-  audited dependency list for alternative build environments. ELF symbol/import
+  libraries that can be loaded at runtime, plus `xdg-desktop-portal (>= 1.0)` and
+  `xdg-desktop-portal-gtk | xdg-desktop-portal-kde | xdg-desktop-portal-gnome` for
+  native file dialogs. The selected backend still needs a working graphical
+  D-Bus session and desktop configuration; installing the packages alone does not
+  prove that a picker opens. See [Linux file dialogs](../DISTRIBUTION.md#linux-file-dialogs).
+  `--deb-depends` accepts an explicitly audited dependency list for alternative
+  build environments, including a suitable FileChooser backend. ELF symbol/import
   auditing remains a separate gate; package metadata cannot lower a binary's ABI.
 
 Packaging does **not** download tools or resources, sign, notarize, tag, release,

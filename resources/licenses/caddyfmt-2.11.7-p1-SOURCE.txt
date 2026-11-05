@@ -1,0 +1,17 @@
+CodeStyles Caddy formatter-only WASM adapter, candidate 2.11.7-p1.
+This is not an official Caddy distribution. It is unpublished and disabled.
+
+Caddy upstream version: 2.11.7
+Source commit: 72dd0fb067f6d7826c7f79907670ba4a713bfe37
+https://github.com/caddyserver/caddy/tree/72dd0fb067f6d7826c7f79907670ba4a713bfe37
+
+The exact formatter.go and formatter_test.go are retained. heredoc.go extracts
+only the unchanged heredocMarkerRegexp declaration from lexer.go and records
+that extraction. No Caddy server or external Go modules are compiled.
+Complete adapter source, source pins and offline build scripts accompany the
+candidate under sources/. The CodeStyles adapter uses the MIT License.
+
+Included runtime notices: Caddy Apache-2.0, Go BSD-3-Clause, TinyGo BSD-3-Clause,
+and LLVM compiler-rt Apache-2.0 WITH LLVM-exception. Their full notices accompany
+this file. Complete target-feature/transitive license review remains a release
+gate. The separate managed dprint engine and its notices are also required.

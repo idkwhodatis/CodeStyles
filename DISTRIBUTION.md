@@ -68,10 +68,11 @@ launch or display behavior.
 
 - Linux needs usable X11 or Wayland, font discovery/fonts, xkbcommon/XCB and a
   working GPU/driver backend. Locked GPUI enables Vulkan **or** GL; do not describe
-  Vulkan as the only rendering route. Portal/file-dialog, clipboard and IME
-  services depend on the desktop session. The Debian dependencies are explicit;
-  tarball users must provide the same runtime libraries. A glibc floor alone does
-  not make every distribution with that libc supported.
+  Vulkan as the only rendering route. [File dialogs](#linux-file-dialogs),
+  clipboard and IME services depend on the desktop session. The Debian
+  dependencies are explicit; tarball users must provide the same runtime
+  libraries and services. A glibc floor alone does not make every distribution
+  with that libc supported.
 - Fonts are currently supplied by the system. GPUI Kit embeds icons, not a full
   text-font family. Font fallback and Chinese/emoji glyph coverage remain part of
   desktop acceptance. No bundled-font guarantee is made.
@@ -93,6 +94,40 @@ Sources: [Rust Apple targets](https://doc.rust-lang.org/rustc/platform-support/a
 [manylinux](https://github.com/pypa/manylinux),
 [locked wgpu 29.0.4](https://github.com/gfx-rs/wgpu/tree/v29.0.4),
 [dprint 0.63.0](https://github.com/dprint/dprint/releases/tag/0.63.0).
+
+### Linux file dialogs
+
+Open, Save As, configuration import and local-pack selection use GPUI's
+`org.freedesktop.portal.FileChooser` calls on **both X11 and Wayland**. They need
+`xdg-desktop-portal` and a backend that actually implements FileChooser in the
+same graphical user's D-Bus session. There is no direct GTK dialog fallback.
+The `.deb` requires `xdg-desktop-portal (>= 1.0)` plus one of
+`xdg-desktop-portal-gtk`, `xdg-desktop-portal-kde` or `xdg-desktop-portal-gnome`.
+Portable tar/ZIP users must install the equivalent packages from their distro.
+Use the backend appropriate to the desktop (GTK is a general fallback, KDE for
+Plasma, GNOME for GNOME), with its distro-declared dependencies. A generic portal
+backend is insufficient: [xdg-desktop-portal-wlr](https://github.com/emersion/xdg-desktop-portal-wlr#readme)
+implements screenshot/screencast, not FileChooser, and needs another backend for
+file dialogs.
+
+The current picker flows select files, not directories. Their `OpenFile` and
+`SaveFile` methods and required options are already in the
+[FileChooser v1 API shipped with portal 1.0](https://github.com/flatpak/xdg-desktop-portal/blob/1.0/data/org.freedesktop.portal.FileChooser.xml).
+Directory selection would require a separate review of FileChooser v3 and backend
+support. This service requirement does not change the **glibc 2.28** binary ABI
+goal or establish compatibility with every distro at that floor.
+
+If a picker reports that `org.freedesktop.portal.Desktop` has no service file,
+check that the portal frontend is installed and visible to the graphical session's
+D-Bus. If FileChooser is unavailable, check the installed backend and the
+desktop's portal selection configuration. The portal activation environment must
+also know the session's display and desktop variables. Follow upstream
+[system integration](https://flatpak.github.io/xdg-desktop-portal/docs/system-integration.html)
+and [backend selection](https://flatpak.github.io/xdg-desktop-portal/docs/configuration-file.html)
+guidance for the installed portal version; do not replace the desktop's
+configuration indiscriminately. CodeStyles does not install or reconfigure these
+services. Verify Open, Save As, cancel and reopen in the actual desktop session;
+package inspection and headless self-tests do not establish working file dialogs.
 
 ## Optional Apple signing and notarization
 

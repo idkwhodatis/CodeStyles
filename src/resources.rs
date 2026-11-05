@@ -119,6 +119,10 @@ pub fn backend_from_root(root: &Path) -> Result<Backend, String> {
         "licenses/stylua-0.1.0-SOURCE.txt",
         "licenses/dockerfile-0.7.0.txt",
         "licenses/caddy-2.11.7.txt",
+        "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+        "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+        "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+        "licenses/caddyfmt-LLVM-compiler-rt.txt",
     ] {
         assets.push(name.to_owned());
     }

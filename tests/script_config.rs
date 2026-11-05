@@ -230,7 +230,7 @@ fn real_scripts_preview_settings_review_apply_and_lifecycle() {
         assert_eq!(fs::read(&config_path).unwrap(), saved);
     }
     let config = ConfigDocument::standalone(&[]).unwrap();
-    // Caddy is independent of the dprint engine.
+    // Caddy now explicitly requires the verified dprint engine.
     manager.uninstall("dprint").unwrap();
     assert!(
         format(
@@ -239,7 +239,8 @@ fn real_scripts_preview_settings_review_apply_and_lifecycle() {
             "Caddyfile",
             ":8080 {\nrespond \"ok\"\n}\n"
         )
-        .is_ok()
+        .unwrap_err()
+        .contains("requires the managed dprint")
     );
     assert!(format(&backend, &config, "test.lua", "return 1").is_err());
     install(&manager, "dprint", "CODESTYLES_DPRINT_ARCHIVE");
@@ -399,4 +400,62 @@ fn real_shell_fixed_fixtures_preserve_observable_behavior() {
         assert_eq!(before.stdout, after.stdout);
         assert_eq!(before.stderr, after.stderr);
     }
+}
+
+#[test]
+#[ignore = "requires trusted CODESTYLES_DPRINT_ARCHIVE and CODESTYLES_CADDYFMT_ARCHIVE"]
+fn real_caddy_wasm_requires_engine_and_preserves_isolation_and_lifecycle() {
+    let temp = tempfile::tempdir().unwrap();
+    let manager = ToolchainManager::at_managed_root(temp.path().join("managed")).unwrap();
+    let backend = Backend::managed().with_toolchain_manager(manager.clone());
+    let mut config = ConfigDocument::standalone(&[]).unwrap();
+    install(&manager, "caddyfmt", "CODESTYLES_CADDYFMT_ARCHIVE");
+    assert!(
+        format(&backend, &config, "Caddyfile", "localhost {}")
+            .unwrap_err()
+            .contains("requires the managed dprint")
+    );
+    install(&manager, "dprint", "CODESTYLES_DPRINT_ARCHIVE");
+    config.set(&["useTabs"], serde_json::json!(false)).unwrap();
+    config.set(&["indentWidth"], serde_json::json!(8)).unwrap();
+    let original = config.draft_text().to_owned();
+    let source = "import missing.caddy\nlocalhost {\nrespond \"literal {$SECRET} {host}\"\n}\n";
+    let expected = "import missing.caddy\nlocalhost {\n\trespond \"literal {$SECRET} {host}\"\n}\n";
+    for path in [
+        "Caddyfile",
+        "Caddyfile.lua",
+        "Caddyfile.dockerfile",
+        "site.caddyfile",
+    ] {
+        assert_eq!(format(&backend, &config, path, source).unwrap(), expected);
+    }
+    assert_eq!(config.draft_text(), original);
+    let runtime = manager.resolve_cancellable("caddyfmt", &cancel()).unwrap();
+    assert!(runtime.executable.as_os_str().is_empty());
+    let plugin = runtime.wasm_plugins[0].clone();
+    drop(runtime);
+    fs::write(plugin, b"corrupt").unwrap();
+    assert!(format(&backend, &config, "Caddyfile", source).is_err());
+    install(&manager, "caddyfmt", "CODESTYLES_CADDYFMT_ARCHIVE");
+    assert_eq!(
+        format(&backend, &config, "Caddyfile", source).unwrap(),
+        expected
+    );
+    manager.uninstall("dprint").unwrap();
+    assert!(
+        format(&backend, &config, "Caddyfile", "respond \"unterminated")
+            .unwrap_err()
+            .contains("Unterminated")
+    );
+    assert!(
+        format(&backend, &config, "Caddyfile", source)
+            .unwrap_err()
+            .contains("requires the managed dprint")
+    );
+    manager.uninstall("caddyfmt").unwrap();
+    assert!(
+        format(&backend, &config, "Caddyfile", source)
+            .unwrap_err()
+            .contains("Install Caddyfile support")
+    );
 }
