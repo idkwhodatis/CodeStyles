@@ -8,8 +8,11 @@
 - dprint TOML plugin 0.9.0: https://github.com/dprint/dprint-plugin-toml/releases/tag/0.9.0
 - dprint Ruff plugin 0.11.3 (including Ruff): https://github.com/dprint/dprint-plugin-ruff/releases/tag/0.11.3
 
-These projects are distributed under the MIT License. Exact upstream license
-texts from their pinned release tags are in `licenses/`. Their original
+These top-level projects declare the MIT License; their compiled dependencies
+can have additional licenses. In particular, the dprint native runtime includes
+Wasmtime/Cranelift. A complete target-specific runtime notice bundle remains a
+redistribution gate; the top-level MIT files alone do not close it. Exact upstream
+license texts from the pinned release tags are in `licenses/`. Their original
 copyright and permission notices are retained. SHA-256 values in the manifest
 for downloaded archives, WASM and schemas match the official GitHub release
 asset digests; executable digests were computed after verified extraction.
@@ -46,10 +49,22 @@ native validation. The first three use unchanged upstream plugin releases.
   upstream server binary. It requires the managed dprint engine. Source and
   extraction details: licenses/caddyfmt-2.11.7-p1-SOURCE.txt and formatters/caddyfmt.
   Runtime notices: caddyfmt-Go-BSD-3-Clause.txt, caddyfmt-TinyGo-BSD-3-Clause.txt,
-  and caddyfmt-LLVM-compiler-rt.txt under licenses/. Final linked-feature review
-  remains pending. No server startup, config adaptation or imports are provided.
+  caddyfmt-LLVM-compiler-rt.txt, caddyfmt-musl-COPYRIGHT.txt,
+  caddyfmt-wasi-libc-LICENSE.txt and caddyfmt-wasi-libc-LICENSE-MIT.txt under
+  licenses/. Exact linked libc source pins are in caddy-formatter-sources.json.
+  Final linked-feature review remains pending. No server startup, config adaptation or imports are provided.
 
 Source pins and review: script-formatter-sources.json,
 script-formatter-source-review.json, caddy-formatter-sources.json and
 scripts/build_wasm_language_pack.py. These notices do not claim a completed
 transitive license audit.
+
+## Main application release gate
+
+Formatter notices do not cover the CodeStyles application itself. Its Rust and
+UI-asset dependency notices require a separate, target-specific inventory before
+redistribution. Manifest license declarations alone are not a final link audit.
+Review candidates include non-MIT notices and file-level obligations (for example
+option-ext MPL-2.0 and Lucide/Feather icon notices). Graph presence alone does not
+prove final linkage or asset embedding. This file does not claim that the
+application obligations have been fully discharged.

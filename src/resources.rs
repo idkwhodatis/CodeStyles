@@ -123,6 +123,9 @@ pub fn backend_from_root(root: &Path) -> Result<Backend, String> {
         "licenses/caddyfmt-Go-BSD-3-Clause.txt",
         "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
         "licenses/caddyfmt-LLVM-compiler-rt.txt",
+        "licenses/caddyfmt-musl-COPYRIGHT.txt",
+        "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+        "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
     ] {
         assets.push(name.to_owned());
     }

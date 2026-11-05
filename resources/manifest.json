@@ -448,8 +448,8 @@
     },
     {
       "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
-      "bytes": 1009,
-      "sha256": "a7583ec0d7f69fc6811d652d932e788282143c5d919c812e67528ceba00cf425"
+      "bytes": 1296,
+      "sha256": "098b8b1080eaf85bdb8b450eb12f29fa4d4e9c02f4d26d18d5e7b9d095ea9862"
     },
     {
       "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
@@ -465,6 +465,21 @@
       "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
       "bytes": 1835,
       "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766"
+    },
+    {
+      "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+      "bytes": 831,
+      "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6"
+    },
+    {
+      "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+      "bytes": 1023,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    },
+    {
+      "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+      "bytes": 6204,
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
     }
   ]
 }

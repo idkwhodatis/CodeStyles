@@ -50,7 +50,64 @@
       "-ldflags=-extldflags '-z stack-size=8388608'",
       "-no-debug",
       "-opt=2"
-    ]
+    ],
+    "linked_libc": {
+      "repository": "WebAssembly/wasi-libc",
+      "commit": "1dfe5c302d1c5ab621f7abf04620fae92700fd22",
+      "selected_by": "https://github.com/tinygo-org/tinygo/blob/v0.43.0/builder/wasmbuiltins.go",
+      "license_selection": "musl MIT; wasi-libc modifications MIT alternative",
+      "source_files": [
+        {
+          "path": "libc-top-half/musl/src/string/memcpy.c",
+          "git_blob": "3cc7e28f3bd38f866dfbfa8404ab47a04c11f679",
+          "bytes": 2756,
+          "sha256": "4ad219f8d43467d894ef2cfd3d6d17ae958710c689097c15d41b68ee99c74769",
+          "url": "https://github.com/WebAssembly/wasi-libc/blob/1dfe5c302d1c5ab621f7abf04620fae92700fd22/libc-top-half/musl/src/string/memcpy.c"
+        },
+        {
+          "path": "libc-top-half/musl/src/string/memmove.c",
+          "git_blob": "7376a520bbfcab411646b4d49903a127a242b4f0",
+          "bytes": 965,
+          "sha256": "202adc3108340168e8604c1ed848e84df51a806726ebc992b597218a50c9a8d9",
+          "url": "https://github.com/WebAssembly/wasi-libc/blob/1dfe5c302d1c5ab621f7abf04620fae92700fd22/libc-top-half/musl/src/string/memmove.c"
+        },
+        {
+          "path": "libc-top-half/musl/src/string/memset.c",
+          "git_blob": "f64c9cf5ae96a7a021990276807d58825effd19a",
+          "bytes": 2324,
+          "sha256": "a7a8ff014b6a196342bbe3e8bdd7ae7ee91f0003f96e328d915f1af13066dad8",
+          "url": "https://github.com/WebAssembly/wasi-libc/blob/1dfe5c302d1c5ab621f7abf04620fae92700fd22/libc-top-half/musl/src/string/memset.c"
+        },
+        {
+          "path": "libc-top-half/musl/src/string/strlen.c",
+          "git_blob": "309990f029f0c09b4c7c0405258b92ac8f93310d",
+          "bytes": 514,
+          "sha256": "cf9359c1bcee96df1f3a7ef0fb969339b7ed87b202d80dc7e7fcd6d1239b7484",
+          "url": "https://github.com/WebAssembly/wasi-libc/blob/1dfe5c302d1c5ab621f7abf04620fae92700fd22/libc-top-half/musl/src/string/strlen.c"
+        }
+      ],
+      "notices": [
+        {
+          "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+          "upstream_url": "https://github.com/WebAssembly/wasi-libc/blob/1dfe5c302d1c5ab621f7abf04620fae92700fd22/LICENSE",
+          "bytes": 831,
+          "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6"
+        },
+        {
+          "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+          "upstream_url": "https://github.com/WebAssembly/wasi-libc/blob/1dfe5c302d1c5ab621f7abf04620fae92700fd22/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        },
+        {
+          "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+          "upstream_url": "https://github.com/WebAssembly/wasi-libc/blob/1dfe5c302d1c5ab621f7abf04620fae92700fd22/libc-top-half/musl/COPYRIGHT",
+          "bytes": 6204,
+          "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+        }
+      ],
+      "evidence": "The final WASM names memcpy, memmove, memset and strlen. TinyGo wasmbuiltins debug paths and source blob verification identify their musl-derived sources. This is not a complete transitive-link audit."
+    }
   },
   "source_files": {
     "formatters/caddyfmt/LICENSE": {
@@ -58,8 +115,8 @@
       "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf"
     },
     "formatters/caddyfmt/README.md": {
-      "bytes": 2156,
-      "sha256": "b4ff56be0b792269abea52517cd532e2614f7ff30431c577854cc26737eb9377"
+      "bytes": 2416,
+      "sha256": "50ce2d7c52f1fab3710e0ad02523b1ef684c70e50a11b877b63a1787ceaa7365"
     },
     "formatters/caddyfmt/adapter.go": {
       "bytes": 2550,
@@ -101,6 +158,18 @@
       "bytes": 1835,
       "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766"
     },
+    "formatters/caddyfmt/licenses/musl-COPYRIGHT.txt": {
+      "bytes": 6204,
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    "formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt": {
+      "bytes": 1023,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    },
+    "formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt": {
+      "bytes": 831,
+      "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6"
+    },
     "formatters/caddyfmt/main.go": {
       "bytes": 2810,
       "sha256": "121c99ef85a8e804f516bdfa2df4512f67d27a8bb3588b3acf63ce1d8148fb06"
@@ -134,8 +203,8 @@
     {
       "source": "resources/licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
       "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
-      "bytes": 1009,
-      "sha256": "a7583ec0d7f69fc6811d652d932e788282143c5d919c812e67528ceba00cf425"
+      "bytes": 1296,
+      "sha256": "098b8b1080eaf85bdb8b450eb12f29fa4d4e9c02f4d26d18d5e7b9d095ea9862"
     },
     {
       "source": "resources/licenses/caddyfmt-Go-BSD-3-Clause.txt",
@@ -160,6 +229,24 @@
       "path": "licenses/caddyfmt-adapter-MIT.txt",
       "bytes": 1068,
       "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf"
+    },
+    {
+      "source": "resources/licenses/caddyfmt-wasi-libc-LICENSE.txt",
+      "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+      "bytes": 831,
+      "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6"
+    },
+    {
+      "source": "resources/licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+      "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+      "bytes": 1023,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    },
+    {
+      "source": "resources/licenses/caddyfmt-musl-COPYRIGHT.txt",
+      "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+      "bytes": 6204,
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
     }
   ],
   "native_reference_archives": {

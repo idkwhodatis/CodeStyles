@@ -119,6 +119,41 @@ class CaddyTests(unittest.TestCase):
             wasm = next(m for m in spec['archives'][0]['members'] if m['path'] == plan['wasm']['path'])
             self.assertEqual(wasm['sha256'], plan['wasm']['sha256'])
 
+    def test_exact_linked_libc_notices_are_pinned_and_packaged(self):
+        plan = json.loads(b.SOURCES.read_text())
+        libc = plan['build']['linked_libc']
+        self.assertEqual(libc['commit'], '1dfe5c302d1c5ab621f7abf04620fae92700fd22')
+        self.assertEqual({Path(x['path']).name for x in libc['source_files']},
+                         {'memcpy.c', 'memmove.c', 'memset.c', 'strlen.c'})
+        expected = {
+            'musl-COPYRIGHT.txt': 'f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af',
+            'wasi-libc-LICENSE.txt': '673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6',
+            'wasi-libc-LICENSE-MIT.txt': '23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3',
+        }
+        catalog = json.loads((b.RESOURCES/'toolchains.json').read_text())['toolchains']['caddyfmt']
+        manifest = json.loads((b.RESOURCES/'manifest.json').read_text())['files']
+        for name, sha in expected.items():
+            source = 'formatters/caddyfmt/licenses/' + name
+            resource = 'licenses/caddyfmt-' + name
+            self.assertEqual(plan['source_files'][source]['sha256'], sha)
+            self.assertEqual(hashlib.sha256((b.ROOT/source).read_bytes()).hexdigest(), sha)
+            asset = next(x for x in plan['pack_assets'] if x['path'] == resource)
+            self.assertEqual(asset['sha256'], sha)
+            self.assertEqual(hashlib.sha256((b.RESOURCES/resource).read_bytes()).hexdigest(), sha)
+            self.assertEqual(next(x for x in manifest if x['path'] == resource)['sha256'], sha)
+            for spec in catalog['targets'].values():
+                members = spec['archives'][0]['members']
+                self.assertEqual(next(x for x in members if x['path'] == resource)['sha256'], sha)
+                self.assertEqual(next(x for x in members if x['path'] == 'sources/' + source)['sha256'], sha)
+        result = self.build()
+        with tarfile.open(self.root/'one.tar.gz') as archive:
+            for name in expected:
+                self.assertIn('licenses/caddyfmt-' + name, archive.getnames())
+                self.assertIn('sources/formatters/caddyfmt/licenses/' + name, archive.getnames())
+            provenance = json.load(archive.extractfile('PROVENANCE.json'))
+            self.assertEqual(provenance['build']['linked_libc'], libc)
+        self.assertIs(result['available'], False)
+
     def test_upstream_formatter_and_tests_are_unmodified(self):
         for name, blob in [('formatter.go','d25aad2d3d4f1d31c851e3043e9e5cebefc05194'),
                            ('formatter_test.go','7eef04766b4229fb434d689eb93186c842193080')]:

@@ -10,7 +10,10 @@ and rejects arbitrary style options and range formatting.
 Caddy commit `72dd0fb067f6d7826c7f79907670ba4a713bfe37`. `heredoc.go` retains the
 one required regexp declaration from that revision's `lexer.go` with its notice.
 The root adapter is CodeStyles MIT code implementing the public dprint schema-v4
-ABI. Runtime and upstream notices are in `licenses/`.
+ABI. Runtime and upstream notices are in `licenses/`. The linked musl string
+functions come from TinyGo's pinned wasi-libc submodule; the exact source revision,
+blob hashes and full musl/wasi-libc notices accompany the source and pack. This
+provenance does not close the remaining transitive-license release gate.
 
 The application must invoke this plugin with `--skip-stable-format`: ordinary
 dprint stabilization can differ from one pass of `caddy fmt -` on malformed

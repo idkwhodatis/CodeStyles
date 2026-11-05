@@ -73,15 +73,20 @@ launch or display behavior.
   dependencies are explicit; tarball users must provide the same runtime
   libraries and services. A glibc floor alone does not make every distribution
   with that libc supported.
-- Fonts are currently supplied by the system. GPUI Kit embeds icons, not a full
-  text-font family. Font fallback and Chinese/emoji glyph coverage remain part of
-  desktop acceptance. No bundled-font guarantee is made.
+- Fonts are currently supplied by the system. GPUI Kit provides an optional icon
+  asset bundle, not a full text-font family; embedding/registration in this app
+  must be verified rather than inferred from the dependency. Font fallback and
+  Chinese/emoji glyph coverage remain part of desktop acceptance. No bundled-font
+  guarantee is made.
 - The locked GPUI Windows source uses DirectWrite custom-font APIs introduced in
   the Windows 10 era (its `IDWriteFactory5` code says 1703+). That is a component
   lower bound, not proof of the entire application's oldest working Windows.
-- The locked GPUI Apple Metal build sets 10.15.7, and Rust's Apple ARM target starts
-  at 11.0. Explicit deployment targets and final Mach-O audits keep these goals
-  separate from the SDK and runner OS versions.
+- CI sets an explicit 10.15.7 deployment target for Intel and 11.0 for ARM.
+  The actual GPUI feature graph enables `runtime_shaders`: Metal source is
+  compiled at first renderer initialization using default compile options. The
+  dependency's 10.15.7 precompiled-shader flag is inactive in this configuration.
+  Final Mach-O audits and real Catalina/Big Sur first-render shader compilation
+  are separate required checks; SDK/runner versions do not prove either.
 - The pinned dprint 0.63.0 payload was independently inspected: Linux GLIBC 2.17,
   macOS Intel minOS 10.12 and ARM minOS 11.0. Those facts do not replace auditing
   the final CodeStyles binary and full package.
@@ -167,8 +172,10 @@ date, and result. Check the compatibility-goal OS as well as current systems.
 
 - Install/extract as an ordinary user; launch by the normal OS shortcut/Finder/
   file manager from a read-only install location, with a clean profile and network
-  disconnected. Render a window and format TS, JS, TSX, JSX, JSON, JSONC, Markdown
-  and TOML before any network access.
+  disconnected. Render a window and verify the clean missing-runtime state
+  without fetching or using a PATH formatter. Then install the separately
+  verified local dprint pack and format TS, JS, TSX, JSX, JSON, JSONC, Markdown
+  and TOML while still offline. Record those two phases separately.
 - Confirm readable system fonts and fallback glyphs (Chinese/emoji), light/dark,
   100%/150%/200% scaling, multi-monitor movement and resize.
 - Copy/paste through the real system clipboard; compose Chinese/Japanese with
