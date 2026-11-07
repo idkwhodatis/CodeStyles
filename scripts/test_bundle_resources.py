@@ -126,6 +126,14 @@ class IntegrityTests(unittest.TestCase):
                 {'kind': 'executable-archive', 'target': target, 'executable': record},
                 {'kind': 'license', 'path': 'licenses/plugin.txt', 'bytes': len(license_bytes),
                  'sha256': hashlib.sha256(license_bytes).hexdigest()}]}))
+            manifest_path = resources / 'manifest.json'
+            manifest = json.loads(manifest_path.read_text())
+            for name in bundle.dependency_notices('app', target):
+                data = (bundle.RESOURCES / name).read_bytes()
+                (resources / name).write_bytes(data)
+                manifest['files'].append(dict(path=name, bytes=len(data),
+                    sha256=hashlib.sha256(data).hexdigest()))
+            manifest_path.write_text(json.dumps(manifest))
             binary = root / 'app'
             binary.write_bytes(b'application fixture')
             license_file = root / 'LICENSE'

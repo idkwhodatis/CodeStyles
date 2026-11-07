@@ -480,6 +480,46 @@
       "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
       "bytes": 6204,
       "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    {
+      "path": "licenses/wasmtime-49.0.2-cranelift-0.136.2.txt",
+      "bytes": 12243,
+      "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
+    },
+    {
+      "path": "licenses/dprint-0.63.0-dependencies-SOURCE.txt",
+      "bytes": 1585,
+      "sha256": "2e779bd952f6b927ad21c18ccf2171691eb30e6bca1fe688dadbc85ea2985939"
+    },
+    {
+      "path": "licenses/gpui-kit-assets-0.7.3-LICENSE-LUCIDE.txt",
+      "bytes": 3208,
+      "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+    },
+    {
+      "path": "licenses/gpui-kit-assets-0.7.3-SOURCE.txt",
+      "bytes": 1467,
+      "sha256": "598be2eaf5420b93fb993c7667ec8029dcb36637dddaf04529f6264f9db23480"
+    },
+    {
+      "path": "licenses/gpui-kit-0.7.3-APACHE-2.0.txt",
+      "bytes": 10305,
+      "sha256": "d1b0449e5478c574ba4f686c2656df7fe77d66821a61f8b6ed3378a58ed9a811"
+    },
+    {
+      "path": "licenses/option-ext-0.2.0-MPL-2.0.txt",
+      "bytes": 16727,
+      "sha256": "66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172"
+    },
+    {
+      "path": "licenses/option-ext-0.2.0-SOURCE.txt",
+      "bytes": 1940,
+      "sha256": "197ded57f51ce28921c29e2708080a6f1289cf673d971b6f462a746630228f6e"
+    },
+    {
+      "path": "licenses/option-ext-0.2.0.crate",
+      "bytes": 7345,
+      "sha256": "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
     }
   ]
 }

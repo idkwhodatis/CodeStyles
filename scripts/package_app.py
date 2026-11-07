@@ -94,6 +94,10 @@ def resource_path(root, name):
 
 def stage_resources(source, destination, target):
     manifest = json.loads((source / 'manifest.json').read_text(encoding='utf-8'))
+    # Fail closed if a required notice/source record has been removed, even if
+    # an unpinned copy still happens to exist in the source directory.
+    bundle_resources.pinned_notices(
+        manifest, bundle_resources.dependency_notices('app', target))
     # App settings/resources are usable before any runtime is installed.
     # Engine and WASM bytes belong exclusively to the optional managed pack.
     records = [entry for entry in manifest['files']

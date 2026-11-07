@@ -10,8 +10,12 @@
 
 These top-level projects declare the MIT License; their compiled dependencies
 can have additional licenses. In particular, the dprint native runtime includes
-Wasmtime/Cranelift. A complete target-specific runtime notice bundle remains a
-redistribution gate; the top-level MIT files alone do not close it. Exact upstream
+Wasmtime 49.0.2/Cranelift 0.136.2. Their full Apache-2.0 WITH LLVM-exception
+text is preserved in `licenses/wasmtime-49.0.2-cranelift-0.136.2.txt` and now
+accompanies each rebuilt dprint pack. Exact source pins and scope are in
+`licenses/dprint-0.63.0-dependencies-SOURCE.txt`. A complete target-specific
+runtime notice bundle remains a redistribution gate; these named notices do
+not cover every transitive dependency. Exact upstream
 license texts from the pinned release tags are in `licenses/`. Their original
 copyright and permission notices are retained. SHA-256 values in the manifest
 for downloaded archives, WASM and schemas match the official GitHub release
@@ -61,10 +65,25 @@ transitive license audit.
 
 ## Main application release gate
 
-Formatter notices do not cover the CodeStyles application itself. Its Rust and
-UI-asset dependency notices require a separate, target-specific inventory before
-redistribution. Manifest license declarations alone are not a final link audit.
-Review candidates include non-MIT notices and file-level obligations (for example
-option-ext MPL-2.0 and Lucide/Feather icon notices). Graph presence alone does not
-prove final linkage or asset embedding. This file does not claim that the
-application obligations have been fully discharged.
+Formatter notices do not cover the CodeStyles application itself. The app now
+preserves GPUI Kit 0.7.3's Apache-2.0 text and the exact `gpui-kit-assets` Lucide
+ISC/Feather MIT composite notice, including original copyright and the list of
+Feather-derived icons. See `licenses/gpui-kit-assets-0.7.3-SOURCE.txt`,
+`licenses/gpui-kit-0.7.3-APACHE-2.0.txt` and
+`licenses/gpui-kit-assets-0.7.3-LICENSE-LUCIDE.txt`. The icon notice is included
+conservatively; retained SVG bytes in final app binaries have not been verified.
+
+`option-ext` 0.2.0 declares MPL-2.0. Its unchanged source archive, full license
+and extraction/source-availability instructions are retained under `licenses/`
+as `option-ext-0.2.0.crate`, `option-ext-0.2.0-MPL-2.0.txt` and
+`option-ext-0.2.0-SOURCE.txt`. Linux dprint packs include them conservatively.
+The app keeps all checked-in legal resources on every target. The actual
+`dirs-sys` use is in a non-Apple Unix XDG user-directory module; the reviewed
+app/dprint call paths do not reach it. This is not a claim of MPL-covered code
+in the final executable or an obligation to relicense unrelated app files.
+
+The app still needs a complete target-specific Rust/native-library/font and
+asset inventory before redistribution. Graph presence alone does not prove
+final linkage or asset embedding. Neither these notices nor package-integrity
+tests claim that all application obligations have been discharged. See the
+repository's `DEPENDENCY_NOTICES.md` for evidence and remaining release gates.

@@ -1,0 +1,27 @@
+Audited dprint runtime dependencies
+
+The optional dprint 0.63.0 runtime uses Wasmtime 49.0.2 and Cranelift 0.136.2
+under Apache-2.0 WITH LLVM-exception. The complete upstream license, including
+the LLVM exception, is in wasmtime-49.0.2-cranelift-0.136.2.txt. It is byte-equal
+to LICENSE in both of these unmodified published crate archives:
+
+https://static.crates.io/crates/wasmtime/wasmtime-49.0.2.crate
+SHA-256: 1801b9c9f91e16e352ed77656824e7c4556a7538dbfc1a50b37243f0e12ea045
+https://static.crates.io/crates/cranelift-codegen/cranelift-codegen-0.136.2.crate
+SHA-256: 63826cef0bf70e61d56cc930aa4ee423638f66dc3cfc10d683e73138a6d177b8
+
+These archive checksums match dprint's pinned Cargo.lock:
+https://github.com/dprint/dprint/blob/11d00400e54c5c5d2b743f8237ea305de580514c/Cargo.lock
+The native x86_64/aarch64 Linux, macOS and Windows builds enable Cranelift:
+https://github.com/dprint/dprint/blob/11d00400e54c5c5d2b743f8237ea305de580514c/crates/dprint/Cargo.toml
+Upstream source and license:
+https://github.com/bytecodealliance/wasmtime/tree/v49.0.2
+https://github.com/bytecodealliance/wasmtime/blob/v49.0.2/LICENSE
+
+Linux packages also include option-ext source and MPL-2.0 instructions; see
+option-ext-0.2.0-SOURCE.txt. The relevant dirs-sys module is excluded on macOS
+and Windows. A lockfile entry alone does not establish final executable content.
+
+This covers the named audited dependencies, not the complete dprint/WASM
+transitive dependency inventory. The complete target-specific license review
+and runtime release acceptance remain open. No runtime is enabled by this file.

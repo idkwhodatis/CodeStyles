@@ -256,6 +256,15 @@ python scripts/build_dprint_pack.py --target x86_64-unknown-linux-gnu \
 
 The builder checks every engine/WASM/license byte against `resources/manifest.json`,
 includes provenance and license texts, and writes deterministic tar.gz metadata.
+Rebuilt candidates also include the exact Wasmtime/Cranelift Apache-2.0 WITH
+LLVM-exception text and source attribution. Linux candidates conservatively
+include option-ext's MPL-2.0 text, unchanged source archive and instructions.
+Missing pins or corrupt required notice/source files fail the build. See
+[the notice audit](DEPENDENCY_NOTICES.md) for the distribution qualifications.
+These added files change candidate hashes and installed sizes. The production
+catalog is unchanged; its older disabled candidate must not be treated as a
+rebuilt or license-approved artifact. Rebuild/revalidate and review the complete
+inventory before any separately authorized catalog update or runtime release.
 It never runs downloaded code, enables a catalog target, or publishes an artifact.
 Schemas/licenses and embedded samples remain offline application assets; the app
 package intentionally omits binaries and WASM files, even if locally fetched.

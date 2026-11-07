@@ -1,0 +1,24 @@
+GPUI Kit 0.7.3 code and icon attribution
+
+CodeStyles uses GPUI Kit 0.7.3. The gpui-kit, gpui-base, gpui-component and
+gpui-kit-assets packages declare Apache-2.0. gpui-kit-0.7.3-APACHE-2.0.txt
+preserves the exact LICENSE-APACHE supplied by gpui-component/gpui-base 0.7.3.
+
+The gpui-kit-assets 0.7.3 package supplies Lucide icons, including icons derived
+from Feather. gpui-kit-assets-0.7.3-LICENSE-LUCIDE.txt is its complete unchanged
+LICENSE-LUCIDE, including Lucide ISC, the Feather-derived icon list and the
+Feather MIT copyright/permission notice. Retained icon bytes in a final linked
+CodeStyles executable have not been established; this notice is included
+conservatively on all desktop targets, not as a claim the entire catalog ships.
+
+Exact registry source archives (SHA-256 agrees with CodeStyles Cargo.lock):
+https://static.crates.io/crates/gpui-kit-assets/gpui-kit-assets-0.7.3.crate
+SHA-256: b7abc281dcbfe51c16a7e73189521a3a771168c31e3ab0db99e21e481d1b1b9a
+https://static.crates.io/crates/gpui-component/gpui-component-0.7.3.crate
+SHA-256: 465a363235cd4062ef5f0953fc096fc764ed6f53dfbd9f409f669f93ea3b1ff9
+Published upstream source revision:
+https://github.com/longbridge/gpui-kit/tree/67265a36e260ffe03c5aaebdcd8d654dbf892eab
+
+These notices cover the named dependencies/assets, not the complete application's
+transitive Rust, native-library or font inventory. A target-specific inventory
+and final distributed-content review remain release requirements.
