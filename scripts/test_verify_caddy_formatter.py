@@ -10,7 +10,7 @@ import verify_caddy_formatter_dprint as v
 
 class ReplayTests(unittest.TestCase):
     def test_generated_inputs_match_committed_oracle(self):
-        oracle = json.loads((v.FIXTURES / 'oracle-cases.json').read_text())
+        oracle = json.loads((v.FIXTURES / 'oracle-cases.json').read_text(encoding='utf-8'))
         generated = v.generated_cases()
         self.assertEqual(len(oracle), 560)
         self.assertEqual(sum(row['origin'] == 'upstream' for row in generated), 34)
@@ -31,7 +31,7 @@ class ReplayTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'fixture'
             path.write_bytes(b'fixture')
-            self.assertEqual(v.checked_file(path, hashlib.sha256(b'fixture').hexdigest()), path)
+            self.assertEqual(v.checked_file(path, hashlib.sha256(b'fixture').hexdigest()), path.resolve())
             with self.assertRaisesRegex(ValueError, 'checksum'):
                 v.checked_file(path, '0' * 64)
 

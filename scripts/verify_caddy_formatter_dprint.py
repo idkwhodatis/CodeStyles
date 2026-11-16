@@ -28,7 +28,7 @@ def checked_file(path, digest):
 
 
 def generated_cases():
-    rows = json.loads((FIXTURES / 'upstream-cases.json').read_text())
+    rows = json.loads((FIXTURES / 'upstream-cases.json').read_text(encoding='utf-8'))
     for row in rows:
         row['origin'] = 'upstream'
     extra = ['', '\n', '\r\n', 'localhost { respond "unterminated',
@@ -103,12 +103,12 @@ def main():
     wasm = checked_file(args.wasm, args.wasm_sha256)
     dprint = checked_file(args.dprint, args.dprint_sha256)
     caddy = checked_file(args.caddy, args.caddy_sha256) if args.caddy else None
-    rows = generated_cases() if args.write_oracle else json.loads(args.oracle.read_text())
+    rows = generated_cases() if args.write_oracle else json.loads(args.oracle.read_text(encoding='utf-8'))
     validate_cases(rows)
     with tempfile.TemporaryDirectory(prefix='verify-caddy-') as directory:
         workspace = Path(directory)
         config = workspace / 'dprint.json'
-        config.write_text(json.dumps({'caddyfmt': {}, 'plugins': [str(wasm)], 'incremental': False}))
+        config.write_text(json.dumps({'caddyfmt': {}, 'plugins': [str(wasm)], 'incremental': False}), encoding='utf-8')
         command = [str(dprint), 'fmt', '--config-discovery=false', '--skip-stable-format',
                    '--log-level=silent', '--stdin=Caddyfile', '--config', str(config)]
         for row in rows:
@@ -129,13 +129,13 @@ def main():
                 raise AssertionError(f'Nested-brace differential mismatch at depth {depth}')
             nested.append(dict(depth=depth, input_bytes=len(source.encode()), output_bytes=len(actual.encode())))
     if args.write_oracle:
-        args.write_oracle.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + '\n')
+        args.write_oracle.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     report = dict(status='passed', cases=len(rows), upstream_cases=sum(r['origin'] == 'upstream' for r in rows),
                   official_caddy_replayed=bool(caddy), nested_braces=nested,
                   sha256=dict(wasm=args.wasm_sha256, dprint=args.dprint_sha256, caddy=args.caddy_sha256),
                   resource_limit_note='Per-process timeout and bounded fixtures; no host-enforced memory ceiling or disk quota.')
     if args.report:
-        args.report.write_text(json.dumps(report, indent=2) + '\n')
+        args.report.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(report, indent=2))
 
 
