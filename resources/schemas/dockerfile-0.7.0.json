@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://plugins.dprint.dev/dprint/dprint-plugin-dockerfile/0.7.0/schema.json",
+  "type": "object",
+  "definitions": {
+    "newLineKind": {
+      "description": "The kind of newline to use.",
+      "type": "string",
+      "default": "lf",
+      "oneOf": [{
+        "const": "auto",
+        "description": "For each file, uses the newline kind found at the end of the last line."
+      }, {
+        "const": "crlf",
+        "description": "Uses carriage return, line feed."
+      }, {
+        "const": "lf",
+        "description": "Uses line feed."
+      }, {
+        "const": "system",
+        "description": "Uses the system standard (ex. crlf on Windows)."
+      }]
+    }
+  },
+  "properties": {
+    "locked": {
+      "description": "Whether the configuration is not allowed to be overridden or extended.",
+      "type": "boolean"
+    },
+    "lineWidth": {
+      "description": "The width of a line the printer will try to stay under. Note that the printer may exceed this width in certain cases.",
+      "default": 120,
+      "type": "number"
+    },
+    "newLineKind": {
+      "$ref": "#/definitions/newLineKind"
+    },
+    "healthcheckCmdNewLine": {
+      "description": "Whether to always break a HEALTHCHECK command onto its own continuation line when the instruction has options, even if it would fit on one line.",
+      "default": false,
+      "type": "boolean"
+    },
+    "indentStages": {
+      "description": "Whether to indent the body of each build stage—the instructions and comments that follow a FROM—by indentWidth spaces. The indentation is always spaces; useTabs is not honored.",
+      "default": false,
+      "type": "boolean"
+    },
+    "indentWidth": {
+      "description": "The number of spaces for an indent. Only used when indentStages is enabled.",
+      "default": 2,
+      "type": "number"
+    }
+  }
+}

@@ -85,7 +85,12 @@ fn highlight_language(language: SourceLanguage) -> &'static str {
         | SourceLanguage::Java
         | SourceLanguage::CSharp
         | SourceLanguage::C
-        | SourceLanguage::Cpp => "text",
+        | SourceLanguage::Cpp
+        | SourceLanguage::Shell
+        | SourceLanguage::Lua
+        | SourceLanguage::Luau
+        | SourceLanguage::Dockerfile
+        | SourceLanguage::Caddyfile => "text",
         SourceLanguage::Vue | SourceLanguage::Html => "html",
         SourceLanguage::Css | SourceLanguage::Scss | SourceLanguage::Yaml | SourceLanguage::Sql => {
             "text"
@@ -99,6 +104,23 @@ mod tests {
     use super::PreviewDisplay;
     use codestyles::comparison::SourceLanguage;
     use gpui_kit::component::highlighter::HighlightTheme;
+
+    #[test]
+    fn script_and_config_previews_have_plain_text_fallbacks() {
+        let mut display = PreviewDisplay::default();
+        for language in [
+            SourceLanguage::Shell,
+            SourceLanguage::Lua,
+            SourceLanguage::Luau,
+            SourceLanguage::Dockerfile,
+            SourceLanguage::Caddyfile,
+        ] {
+            assert_eq!(super::highlight_language(language), "text");
+            display.update(language.builtin_source(), language);
+            assert_eq!(display.text.as_ref(), language.builtin_source());
+            assert_eq!(display.language, Some(language));
+        }
+    }
 
     #[test]
     fn every_language_has_safe_highlights_in_both_themes() {
@@ -125,6 +147,11 @@ mod tests {
                         | SourceLanguage::Scss
                         | SourceLanguage::Yaml
                         | SourceLanguage::Sql
+                        | SourceLanguage::Shell
+                        | SourceLanguage::Lua
+                        | SourceLanguage::Luau
+                        | SourceLanguage::Dockerfile
+                        | SourceLanguage::Caddyfile
                         | SourceLanguage::Java
                         | SourceLanguage::CSharp
                         | SourceLanguage::C

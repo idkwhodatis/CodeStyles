@@ -35,13 +35,12 @@ def build(resources, target, output):
     executable = 'bin/dprint' + ('.exe' if 'windows' in target else '')
     inputs = [(engines[0]['executable'], executable, True)]
     inputs += [(a, a['path'], False) for a in wasm]
-    # All shipped legal notices accompany the independently distributed runtime.
-    pinned = {a['path']: a for a in manifest['files']}
+    # Audited transitive notices accompany the independently distributed runtime,
+    # not only the app. A complete license audit remains a separate release gate.
     licenses = ['licenses/dprint.txt'] + [f'licenses/dprint-plugin-{name}.txt' for name in expected]
-    for name in licenses:
-        if name not in pinned:
-            raise ValueError(f'License missing from manifest: {name}')
-        inputs.append((pinned[name], name, False))
+    licenses += bundle_resources.dependency_notices('dprint', target)
+    for entry in bundle_resources.pinned_notices(manifest, licenses):
+        inputs.append((entry, entry['path'], False))
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='dprint-pack-', dir=output.parent) as temporary:
         stage = Path(temporary)

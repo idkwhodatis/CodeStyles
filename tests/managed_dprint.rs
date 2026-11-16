@@ -179,15 +179,20 @@ fn production_headless_startup_without_binary_or_wasm() {
     let resources = temp.path().join("offline resources");
     fs::create_dir(&resources).unwrap();
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
-    let mut assets = vec!["manifest.json".to_owned(), "licenses/dprint.txt".to_owned()];
-    for plugin in PinnedPlugin::ALL {
-        assets.push(format!(
-            "schemas/{}-{}.json",
-            plugin.section(),
-            plugin.version()
-        ));
-        assets.push(format!("licenses/dprint-plugin-{}.txt", plugin.section()));
-    }
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(source.join("manifest.json")).unwrap()).unwrap();
+    let mut assets = vec!["manifest.json".to_owned()];
+    assets.extend(
+        manifest["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|item| {
+                let path = item["path"].as_str()?;
+                (path.starts_with("schemas/") || path.starts_with("licenses/"))
+                    .then(|| path.to_owned())
+            }),
+    );
     for asset in assets {
         let destination = resources.join(&asset);
         fs::create_dir_all(destination.parent().unwrap()).unwrap();

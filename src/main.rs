@@ -1,5 +1,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
+#[cfg(target_os = "linux")]
+mod linux_prompt;
 mod preview_display;
 mod ui;
 
@@ -26,6 +28,8 @@ fn main() {
     }
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
+        #[cfg(target_os = "linux")]
+        linux_prompt::init(cx);
         gpui_kit::component::Theme::change(gpui_kit::component::ThemeMode::Dark, None, cx);
         let quit_shortcut = if cfg!(target_os = "macos") {
             "cmd-q"

@@ -2737,6 +2737,2582 @@
           ]
         }
       }
+    },
+    "shfmt": {
+      "version": "shfmt-0.1.2",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/shfmt-0.1.2.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 552709,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-shfmt-0.1.2-universal-wasm.tar.gz",
+              "sha256": "93547b28c2ae46e63b4ed6e6b7543d1f11b77ce9d54a782da12d70cd87a331a7",
+              "bytes": 216609,
+              "max_download_bytes": 216609,
+              "max_expanded_bytes": 567045,
+              "members": [
+                {
+                  "path": "plugins/shfmt-0.1.2.wasm",
+                  "archive_path": "plugins/shfmt-0.1.2.wasm",
+                  "bytes": 543316,
+                  "sha256": "d9838fab9fe96ce455f73ffdcaf877cab3ec76350c771babe249da4a03487569",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/shfmt-0.1.2.json",
+                  "archive_path": "schemas/shfmt-0.1.2.json",
+                  "bytes": 2513,
+                  "sha256": "fc19f09f2d2e9d57c76494c73d75afc1502f5707f198b2260c85b2ad05c98780",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/shfmt-0.1.2.txt",
+                  "archive_path": "licenses/shfmt-0.1.2.txt",
+                  "bytes": 3807,
+                  "sha256": "e0a8657e7764445e84c87e1758a735bbabcc74a4d8dba106f24fe999c73ee654",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3073,
+                  "sha256": "226d90e1c508ae1e88337c19835330084e557e113f966e577b980ff2d8596c66",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/shfmt-0.1.2.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 552709,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-shfmt-0.1.2-universal-wasm.tar.gz",
+              "sha256": "93547b28c2ae46e63b4ed6e6b7543d1f11b77ce9d54a782da12d70cd87a331a7",
+              "bytes": 216609,
+              "max_download_bytes": 216609,
+              "max_expanded_bytes": 567045,
+              "members": [
+                {
+                  "path": "plugins/shfmt-0.1.2.wasm",
+                  "archive_path": "plugins/shfmt-0.1.2.wasm",
+                  "bytes": 543316,
+                  "sha256": "d9838fab9fe96ce455f73ffdcaf877cab3ec76350c771babe249da4a03487569",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/shfmt-0.1.2.json",
+                  "archive_path": "schemas/shfmt-0.1.2.json",
+                  "bytes": 2513,
+                  "sha256": "fc19f09f2d2e9d57c76494c73d75afc1502f5707f198b2260c85b2ad05c98780",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/shfmt-0.1.2.txt",
+                  "archive_path": "licenses/shfmt-0.1.2.txt",
+                  "bytes": 3807,
+                  "sha256": "e0a8657e7764445e84c87e1758a735bbabcc74a4d8dba106f24fe999c73ee654",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3073,
+                  "sha256": "226d90e1c508ae1e88337c19835330084e557e113f966e577b980ff2d8596c66",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/shfmt-0.1.2.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 552709,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-shfmt-0.1.2-universal-wasm.tar.gz",
+              "sha256": "93547b28c2ae46e63b4ed6e6b7543d1f11b77ce9d54a782da12d70cd87a331a7",
+              "bytes": 216609,
+              "max_download_bytes": 216609,
+              "max_expanded_bytes": 567045,
+              "members": [
+                {
+                  "path": "plugins/shfmt-0.1.2.wasm",
+                  "archive_path": "plugins/shfmt-0.1.2.wasm",
+                  "bytes": 543316,
+                  "sha256": "d9838fab9fe96ce455f73ffdcaf877cab3ec76350c771babe249da4a03487569",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/shfmt-0.1.2.json",
+                  "archive_path": "schemas/shfmt-0.1.2.json",
+                  "bytes": 2513,
+                  "sha256": "fc19f09f2d2e9d57c76494c73d75afc1502f5707f198b2260c85b2ad05c98780",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/shfmt-0.1.2.txt",
+                  "archive_path": "licenses/shfmt-0.1.2.txt",
+                  "bytes": 3807,
+                  "sha256": "e0a8657e7764445e84c87e1758a735bbabcc74a4d8dba106f24fe999c73ee654",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3073,
+                  "sha256": "226d90e1c508ae1e88337c19835330084e557e113f966e577b980ff2d8596c66",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/shfmt-0.1.2.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 552709,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-shfmt-0.1.2-universal-wasm.tar.gz",
+              "sha256": "93547b28c2ae46e63b4ed6e6b7543d1f11b77ce9d54a782da12d70cd87a331a7",
+              "bytes": 216609,
+              "max_download_bytes": 216609,
+              "max_expanded_bytes": 567045,
+              "members": [
+                {
+                  "path": "plugins/shfmt-0.1.2.wasm",
+                  "archive_path": "plugins/shfmt-0.1.2.wasm",
+                  "bytes": 543316,
+                  "sha256": "d9838fab9fe96ce455f73ffdcaf877cab3ec76350c771babe249da4a03487569",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/shfmt-0.1.2.json",
+                  "archive_path": "schemas/shfmt-0.1.2.json",
+                  "bytes": 2513,
+                  "sha256": "fc19f09f2d2e9d57c76494c73d75afc1502f5707f198b2260c85b2ad05c98780",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/shfmt-0.1.2.txt",
+                  "archive_path": "licenses/shfmt-0.1.2.txt",
+                  "bytes": 3807,
+                  "sha256": "e0a8657e7764445e84c87e1758a735bbabcc74a4d8dba106f24fe999c73ee654",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3073,
+                  "sha256": "226d90e1c508ae1e88337c19835330084e557e113f966e577b980ff2d8596c66",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/shfmt-0.1.2.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 552709,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-shfmt-0.1.2-universal-wasm.tar.gz",
+              "sha256": "93547b28c2ae46e63b4ed6e6b7543d1f11b77ce9d54a782da12d70cd87a331a7",
+              "bytes": 216609,
+              "max_download_bytes": 216609,
+              "max_expanded_bytes": 567045,
+              "members": [
+                {
+                  "path": "plugins/shfmt-0.1.2.wasm",
+                  "archive_path": "plugins/shfmt-0.1.2.wasm",
+                  "bytes": 543316,
+                  "sha256": "d9838fab9fe96ce455f73ffdcaf877cab3ec76350c771babe249da4a03487569",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/shfmt-0.1.2.json",
+                  "archive_path": "schemas/shfmt-0.1.2.json",
+                  "bytes": 2513,
+                  "sha256": "fc19f09f2d2e9d57c76494c73d75afc1502f5707f198b2260c85b2ad05c98780",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/shfmt-0.1.2.txt",
+                  "archive_path": "licenses/shfmt-0.1.2.txt",
+                  "bytes": 3807,
+                  "sha256": "e0a8657e7764445e84c87e1758a735bbabcc74a4d8dba106f24fe999c73ee654",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3073,
+                  "sha256": "226d90e1c508ae1e88337c19835330084e557e113f966e577b980ff2d8596c66",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/shfmt-0.1.2.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 552709,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-shfmt-0.1.2-universal-wasm.tar.gz",
+              "sha256": "93547b28c2ae46e63b4ed6e6b7543d1f11b77ce9d54a782da12d70cd87a331a7",
+              "bytes": 216609,
+              "max_download_bytes": 216609,
+              "max_expanded_bytes": 567045,
+              "members": [
+                {
+                  "path": "plugins/shfmt-0.1.2.wasm",
+                  "archive_path": "plugins/shfmt-0.1.2.wasm",
+                  "bytes": 543316,
+                  "sha256": "d9838fab9fe96ce455f73ffdcaf877cab3ec76350c771babe249da4a03487569",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/shfmt-0.1.2.json",
+                  "archive_path": "schemas/shfmt-0.1.2.json",
+                  "bytes": 2513,
+                  "sha256": "fc19f09f2d2e9d57c76494c73d75afc1502f5707f198b2260c85b2ad05c98780",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/shfmt-0.1.2.txt",
+                  "archive_path": "licenses/shfmt-0.1.2.txt",
+                  "bytes": 3807,
+                  "sha256": "e0a8657e7764445e84c87e1758a735bbabcc74a4d8dba106f24fe999c73ee654",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3073,
+                  "sha256": "226d90e1c508ae1e88337c19835330084e557e113f966e577b980ff2d8596c66",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "stylua": {
+      "version": "stylua-0.1.0",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/stylua-0.1.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 4081991,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-stylua-0.1.0-universal-wasm.tar.gz",
+              "sha256": "0014f3093c8943a42fb8e488a66b3b477ada2a3c60c5b3107894a1e759f51eef",
+              "bytes": 992721,
+              "max_download_bytes": 992721,
+              "max_expanded_bytes": 4098375,
+              "members": [
+                {
+                  "path": "plugins/stylua-0.1.0.wasm",
+                  "archive_path": "plugins/stylua-0.1.0.wasm",
+                  "bytes": 4054628,
+                  "sha256": "081604892f6ce13e7bb8cbc616f56cb93e9b0a76cf2c401d5ff494cccd3d25bf",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/stylua-0.1.0.json",
+                  "archive_path": "schemas/stylua-0.1.0.json",
+                  "bytes": 5304,
+                  "sha256": "bf7833c01f41db46c9a165b3527d4d41aa4d7cfc04d207520798e582aaec9246",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "archive_path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "bytes": 567,
+                  "sha256": "ffca0921cce6dd15f3940c12f6faef4dbc94b92d09e3aa2aaffa8b98d3477efd",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0.txt",
+                  "archive_path": "licenses/stylua-0.1.0.txt",
+                  "bytes": 1139,
+                  "sha256": "f220330d3736fb4c0c5f4a361b7e926b08576709a5648a59b14b692e8fa3b598",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "archive_path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "bytes": 16724,
+                  "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3629,
+                  "sha256": "a93fbae1c2131f6d2734a01c38108784715cb87c3b9b149bed123cc2f1081201",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/stylua-0.1.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 4081991,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-stylua-0.1.0-universal-wasm.tar.gz",
+              "sha256": "0014f3093c8943a42fb8e488a66b3b477ada2a3c60c5b3107894a1e759f51eef",
+              "bytes": 992721,
+              "max_download_bytes": 992721,
+              "max_expanded_bytes": 4098375,
+              "members": [
+                {
+                  "path": "plugins/stylua-0.1.0.wasm",
+                  "archive_path": "plugins/stylua-0.1.0.wasm",
+                  "bytes": 4054628,
+                  "sha256": "081604892f6ce13e7bb8cbc616f56cb93e9b0a76cf2c401d5ff494cccd3d25bf",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/stylua-0.1.0.json",
+                  "archive_path": "schemas/stylua-0.1.0.json",
+                  "bytes": 5304,
+                  "sha256": "bf7833c01f41db46c9a165b3527d4d41aa4d7cfc04d207520798e582aaec9246",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "archive_path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "bytes": 567,
+                  "sha256": "ffca0921cce6dd15f3940c12f6faef4dbc94b92d09e3aa2aaffa8b98d3477efd",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0.txt",
+                  "archive_path": "licenses/stylua-0.1.0.txt",
+                  "bytes": 1139,
+                  "sha256": "f220330d3736fb4c0c5f4a361b7e926b08576709a5648a59b14b692e8fa3b598",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "archive_path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "bytes": 16724,
+                  "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3629,
+                  "sha256": "a93fbae1c2131f6d2734a01c38108784715cb87c3b9b149bed123cc2f1081201",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/stylua-0.1.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 4081991,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-stylua-0.1.0-universal-wasm.tar.gz",
+              "sha256": "0014f3093c8943a42fb8e488a66b3b477ada2a3c60c5b3107894a1e759f51eef",
+              "bytes": 992721,
+              "max_download_bytes": 992721,
+              "max_expanded_bytes": 4098375,
+              "members": [
+                {
+                  "path": "plugins/stylua-0.1.0.wasm",
+                  "archive_path": "plugins/stylua-0.1.0.wasm",
+                  "bytes": 4054628,
+                  "sha256": "081604892f6ce13e7bb8cbc616f56cb93e9b0a76cf2c401d5ff494cccd3d25bf",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/stylua-0.1.0.json",
+                  "archive_path": "schemas/stylua-0.1.0.json",
+                  "bytes": 5304,
+                  "sha256": "bf7833c01f41db46c9a165b3527d4d41aa4d7cfc04d207520798e582aaec9246",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "archive_path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "bytes": 567,
+                  "sha256": "ffca0921cce6dd15f3940c12f6faef4dbc94b92d09e3aa2aaffa8b98d3477efd",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0.txt",
+                  "archive_path": "licenses/stylua-0.1.0.txt",
+                  "bytes": 1139,
+                  "sha256": "f220330d3736fb4c0c5f4a361b7e926b08576709a5648a59b14b692e8fa3b598",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "archive_path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "bytes": 16724,
+                  "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3629,
+                  "sha256": "a93fbae1c2131f6d2734a01c38108784715cb87c3b9b149bed123cc2f1081201",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/stylua-0.1.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 4081991,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-stylua-0.1.0-universal-wasm.tar.gz",
+              "sha256": "0014f3093c8943a42fb8e488a66b3b477ada2a3c60c5b3107894a1e759f51eef",
+              "bytes": 992721,
+              "max_download_bytes": 992721,
+              "max_expanded_bytes": 4098375,
+              "members": [
+                {
+                  "path": "plugins/stylua-0.1.0.wasm",
+                  "archive_path": "plugins/stylua-0.1.0.wasm",
+                  "bytes": 4054628,
+                  "sha256": "081604892f6ce13e7bb8cbc616f56cb93e9b0a76cf2c401d5ff494cccd3d25bf",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/stylua-0.1.0.json",
+                  "archive_path": "schemas/stylua-0.1.0.json",
+                  "bytes": 5304,
+                  "sha256": "bf7833c01f41db46c9a165b3527d4d41aa4d7cfc04d207520798e582aaec9246",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "archive_path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "bytes": 567,
+                  "sha256": "ffca0921cce6dd15f3940c12f6faef4dbc94b92d09e3aa2aaffa8b98d3477efd",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0.txt",
+                  "archive_path": "licenses/stylua-0.1.0.txt",
+                  "bytes": 1139,
+                  "sha256": "f220330d3736fb4c0c5f4a361b7e926b08576709a5648a59b14b692e8fa3b598",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "archive_path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "bytes": 16724,
+                  "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3629,
+                  "sha256": "a93fbae1c2131f6d2734a01c38108784715cb87c3b9b149bed123cc2f1081201",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/stylua-0.1.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 4081991,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-stylua-0.1.0-universal-wasm.tar.gz",
+              "sha256": "0014f3093c8943a42fb8e488a66b3b477ada2a3c60c5b3107894a1e759f51eef",
+              "bytes": 992721,
+              "max_download_bytes": 992721,
+              "max_expanded_bytes": 4098375,
+              "members": [
+                {
+                  "path": "plugins/stylua-0.1.0.wasm",
+                  "archive_path": "plugins/stylua-0.1.0.wasm",
+                  "bytes": 4054628,
+                  "sha256": "081604892f6ce13e7bb8cbc616f56cb93e9b0a76cf2c401d5ff494cccd3d25bf",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/stylua-0.1.0.json",
+                  "archive_path": "schemas/stylua-0.1.0.json",
+                  "bytes": 5304,
+                  "sha256": "bf7833c01f41db46c9a165b3527d4d41aa4d7cfc04d207520798e582aaec9246",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "archive_path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "bytes": 567,
+                  "sha256": "ffca0921cce6dd15f3940c12f6faef4dbc94b92d09e3aa2aaffa8b98d3477efd",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0.txt",
+                  "archive_path": "licenses/stylua-0.1.0.txt",
+                  "bytes": 1139,
+                  "sha256": "f220330d3736fb4c0c5f4a361b7e926b08576709a5648a59b14b692e8fa3b598",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "archive_path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "bytes": 16724,
+                  "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3629,
+                  "sha256": "a93fbae1c2131f6d2734a01c38108784715cb87c3b9b149bed123cc2f1081201",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/stylua-0.1.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 4081991,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-stylua-0.1.0-universal-wasm.tar.gz",
+              "sha256": "0014f3093c8943a42fb8e488a66b3b477ada2a3c60c5b3107894a1e759f51eef",
+              "bytes": 992721,
+              "max_download_bytes": 992721,
+              "max_expanded_bytes": 4098375,
+              "members": [
+                {
+                  "path": "plugins/stylua-0.1.0.wasm",
+                  "archive_path": "plugins/stylua-0.1.0.wasm",
+                  "bytes": 4054628,
+                  "sha256": "081604892f6ce13e7bb8cbc616f56cb93e9b0a76cf2c401d5ff494cccd3d25bf",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/stylua-0.1.0.json",
+                  "archive_path": "schemas/stylua-0.1.0.json",
+                  "bytes": 5304,
+                  "sha256": "bf7833c01f41db46c9a165b3527d4d41aa4d7cfc04d207520798e582aaec9246",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "archive_path": "licenses/stylua-0.1.0-SOURCE.txt",
+                  "bytes": 567,
+                  "sha256": "ffca0921cce6dd15f3940c12f6faef4dbc94b92d09e3aa2aaffa8b98d3477efd",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-0.1.0.txt",
+                  "archive_path": "licenses/stylua-0.1.0.txt",
+                  "bytes": 1139,
+                  "sha256": "f220330d3736fb4c0c5f4a361b7e926b08576709a5648a59b14b692e8fa3b598",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "archive_path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+                  "bytes": 16724,
+                  "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 3629,
+                  "sha256": "a93fbae1c2131f6d2734a01c38108784715cb87c3b9b149bed123cc2f1081201",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "dockerfile": {
+      "version": "dockerfile-0.7.0",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/dockerfile-0.7.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 472370,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-dockerfile-0.7.0-universal-wasm.tar.gz",
+              "sha256": "e2db420295b7af6574e03241b71bdec005186f254cce369e479160bc5aefa238",
+              "bytes": 150371,
+              "max_download_bytes": 150371,
+              "max_expanded_bytes": 486706,
+              "members": [
+                {
+                  "path": "plugins/dockerfile-0.7.0.wasm",
+                  "archive_path": "plugins/dockerfile-0.7.0.wasm",
+                  "bytes": 466818,
+                  "sha256": "04e0bef5fb60355247da7937af0df9641bf93922c60aaa19cc94ca141e293d1d",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/dockerfile-0.7.0.json",
+                  "archive_path": "schemas/dockerfile-0.7.0.json",
+                  "bytes": 1902,
+                  "sha256": "a67adb251b7135a612b06b30b5f9cac8de16845e74786f6fc99b36667d2573bc",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dockerfile-0.7.0.txt",
+                  "archive_path": "licenses/dockerfile-0.7.0.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 2570,
+                  "sha256": "75fef611dc8af7020a092e46f5cd71bc847d237b697480eff679db1e23e9df61",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/dockerfile-0.7.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 472370,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-dockerfile-0.7.0-universal-wasm.tar.gz",
+              "sha256": "e2db420295b7af6574e03241b71bdec005186f254cce369e479160bc5aefa238",
+              "bytes": 150371,
+              "max_download_bytes": 150371,
+              "max_expanded_bytes": 486706,
+              "members": [
+                {
+                  "path": "plugins/dockerfile-0.7.0.wasm",
+                  "archive_path": "plugins/dockerfile-0.7.0.wasm",
+                  "bytes": 466818,
+                  "sha256": "04e0bef5fb60355247da7937af0df9641bf93922c60aaa19cc94ca141e293d1d",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/dockerfile-0.7.0.json",
+                  "archive_path": "schemas/dockerfile-0.7.0.json",
+                  "bytes": 1902,
+                  "sha256": "a67adb251b7135a612b06b30b5f9cac8de16845e74786f6fc99b36667d2573bc",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dockerfile-0.7.0.txt",
+                  "archive_path": "licenses/dockerfile-0.7.0.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 2570,
+                  "sha256": "75fef611dc8af7020a092e46f5cd71bc847d237b697480eff679db1e23e9df61",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/dockerfile-0.7.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 472370,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-dockerfile-0.7.0-universal-wasm.tar.gz",
+              "sha256": "e2db420295b7af6574e03241b71bdec005186f254cce369e479160bc5aefa238",
+              "bytes": 150371,
+              "max_download_bytes": 150371,
+              "max_expanded_bytes": 486706,
+              "members": [
+                {
+                  "path": "plugins/dockerfile-0.7.0.wasm",
+                  "archive_path": "plugins/dockerfile-0.7.0.wasm",
+                  "bytes": 466818,
+                  "sha256": "04e0bef5fb60355247da7937af0df9641bf93922c60aaa19cc94ca141e293d1d",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/dockerfile-0.7.0.json",
+                  "archive_path": "schemas/dockerfile-0.7.0.json",
+                  "bytes": 1902,
+                  "sha256": "a67adb251b7135a612b06b30b5f9cac8de16845e74786f6fc99b36667d2573bc",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dockerfile-0.7.0.txt",
+                  "archive_path": "licenses/dockerfile-0.7.0.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 2570,
+                  "sha256": "75fef611dc8af7020a092e46f5cd71bc847d237b697480eff679db1e23e9df61",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/dockerfile-0.7.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 472370,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-dockerfile-0.7.0-universal-wasm.tar.gz",
+              "sha256": "e2db420295b7af6574e03241b71bdec005186f254cce369e479160bc5aefa238",
+              "bytes": 150371,
+              "max_download_bytes": 150371,
+              "max_expanded_bytes": 486706,
+              "members": [
+                {
+                  "path": "plugins/dockerfile-0.7.0.wasm",
+                  "archive_path": "plugins/dockerfile-0.7.0.wasm",
+                  "bytes": 466818,
+                  "sha256": "04e0bef5fb60355247da7937af0df9641bf93922c60aaa19cc94ca141e293d1d",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/dockerfile-0.7.0.json",
+                  "archive_path": "schemas/dockerfile-0.7.0.json",
+                  "bytes": 1902,
+                  "sha256": "a67adb251b7135a612b06b30b5f9cac8de16845e74786f6fc99b36667d2573bc",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dockerfile-0.7.0.txt",
+                  "archive_path": "licenses/dockerfile-0.7.0.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 2570,
+                  "sha256": "75fef611dc8af7020a092e46f5cd71bc847d237b697480eff679db1e23e9df61",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/dockerfile-0.7.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 472370,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-dockerfile-0.7.0-universal-wasm.tar.gz",
+              "sha256": "e2db420295b7af6574e03241b71bdec005186f254cce369e479160bc5aefa238",
+              "bytes": 150371,
+              "max_download_bytes": 150371,
+              "max_expanded_bytes": 486706,
+              "members": [
+                {
+                  "path": "plugins/dockerfile-0.7.0.wasm",
+                  "archive_path": "plugins/dockerfile-0.7.0.wasm",
+                  "bytes": 466818,
+                  "sha256": "04e0bef5fb60355247da7937af0df9641bf93922c60aaa19cc94ca141e293d1d",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/dockerfile-0.7.0.json",
+                  "archive_path": "schemas/dockerfile-0.7.0.json",
+                  "bytes": 1902,
+                  "sha256": "a67adb251b7135a612b06b30b5f9cac8de16845e74786f6fc99b36667d2573bc",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dockerfile-0.7.0.txt",
+                  "archive_path": "licenses/dockerfile-0.7.0.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 2570,
+                  "sha256": "75fef611dc8af7020a092e46f5cd71bc847d237b697480eff679db1e23e9df61",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished universal WASM candidate; native validation, transitive license audit and release approval required.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "validation": {
+            "license_audit": "upstream-notices-included; transitive-target-feature-audit-pending"
+          },
+          "wasm_plugins": [
+            "plugins/dockerfile-0.7.0.wasm"
+          ],
+          "environment": {},
+          "max_installed_bytes": 472370,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-dockerfile-0.7.0-universal-wasm.tar.gz",
+              "sha256": "e2db420295b7af6574e03241b71bdec005186f254cce369e479160bc5aefa238",
+              "bytes": 150371,
+              "max_download_bytes": 150371,
+              "max_expanded_bytes": 486706,
+              "members": [
+                {
+                  "path": "plugins/dockerfile-0.7.0.wasm",
+                  "archive_path": "plugins/dockerfile-0.7.0.wasm",
+                  "bytes": 466818,
+                  "sha256": "04e0bef5fb60355247da7937af0df9641bf93922c60aaa19cc94ca141e293d1d",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/dockerfile-0.7.0.json",
+                  "archive_path": "schemas/dockerfile-0.7.0.json",
+                  "bytes": 1902,
+                  "sha256": "a67adb251b7135a612b06b30b5f9cac8de16845e74786f6fc99b36667d2573bc",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/dockerfile-0.7.0.txt",
+                  "archive_path": "licenses/dockerfile-0.7.0.txt",
+                  "bytes": 1080,
+                  "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 2570,
+                  "sha256": "75fef611dc8af7020a092e46f5cd71bc847d237b697480eff679db1e23e9df61",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "caddyfmt": {
+      "version": "caddy-2.11.7-wasm-p1",
+      "targets": {
+        "x86_64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished formatter-only Caddy WASM candidate; requires managed dprint, native/oldest-OS validation, final license audit and release approval.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "wasm_plugins": [
+            "plugins/caddyfmt-2.11.7-p1.wasm"
+          ],
+          "environment": {},
+          "validation": {
+            "license_audit": "upstream-and-runtime-notices-included; final-target-feature-review-pending"
+          },
+          "max_installed_bytes": 695181,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-caddy-2.11.7-wasm-p1-universal.tar.gz",
+              "sha256": "09d389c0aab0d0646c723da790d44472b5e44d84031b2ad102e84a760531ef6a",
+              "bytes": 247353,
+              "max_download_bytes": 247353,
+              "max_expanded_bytes": 738189,
+              "members": [
+                {
+                  "path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "archive_path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "bytes": 550254,
+                  "sha256": "0ed1cea807384b5b79fb172e8619679f9563aa594c3fba4b53635c3fa88be9a5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/LICENSE",
+                  "archive_path": "sources/formatters/caddyfmt/LICENSE",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/README.md",
+                  "archive_path": "sources/formatters/caddyfmt/README.md",
+                  "bytes": 2416,
+                  "sha256": "50ce2d7c52f1fab3710e0ad02523b1ef684c70e50a11b877b63a1787ceaa7365",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter.go",
+                  "bytes": 2550,
+                  "sha256": "f29decccf3d5920a9b3dac299944518006f8e14b6afdd765c4dfc755fb6b17ed",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "bytes": 1198,
+                  "sha256": "7319f51c9e349533addb232294de78cb366b4e2560cff6d4315ac52f55a77876",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/go.mod",
+                  "archive_path": "sources/formatters/caddyfmt/go.mod",
+                  "bytes": 38,
+                  "sha256": "918166a149261f1312567b8941108e332cdab1201a68639b80a56eae250036f9",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "bytes": 8493,
+                  "sha256": "45ce3d09896bf29273acdb97a1fe3fd6ef4cd0675d6debcd5b3ede445d009f70",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "bytes": 7806,
+                  "sha256": "942e4a9491513d427530590ba5213bffeee13fa708c5ece1213e46a835e221f5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "bytes": 854,
+                  "sha256": "a6a808ed868fb4bf45a3c493f27b02bb11182070e877183bff76544a715771ce",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/main.go",
+                  "archive_path": "sources/formatters/caddyfmt/main.go",
+                  "bytes": 2810,
+                  "sha256": "121c99ef85a8e804f516bdfa2df4512f67d27a8bb3588b3acf63ce1d8148fb06",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/caddy_wasm_start.py",
+                  "archive_path": "sources/scripts/caddy_wasm_start.py",
+                  "bytes": 2002,
+                  "sha256": "2c3695b3b7465cdef76d4d073f31a41aaedb597e7d2c206b3eb53fd978578241",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "bytes": 4401,
+                  "sha256": "88b5caa09f600e1b3e9a9c683654713bb7556d6c1ca894dc01ffedcbaa087047",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "bytes": 3730,
+                  "sha256": "44806de9d229559a04aefe219f478beaa72cdd7256de296b9f3ffd9b25cce296",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/caddyfmt.json",
+                  "archive_path": "schemas/caddyfmt.json",
+                  "bytes": 305,
+                  "sha256": "7644611341e603da18130c0bcb1d223be0f0f446d5504c6f6f22acc0c0d5fc45",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddy-2.11.7.txt",
+                  "archive_path": "licenses/caddy-2.11.7.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "archive_path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "bytes": 1296,
+                  "sha256": "098b8b1080eaf85bdb8b450eb12f29fa4d4e9c02f4d26d18d5e7b9d095ea9862",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "archive_path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "archive_path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/resources/caddy-formatter-sources.json",
+                  "archive_path": "sources/resources/caddy-formatter-sources.json",
+                  "bytes": 12412,
+                  "sha256": "272a879d8132cd8504e5672e93655083e1ba096812d05a2f0fbb24c9db489117",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 13656,
+                  "sha256": "7ac94774522d11d8def37cdcffba66b2b046c70ba31f6892f28b4c3b5486d1d1",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-unknown-linux-gnu": {
+          "available": false,
+          "reason": "Unpublished formatter-only Caddy WASM candidate; requires managed dprint, native/oldest-OS validation, final license audit and release approval.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "wasm_plugins": [
+            "plugins/caddyfmt-2.11.7-p1.wasm"
+          ],
+          "environment": {},
+          "validation": {
+            "license_audit": "upstream-and-runtime-notices-included; final-target-feature-review-pending"
+          },
+          "max_installed_bytes": 695181,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-caddy-2.11.7-wasm-p1-universal.tar.gz",
+              "sha256": "09d389c0aab0d0646c723da790d44472b5e44d84031b2ad102e84a760531ef6a",
+              "bytes": 247353,
+              "max_download_bytes": 247353,
+              "max_expanded_bytes": 738189,
+              "members": [
+                {
+                  "path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "archive_path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "bytes": 550254,
+                  "sha256": "0ed1cea807384b5b79fb172e8619679f9563aa594c3fba4b53635c3fa88be9a5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/LICENSE",
+                  "archive_path": "sources/formatters/caddyfmt/LICENSE",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/README.md",
+                  "archive_path": "sources/formatters/caddyfmt/README.md",
+                  "bytes": 2416,
+                  "sha256": "50ce2d7c52f1fab3710e0ad02523b1ef684c70e50a11b877b63a1787ceaa7365",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter.go",
+                  "bytes": 2550,
+                  "sha256": "f29decccf3d5920a9b3dac299944518006f8e14b6afdd765c4dfc755fb6b17ed",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "bytes": 1198,
+                  "sha256": "7319f51c9e349533addb232294de78cb366b4e2560cff6d4315ac52f55a77876",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/go.mod",
+                  "archive_path": "sources/formatters/caddyfmt/go.mod",
+                  "bytes": 38,
+                  "sha256": "918166a149261f1312567b8941108e332cdab1201a68639b80a56eae250036f9",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "bytes": 8493,
+                  "sha256": "45ce3d09896bf29273acdb97a1fe3fd6ef4cd0675d6debcd5b3ede445d009f70",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "bytes": 7806,
+                  "sha256": "942e4a9491513d427530590ba5213bffeee13fa708c5ece1213e46a835e221f5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "bytes": 854,
+                  "sha256": "a6a808ed868fb4bf45a3c493f27b02bb11182070e877183bff76544a715771ce",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/main.go",
+                  "archive_path": "sources/formatters/caddyfmt/main.go",
+                  "bytes": 2810,
+                  "sha256": "121c99ef85a8e804f516bdfa2df4512f67d27a8bb3588b3acf63ce1d8148fb06",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/caddy_wasm_start.py",
+                  "archive_path": "sources/scripts/caddy_wasm_start.py",
+                  "bytes": 2002,
+                  "sha256": "2c3695b3b7465cdef76d4d073f31a41aaedb597e7d2c206b3eb53fd978578241",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "bytes": 4401,
+                  "sha256": "88b5caa09f600e1b3e9a9c683654713bb7556d6c1ca894dc01ffedcbaa087047",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "bytes": 3730,
+                  "sha256": "44806de9d229559a04aefe219f478beaa72cdd7256de296b9f3ffd9b25cce296",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/caddyfmt.json",
+                  "archive_path": "schemas/caddyfmt.json",
+                  "bytes": 305,
+                  "sha256": "7644611341e603da18130c0bcb1d223be0f0f446d5504c6f6f22acc0c0d5fc45",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddy-2.11.7.txt",
+                  "archive_path": "licenses/caddy-2.11.7.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "archive_path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "bytes": 1296,
+                  "sha256": "098b8b1080eaf85bdb8b450eb12f29fa4d4e9c02f4d26d18d5e7b9d095ea9862",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "archive_path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "archive_path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/resources/caddy-formatter-sources.json",
+                  "archive_path": "sources/resources/caddy-formatter-sources.json",
+                  "bytes": 12412,
+                  "sha256": "272a879d8132cd8504e5672e93655083e1ba096812d05a2f0fbb24c9db489117",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 13656,
+                  "sha256": "7ac94774522d11d8def37cdcffba66b2b046c70ba31f6892f28b4c3b5486d1d1",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished formatter-only Caddy WASM candidate; requires managed dprint, native/oldest-OS validation, final license audit and release approval.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "wasm_plugins": [
+            "plugins/caddyfmt-2.11.7-p1.wasm"
+          ],
+          "environment": {},
+          "validation": {
+            "license_audit": "upstream-and-runtime-notices-included; final-target-feature-review-pending"
+          },
+          "max_installed_bytes": 695181,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-caddy-2.11.7-wasm-p1-universal.tar.gz",
+              "sha256": "09d389c0aab0d0646c723da790d44472b5e44d84031b2ad102e84a760531ef6a",
+              "bytes": 247353,
+              "max_download_bytes": 247353,
+              "max_expanded_bytes": 738189,
+              "members": [
+                {
+                  "path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "archive_path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "bytes": 550254,
+                  "sha256": "0ed1cea807384b5b79fb172e8619679f9563aa594c3fba4b53635c3fa88be9a5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/LICENSE",
+                  "archive_path": "sources/formatters/caddyfmt/LICENSE",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/README.md",
+                  "archive_path": "sources/formatters/caddyfmt/README.md",
+                  "bytes": 2416,
+                  "sha256": "50ce2d7c52f1fab3710e0ad02523b1ef684c70e50a11b877b63a1787ceaa7365",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter.go",
+                  "bytes": 2550,
+                  "sha256": "f29decccf3d5920a9b3dac299944518006f8e14b6afdd765c4dfc755fb6b17ed",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "bytes": 1198,
+                  "sha256": "7319f51c9e349533addb232294de78cb366b4e2560cff6d4315ac52f55a77876",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/go.mod",
+                  "archive_path": "sources/formatters/caddyfmt/go.mod",
+                  "bytes": 38,
+                  "sha256": "918166a149261f1312567b8941108e332cdab1201a68639b80a56eae250036f9",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "bytes": 8493,
+                  "sha256": "45ce3d09896bf29273acdb97a1fe3fd6ef4cd0675d6debcd5b3ede445d009f70",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "bytes": 7806,
+                  "sha256": "942e4a9491513d427530590ba5213bffeee13fa708c5ece1213e46a835e221f5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "bytes": 854,
+                  "sha256": "a6a808ed868fb4bf45a3c493f27b02bb11182070e877183bff76544a715771ce",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/main.go",
+                  "archive_path": "sources/formatters/caddyfmt/main.go",
+                  "bytes": 2810,
+                  "sha256": "121c99ef85a8e804f516bdfa2df4512f67d27a8bb3588b3acf63ce1d8148fb06",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/caddy_wasm_start.py",
+                  "archive_path": "sources/scripts/caddy_wasm_start.py",
+                  "bytes": 2002,
+                  "sha256": "2c3695b3b7465cdef76d4d073f31a41aaedb597e7d2c206b3eb53fd978578241",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "bytes": 4401,
+                  "sha256": "88b5caa09f600e1b3e9a9c683654713bb7556d6c1ca894dc01ffedcbaa087047",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "bytes": 3730,
+                  "sha256": "44806de9d229559a04aefe219f478beaa72cdd7256de296b9f3ffd9b25cce296",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/caddyfmt.json",
+                  "archive_path": "schemas/caddyfmt.json",
+                  "bytes": 305,
+                  "sha256": "7644611341e603da18130c0bcb1d223be0f0f446d5504c6f6f22acc0c0d5fc45",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddy-2.11.7.txt",
+                  "archive_path": "licenses/caddy-2.11.7.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "archive_path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "bytes": 1296,
+                  "sha256": "098b8b1080eaf85bdb8b450eb12f29fa4d4e9c02f4d26d18d5e7b9d095ea9862",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "archive_path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "archive_path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/resources/caddy-formatter-sources.json",
+                  "archive_path": "sources/resources/caddy-formatter-sources.json",
+                  "bytes": 12412,
+                  "sha256": "272a879d8132cd8504e5672e93655083e1ba096812d05a2f0fbb24c9db489117",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 13656,
+                  "sha256": "7ac94774522d11d8def37cdcffba66b2b046c70ba31f6892f28b4c3b5486d1d1",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-apple-darwin": {
+          "available": false,
+          "reason": "Unpublished formatter-only Caddy WASM candidate; requires managed dprint, native/oldest-OS validation, final license audit and release approval.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "wasm_plugins": [
+            "plugins/caddyfmt-2.11.7-p1.wasm"
+          ],
+          "environment": {},
+          "validation": {
+            "license_audit": "upstream-and-runtime-notices-included; final-target-feature-review-pending"
+          },
+          "max_installed_bytes": 695181,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-caddy-2.11.7-wasm-p1-universal.tar.gz",
+              "sha256": "09d389c0aab0d0646c723da790d44472b5e44d84031b2ad102e84a760531ef6a",
+              "bytes": 247353,
+              "max_download_bytes": 247353,
+              "max_expanded_bytes": 738189,
+              "members": [
+                {
+                  "path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "archive_path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "bytes": 550254,
+                  "sha256": "0ed1cea807384b5b79fb172e8619679f9563aa594c3fba4b53635c3fa88be9a5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/LICENSE",
+                  "archive_path": "sources/formatters/caddyfmt/LICENSE",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/README.md",
+                  "archive_path": "sources/formatters/caddyfmt/README.md",
+                  "bytes": 2416,
+                  "sha256": "50ce2d7c52f1fab3710e0ad02523b1ef684c70e50a11b877b63a1787ceaa7365",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter.go",
+                  "bytes": 2550,
+                  "sha256": "f29decccf3d5920a9b3dac299944518006f8e14b6afdd765c4dfc755fb6b17ed",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "bytes": 1198,
+                  "sha256": "7319f51c9e349533addb232294de78cb366b4e2560cff6d4315ac52f55a77876",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/go.mod",
+                  "archive_path": "sources/formatters/caddyfmt/go.mod",
+                  "bytes": 38,
+                  "sha256": "918166a149261f1312567b8941108e332cdab1201a68639b80a56eae250036f9",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "bytes": 8493,
+                  "sha256": "45ce3d09896bf29273acdb97a1fe3fd6ef4cd0675d6debcd5b3ede445d009f70",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "bytes": 7806,
+                  "sha256": "942e4a9491513d427530590ba5213bffeee13fa708c5ece1213e46a835e221f5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "bytes": 854,
+                  "sha256": "a6a808ed868fb4bf45a3c493f27b02bb11182070e877183bff76544a715771ce",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/main.go",
+                  "archive_path": "sources/formatters/caddyfmt/main.go",
+                  "bytes": 2810,
+                  "sha256": "121c99ef85a8e804f516bdfa2df4512f67d27a8bb3588b3acf63ce1d8148fb06",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/caddy_wasm_start.py",
+                  "archive_path": "sources/scripts/caddy_wasm_start.py",
+                  "bytes": 2002,
+                  "sha256": "2c3695b3b7465cdef76d4d073f31a41aaedb597e7d2c206b3eb53fd978578241",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "bytes": 4401,
+                  "sha256": "88b5caa09f600e1b3e9a9c683654713bb7556d6c1ca894dc01ffedcbaa087047",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "bytes": 3730,
+                  "sha256": "44806de9d229559a04aefe219f478beaa72cdd7256de296b9f3ffd9b25cce296",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/caddyfmt.json",
+                  "archive_path": "schemas/caddyfmt.json",
+                  "bytes": 305,
+                  "sha256": "7644611341e603da18130c0bcb1d223be0f0f446d5504c6f6f22acc0c0d5fc45",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddy-2.11.7.txt",
+                  "archive_path": "licenses/caddy-2.11.7.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "archive_path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "bytes": 1296,
+                  "sha256": "098b8b1080eaf85bdb8b450eb12f29fa4d4e9c02f4d26d18d5e7b9d095ea9862",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "archive_path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "archive_path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/resources/caddy-formatter-sources.json",
+                  "archive_path": "sources/resources/caddy-formatter-sources.json",
+                  "bytes": 12412,
+                  "sha256": "272a879d8132cd8504e5672e93655083e1ba096812d05a2f0fbb24c9db489117",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 13656,
+                  "sha256": "7ac94774522d11d8def37cdcffba66b2b046c70ba31f6892f28b4c3b5486d1d1",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "x86_64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished formatter-only Caddy WASM candidate; requires managed dprint, native/oldest-OS validation, final license audit and release approval.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "wasm_plugins": [
+            "plugins/caddyfmt-2.11.7-p1.wasm"
+          ],
+          "environment": {},
+          "validation": {
+            "license_audit": "upstream-and-runtime-notices-included; final-target-feature-review-pending"
+          },
+          "max_installed_bytes": 695181,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-caddy-2.11.7-wasm-p1-universal.tar.gz",
+              "sha256": "09d389c0aab0d0646c723da790d44472b5e44d84031b2ad102e84a760531ef6a",
+              "bytes": 247353,
+              "max_download_bytes": 247353,
+              "max_expanded_bytes": 738189,
+              "members": [
+                {
+                  "path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "archive_path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "bytes": 550254,
+                  "sha256": "0ed1cea807384b5b79fb172e8619679f9563aa594c3fba4b53635c3fa88be9a5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/LICENSE",
+                  "archive_path": "sources/formatters/caddyfmt/LICENSE",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/README.md",
+                  "archive_path": "sources/formatters/caddyfmt/README.md",
+                  "bytes": 2416,
+                  "sha256": "50ce2d7c52f1fab3710e0ad02523b1ef684c70e50a11b877b63a1787ceaa7365",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter.go",
+                  "bytes": 2550,
+                  "sha256": "f29decccf3d5920a9b3dac299944518006f8e14b6afdd765c4dfc755fb6b17ed",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "bytes": 1198,
+                  "sha256": "7319f51c9e349533addb232294de78cb366b4e2560cff6d4315ac52f55a77876",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/go.mod",
+                  "archive_path": "sources/formatters/caddyfmt/go.mod",
+                  "bytes": 38,
+                  "sha256": "918166a149261f1312567b8941108e332cdab1201a68639b80a56eae250036f9",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "bytes": 8493,
+                  "sha256": "45ce3d09896bf29273acdb97a1fe3fd6ef4cd0675d6debcd5b3ede445d009f70",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "bytes": 7806,
+                  "sha256": "942e4a9491513d427530590ba5213bffeee13fa708c5ece1213e46a835e221f5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "bytes": 854,
+                  "sha256": "a6a808ed868fb4bf45a3c493f27b02bb11182070e877183bff76544a715771ce",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/main.go",
+                  "archive_path": "sources/formatters/caddyfmt/main.go",
+                  "bytes": 2810,
+                  "sha256": "121c99ef85a8e804f516bdfa2df4512f67d27a8bb3588b3acf63ce1d8148fb06",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/caddy_wasm_start.py",
+                  "archive_path": "sources/scripts/caddy_wasm_start.py",
+                  "bytes": 2002,
+                  "sha256": "2c3695b3b7465cdef76d4d073f31a41aaedb597e7d2c206b3eb53fd978578241",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "bytes": 4401,
+                  "sha256": "88b5caa09f600e1b3e9a9c683654713bb7556d6c1ca894dc01ffedcbaa087047",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "bytes": 3730,
+                  "sha256": "44806de9d229559a04aefe219f478beaa72cdd7256de296b9f3ffd9b25cce296",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/caddyfmt.json",
+                  "archive_path": "schemas/caddyfmt.json",
+                  "bytes": 305,
+                  "sha256": "7644611341e603da18130c0bcb1d223be0f0f446d5504c6f6f22acc0c0d5fc45",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddy-2.11.7.txt",
+                  "archive_path": "licenses/caddy-2.11.7.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "archive_path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "bytes": 1296,
+                  "sha256": "098b8b1080eaf85bdb8b450eb12f29fa4d4e9c02f4d26d18d5e7b9d095ea9862",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "archive_path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "archive_path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/resources/caddy-formatter-sources.json",
+                  "archive_path": "sources/resources/caddy-formatter-sources.json",
+                  "bytes": 12412,
+                  "sha256": "272a879d8132cd8504e5672e93655083e1ba096812d05a2f0fbb24c9db489117",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 13656,
+                  "sha256": "7ac94774522d11d8def37cdcffba66b2b046c70ba31f6892f28b4c3b5486d1d1",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        },
+        "aarch64-pc-windows-msvc": {
+          "available": false,
+          "reason": "Unpublished formatter-only Caddy WASM candidate; requires managed dprint, native/oldest-OS validation, final license audit and release approval.",
+          "kind": "wasm",
+          "requires_dprint_pack": "0.63.0-p1",
+          "wasm_plugins": [
+            "plugins/caddyfmt-2.11.7-p1.wasm"
+          ],
+          "environment": {},
+          "validation": {
+            "license_audit": "upstream-and-runtime-notices-included; final-target-feature-review-pending"
+          },
+          "max_installed_bytes": 695181,
+          "archives": [
+            {
+              "format": "tar.gz",
+              "asset_name": "codestyles-caddy-2.11.7-wasm-p1-universal.tar.gz",
+              "sha256": "09d389c0aab0d0646c723da790d44472b5e44d84031b2ad102e84a760531ef6a",
+              "bytes": 247353,
+              "max_download_bytes": 247353,
+              "max_expanded_bytes": 738189,
+              "members": [
+                {
+                  "path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "archive_path": "plugins/caddyfmt-2.11.7-p1.wasm",
+                  "bytes": 550254,
+                  "sha256": "0ed1cea807384b5b79fb172e8619679f9563aa594c3fba4b53635c3fa88be9a5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/LICENSE",
+                  "archive_path": "sources/formatters/caddyfmt/LICENSE",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/README.md",
+                  "archive_path": "sources/formatters/caddyfmt/README.md",
+                  "bytes": 2416,
+                  "sha256": "50ce2d7c52f1fab3710e0ad02523b1ef684c70e50a11b877b63a1787ceaa7365",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter.go",
+                  "bytes": 2550,
+                  "sha256": "f29decccf3d5920a9b3dac299944518006f8e14b6afdd765c4dfc755fb6b17ed",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/adapter_test.go",
+                  "bytes": 1198,
+                  "sha256": "7319f51c9e349533addb232294de78cb366b4e2560cff6d4315ac52f55a77876",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/go.mod",
+                  "archive_path": "sources/formatters/caddyfmt/go.mod",
+                  "bytes": 38,
+                  "sha256": "918166a149261f1312567b8941108e332cdab1201a68639b80a56eae250036f9",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter.go",
+                  "bytes": 8493,
+                  "sha256": "45ce3d09896bf29273acdb97a1fe3fd6ef4cd0675d6debcd5b3ede445d009f70",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/formatter_test.go",
+                  "bytes": 7806,
+                  "sha256": "942e4a9491513d427530590ba5213bffeee13fa708c5ece1213e46a835e221f5",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "archive_path": "sources/formatters/caddyfmt/internal/caddyfile/heredoc.go",
+                  "bytes": 854,
+                  "sha256": "a6a808ed868fb4bf45a3c493f27b02bb11182070e877183bff76544a715771ce",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Caddy-Apache-2.0.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "archive_path": "sources/formatters/caddyfmt/licenses/wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "sources/formatters/caddyfmt/main.go",
+                  "archive_path": "sources/formatters/caddyfmt/main.go",
+                  "bytes": 2810,
+                  "sha256": "121c99ef85a8e804f516bdfa2df4512f67d27a8bb3588b3acf63ce1d8148fb06",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/caddy_wasm_start.py",
+                  "archive_path": "sources/scripts/caddy_wasm_start.py",
+                  "bytes": 2002,
+                  "sha256": "2c3695b3b7465cdef76d4d073f31a41aaedb597e7d2c206b3eb53fd978578241",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/compile_caddy_formatter_wasm.py",
+                  "bytes": 4401,
+                  "sha256": "88b5caa09f600e1b3e9a9c683654713bb7556d6c1ca894dc01ffedcbaa087047",
+                  "executable": false
+                },
+                {
+                  "path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "archive_path": "sources/scripts/test_compile_caddy_formatter_wasm.py",
+                  "bytes": 3730,
+                  "sha256": "44806de9d229559a04aefe219f478beaa72cdd7256de296b9f3ffd9b25cce296",
+                  "executable": false
+                },
+                {
+                  "path": "schemas/caddyfmt.json",
+                  "archive_path": "schemas/caddyfmt.json",
+                  "bytes": 305,
+                  "sha256": "7644611341e603da18130c0bcb1d223be0f0f446d5504c6f6f22acc0c0d5fc45",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddy-2.11.7.txt",
+                  "archive_path": "licenses/caddy-2.11.7.txt",
+                  "bytes": 11358,
+                  "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "archive_path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+                  "bytes": 1296,
+                  "sha256": "098b8b1080eaf85bdb8b450eb12f29fa4d4e9c02f4d26d18d5e7b9d095ea9862",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+                  "bytes": 1453,
+                  "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "archive_path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+                  "bytes": 16708,
+                  "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "archive_path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+                  "bytes": 1835,
+                  "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-adapter-MIT.txt",
+                  "bytes": 1068,
+                  "sha256": "87f6c85529aa08f16e8235f0ea423942f5f75c85d0b5c2983fd4ab4d98df51cf",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+                  "bytes": 831,
+                  "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "archive_path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+                  "bytes": 1023,
+                  "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+                  "executable": false
+                },
+                {
+                  "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "archive_path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+                  "bytes": 6204,
+                  "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+                  "executable": false
+                },
+                {
+                  "path": "sources/resources/caddy-formatter-sources.json",
+                  "archive_path": "sources/resources/caddy-formatter-sources.json",
+                  "bytes": 12412,
+                  "sha256": "272a879d8132cd8504e5672e93655083e1ba096812d05a2f0fbb24c9db489117",
+                  "executable": false
+                },
+                {
+                  "path": "PROVENANCE.json",
+                  "archive_path": "PROVENANCE.json",
+                  "bytes": 13656,
+                  "sha256": "7ac94774522d11d8def37cdcffba66b2b046c70ba31f6892f28b4c3b5486d1d1",
+                  "executable": false
+                }
+              ]
+            }
+          ]
+        }
+      }
     }
   }
 }

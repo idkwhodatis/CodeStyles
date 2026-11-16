@@ -1,4 +1,8 @@
 # Keep source and scripts portable; checksummed resources must keep exact bytes.
 * text=auto eol=lf
 *.wasm binary
+*.crate binary
 resources/schemas/*.json -text
+# Preserve upstream notice bytes, including their original whitespace.
+resources/licenses/option-ext-0.2.0-MPL-2.0.txt -text -whitespace
+resources/licenses/wasmtime-49.0.2-cranelift-0.136.2.txt -text -whitespace

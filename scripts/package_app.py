@@ -33,6 +33,9 @@ MACOS_MINIMUM = {'x86_64': '10.15.7', 'aarch64': '11.0'}
 # The native CI Linux build targets glibc 2.28. Include dynamically loaded GUI
 # libraries as well as ELF imports; audit_dependencies.py independently checks
 # the actual binaries instead of treating this metadata as compatibility proof.
+# Linux GPUI uses the FileChooser portal on both X11 and Wayland. Require its
+# frontend and a known file-chooser backend, not the generic portal-backend
+# virtual package: providers such as wlr only implement screenshot/screencast.
 DEB_DEPENDS = ', '.join((
     'libc6 (>= 2.28)', 'libgcc-s1 | libgcc1', 'libstdc++6 (>= 8)',
     'libasound2t64 | libasound2', 'libfontconfig1', 'libfreetype6',
@@ -42,6 +45,8 @@ DEB_DEPENDS = ', '.join((
     'libxcb-xfixes0', 'libxcb-xinput0', 'libxcb-xkb1',
     'libxkbcommon0', 'libxkbcommon-x11-0', 'libdbus-1-3',
     'libvulkan1', 'libegl1', 'libgl1', 'zlib1g', 'libzstd1',
+    'xdg-desktop-portal (>= 1.0)',
+    'xdg-desktop-portal-gtk | xdg-desktop-portal-kde | xdg-desktop-portal-gnome',
 ))
 
 
@@ -89,6 +94,10 @@ def resource_path(root, name):
 
 def stage_resources(source, destination, target):
     manifest = json.loads((source / 'manifest.json').read_text(encoding='utf-8'))
+    # Fail closed if a required notice/source record has been removed, even if
+    # an unpinned copy still happens to exist in the source directory.
+    bundle_resources.pinned_notices(
+        manifest, bundle_resources.dependency_notices('app', target))
     # App settings/resources are usable before any runtime is installed.
     # Engine and WASM bytes belong exclusively to the optional managed pack.
     records = [entry for entry in manifest['files']

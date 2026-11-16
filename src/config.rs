@@ -724,6 +724,10 @@ pub(crate) fn validate_managed_language_config(
         "css" | "scss" => "malva",
         "yaml" | "yml" => "yaml",
         "sql" => "sql",
+        "sh" | "bash" => "shfmt",
+        "lua" | "luau" => "stylua",
+        "dockerfile" => "dockerfile",
+        "caddyfile" => "caddyfmt",
         _ => return Err("Unsupported managed WASM language.".into()),
     };
     let cst = parse_object(text)?;
@@ -769,6 +773,57 @@ pub(crate) fn validate_managed_language_config(
         )
     {
         return Err("Select sql.dialect = postgresql, mysql, or sqlite before formatting SQL. Generic/automatic and other dialects are unsupported.".into());
+    }
+    if section == "shfmt" {
+        for setting in ["simplify", "minify"] {
+            if value[section]
+                .get(setting)
+                .is_some_and(|v| v != &Value::Bool(false))
+            {
+                return Err(format!(
+                    "shfmt.{setting} must be false: managed formatting does not simplify/minify source."
+                ));
+            }
+        }
+        if value[section]
+            .get("dialect")
+            .is_some_and(|v| !matches!(v.as_str(), Some("auto" | "bash" | "posix")))
+        {
+            return Err("Shell formatting supports only auto, bash or posix dialect.".into());
+        }
+    }
+    if section == "stylua" {
+        if value[section]
+            .get("sortRequires")
+            .is_some_and(|v| v != &Value::Bool(false))
+        {
+            return Err(
+                "stylua.sortRequires must be false: require order can affect execution.".into(),
+            );
+        }
+        if let Some(syntax) = value[section].get("syntax") {
+            let valid = if extension == "luau" {
+                syntax == "luau"
+            } else {
+                matches!(
+                    syntax.as_str(),
+                    Some("lua51" | "lua52" | "lua53" | "lua54" | "luajit")
+                )
+            };
+            if !valid {
+                return Err("Select a Lua version for .lua or luau for .luau; all/mixed syntax inference is disabled.".into());
+            }
+        }
+    }
+    if section == "caddyfmt"
+        && value[section]
+            .as_object()
+            .is_some_and(|settings| !settings.is_empty())
+    {
+        return Err(
+            "Caddyfile formatting uses the fixed upstream style; caddyfmt must be an empty object."
+                .into(),
+        );
     }
     Ok(value)
 }
@@ -896,6 +951,9 @@ impl DraftConfig {
             "css" | "scss" => crate::schema::PinnedPlugin::Malva,
             "yaml" | "yml" => crate::schema::PinnedPlugin::PrettyYaml,
             "sql" => crate::schema::PinnedPlugin::Sql,
+            "sh" | "bash" => crate::schema::PinnedPlugin::Shfmt,
+            "lua" | "luau" => crate::schema::PinnedPlugin::Stylua,
+            "dockerfile" => crate::schema::PinnedPlugin::Dockerfile,
             _ => return Err("Unsupported managed WASM language.".into()),
         };
         let path = plugins
@@ -911,6 +969,26 @@ impl DraftConfig {
                 .as_object_mut()
                 .expect("validated YAML section")
                 .insert("trimTrailingWhitespaces".into(), Value::Bool(false));
+        }
+        if matches!(extension, "lua" | "luau") {
+            let settings = object
+                .entry("stylua")
+                .or_insert_with(|| serde_json::json!({}))
+                .as_object_mut()
+                .expect("validated StyLua section");
+            settings.entry("syntax").or_insert_with(|| {
+                Value::String(if extension == "luau" { "luau" } else { "lua54" }.into())
+            });
+            settings.insert("sortRequires".into(), Value::Bool(false));
+        }
+        if matches!(extension, "sh" | "bash") {
+            let settings = object
+                .entry("shfmt")
+                .or_insert_with(|| serde_json::json!({}))
+                .as_object_mut()
+                .expect("validated shfmt section");
+            settings.insert("simplify".into(), Value::Bool(false));
+            settings.insert("minify".into(), Value::Bool(false));
         }
         object.insert("plugins".into(), serde_json::json!([canonical]));
         object.insert("incremental".into(), Value::Bool(false));
@@ -1691,6 +1769,95 @@ mod tests {
                 .unwrap_err()
                 .contains("semiColons")
         );
+    }
+    #[test]
+    fn unsafe_script_transforms_duplicates_and_dialects_fail_closed() {
+        for (extension, text) in [
+            ("sh", r#"{"shfmt":{"simplify":true}}"#),
+            ("sh", r#"{"shfmt":{"minify":true}}"#),
+            ("sh", r#"{"shfmt":{"dialect":"zsh"}}"#),
+            ("sh", r#"{"shfmt":{"dialect":"mksh"}}"#),
+            ("sh", r#"{"shfmt":{"minify":true,"minify":false}}"#),
+            ("sh", r#"{"shfmt":{"simplify":"false"}}"#),
+            ("lua", r#"{"stylua":{"sortRequires":true}}"#),
+            ("lua", r#"{"stylua":{"syntax":"luau"}}"#),
+            ("lua", r#"{"stylua":{"syntax":"all"}}"#),
+            ("lua", r#"{"stylua":{"syntax":"cfxlua"}}"#),
+            ("luau", r#"{"stylua":{"syntax":"lua54"}}"#),
+            ("lua", r#"{"stylua":{},"stylua":{}}"#),
+            ("dockerfile", r#"{"dockerfile":[]}"#),
+            ("caddyfile", r#"{"caddyfmt":{"useTabs":false}}"#),
+        ] {
+            assert!(
+                validate_managed_language_config(text, extension).is_err(),
+                "{extension}: {text}"
+            );
+        }
+        for extension in ["sh", "bash", "lua", "luau", "dockerfile", "caddyfile"] {
+            validate_managed_language_config("{}", extension).unwrap();
+            for text in [
+                r#"{"extends":"base.json"}"#,
+                r#"{"overrides":[]}"#,
+                r#"{"inherit":true}"#,
+                r#"{"inherit":true,"inherit":false}"#,
+            ] {
+                assert!(validate_managed_language_config(text, extension).is_err());
+            }
+        }
+        for dialect in ["auto", "bash", "posix"] {
+            validate_managed_language_config(
+                &json!({"shfmt":{"dialect":dialect}}).to_string(),
+                "sh",
+            )
+            .unwrap();
+        }
+        for syntax in ["lua51", "lua52", "lua53", "lua54", "luajit"] {
+            validate_managed_language_config(
+                &json!({"stylua":{"syntax":syntax}}).to_string(),
+                "lua",
+            )
+            .unwrap();
+        }
+        validate_managed_language_config(r#"{"stylua":{"syntax":"luau"}}"#, "luau").unwrap();
+    }
+
+    #[test]
+    fn script_defaults_are_injected_only_into_isolated_preview_configuration() {
+        let directory = tempfile::tempdir().unwrap();
+        for (extension, plugin) in [
+            ("sh", crate::schema::PinnedPlugin::Shfmt),
+            ("bash", crate::schema::PinnedPlugin::Shfmt),
+            ("lua", crate::schema::PinnedPlugin::Stylua),
+            ("luau", crate::schema::PinnedPlugin::Stylua),
+            ("dockerfile", crate::schema::PinnedPlugin::Dockerfile),
+        ] {
+            let path = directory.path().join(plugin.filename());
+            fs::write(&path, "fixture").unwrap();
+            let original = "{ // preserve\n\"plugins\":[\"untrusted-plugin\"],\"custom\":42}\n";
+            let doc = document(original);
+            let preview =
+                DraftConfig::for_managed_language(&doc.snapshot(), &[path], extension).unwrap();
+            let value = parse(&fs::read_to_string(preview.path()).unwrap());
+            assert_eq!(value["plugins"].as_array().unwrap().len(), 1);
+            assert!(
+                !value["plugins"][0]
+                    .as_str()
+                    .unwrap()
+                    .contains("untrusted-plugin")
+            );
+            if matches!(extension, "sh" | "bash") {
+                assert_eq!(value["shfmt"]["simplify"], false);
+                assert_eq!(value["shfmt"]["minify"], false);
+            } else if matches!(extension, "lua" | "luau") {
+                assert_eq!(value["stylua"]["sortRequires"], false);
+                assert_eq!(
+                    value["stylua"]["syntax"],
+                    if extension == "lua" { "lua54" } else { "luau" }
+                );
+            }
+            assert_eq!(value["custom"], 42);
+            assert_eq!(doc.draft_text(), original);
+        }
     }
 }
 

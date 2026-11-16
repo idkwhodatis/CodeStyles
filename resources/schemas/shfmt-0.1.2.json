@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://plugins.dprint.dev/dprint/dprint-plugin-shfmt/0.1.2/schema.json",
+  "type": "object",
+  "properties": {
+    "dialect": {
+      "description": "The shell dialect to parse the files as (shfmt's `-ln`). With `auto`, it's picked from the file name, then the shebang, falling back to Bash.",
+      "type": "string",
+      "default": "auto",
+      "oneOf": [
+        {
+          "const": "auto",
+          "description": "Picks the dialect from the file name, then the shebang, falling back to Bash."
+        },
+        {
+          "const": "bash",
+          "description": "Bash."
+        },
+        {
+          "const": "posix",
+          "description": "POSIX shell."
+        },
+        {
+          "const": "mksh",
+          "description": "MirBSD Korn Shell."
+        },
+        {
+          "const": "bats",
+          "description": "Bash Automated Testing System."
+        },
+        {
+          "const": "zsh",
+          "description": "Zsh."
+        }
+      ]
+    },
+    "indentWidth": {
+      "description": "The number of spaces for an indent when not using tabs (shfmt's `-i`).",
+      "default": 2,
+      "type": "number"
+    },
+    "useTabs": {
+      "description": "Whether to indent with tabs, which is shfmt's default (`-i 0`).",
+      "default": true,
+      "type": "boolean"
+    },
+    "binaryNextLine": {
+      "description": "Whether binary operators like `&&` and `|` may start a line (shfmt's `-bn`).",
+      "default": false,
+      "type": "boolean"
+    },
+    "switchCaseIndent": {
+      "description": "Whether to indent the patterns of a `case` statement (shfmt's `-ci`).",
+      "default": false,
+      "type": "boolean"
+    },
+    "spaceRedirects": {
+      "description": "Whether redirect operators are followed by a space (ex. `> file` instead of `>file`) (shfmt's `-sr`).",
+      "default": false,
+      "type": "boolean"
+    },
+    "functionNextLine": {
+      "description": "Whether to put the opening brace of a function on the next line (shfmt's `-fn`).",
+      "default": false,
+      "type": "boolean"
+    },
+    "simplify": {
+      "description": "Whether to simplify the code (ex. `[[ \"$a\" == b ]]` to `[[ $a == b ]]`) (shfmt's `-s`).",
+      "default": false,
+      "type": "boolean"
+    },
+    "minify": {
+      "description": "Whether to minify the code to reduce its size, which removes comments and implies `simplify` (shfmt's `-mn`).",
+      "default": false,
+      "type": "boolean"
+    }
+  }
+}

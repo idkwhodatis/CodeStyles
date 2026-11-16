@@ -390,6 +390,136 @@
       "path": "licenses/dprint.txt",
       "bytes": 1080,
       "sha256": "f49eac7bc59816a4b7fffd64914169ef46deb636f94b77eaa274e7352983c3fa"
+    },
+    {
+      "path": "schemas/shfmt-0.1.2.json",
+      "bytes": 2513,
+      "sha256": "fc19f09f2d2e9d57c76494c73d75afc1502f5707f198b2260c85b2ad05c98780"
+    },
+    {
+      "path": "schemas/stylua-0.1.0.json",
+      "bytes": 5304,
+      "sha256": "bf7833c01f41db46c9a165b3527d4d41aa4d7cfc04d207520798e582aaec9246"
+    },
+    {
+      "path": "schemas/dockerfile-0.7.0.json",
+      "bytes": 1902,
+      "sha256": "a67adb251b7135a612b06b30b5f9cac8de16845e74786f6fc99b36667d2573bc"
+    },
+    {
+      "path": "schemas/caddyfmt.json",
+      "bytes": 305,
+      "sha256": "7644611341e603da18130c0bcb1d223be0f0f446d5504c6f6f22acc0c0d5fc45"
+    },
+    {
+      "path": "licenses/shfmt-0.1.2.txt",
+      "bytes": 3807,
+      "sha256": "e0a8657e7764445e84c87e1758a735bbabcc74a4d8dba106f24fe999c73ee654"
+    },
+    {
+      "path": "licenses/stylua-0.1.0.txt",
+      "bytes": 1139,
+      "sha256": "f220330d3736fb4c0c5f4a361b7e926b08576709a5648a59b14b692e8fa3b598"
+    },
+    {
+      "path": "licenses/stylua-upstream-2.6.0-MPL-2.0.txt",
+      "bytes": 16724,
+      "sha256": "4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1"
+    },
+    {
+      "path": "licenses/stylua-0.1.0-SOURCE.txt",
+      "bytes": 567,
+      "sha256": "ffca0921cce6dd15f3940c12f6faef4dbc94b92d09e3aa2aaffa8b98d3477efd"
+    },
+    {
+      "path": "licenses/dockerfile-0.7.0.txt",
+      "bytes": 1080,
+      "sha256": "9039b024904a2a6f54c8594647d8f8e16029f9b6c0067ca345f3c59a2e033674"
+    },
+    {
+      "path": "licenses/caddy-2.11.7.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "script-formatter-source-review.json",
+      "bytes": 5473,
+      "sha256": "1c0a46bbc6eb281afddfc6ddf16911dc53b4aa9107414af750ad3c0d6f8faee4"
+    },
+    {
+      "path": "licenses/caddyfmt-2.11.7-p1-SOURCE.txt",
+      "bytes": 1296,
+      "sha256": "098b8b1080eaf85bdb8b450eb12f29fa4d4e9c02f4d26d18d5e7b9d095ea9862"
+    },
+    {
+      "path": "licenses/caddyfmt-Go-BSD-3-Clause.txt",
+      "bytes": 1453,
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+    },
+    {
+      "path": "licenses/caddyfmt-LLVM-compiler-rt.txt",
+      "bytes": 16708,
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    {
+      "path": "licenses/caddyfmt-TinyGo-BSD-3-Clause.txt",
+      "bytes": 1835,
+      "sha256": "4cb7d99a97ebd57584ea8398898c4b0bbbcb39662330712b43153efdad308766"
+    },
+    {
+      "path": "licenses/caddyfmt-wasi-libc-LICENSE.txt",
+      "bytes": 831,
+      "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6"
+    },
+    {
+      "path": "licenses/caddyfmt-wasi-libc-LICENSE-MIT.txt",
+      "bytes": 1023,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    },
+    {
+      "path": "licenses/caddyfmt-musl-COPYRIGHT.txt",
+      "bytes": 6204,
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    {
+      "path": "licenses/wasmtime-49.0.2-cranelift-0.136.2.txt",
+      "bytes": 12243,
+      "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
+    },
+    {
+      "path": "licenses/dprint-0.63.0-dependencies-SOURCE.txt",
+      "bytes": 1585,
+      "sha256": "2e779bd952f6b927ad21c18ccf2171691eb30e6bca1fe688dadbc85ea2985939"
+    },
+    {
+      "path": "licenses/gpui-kit-assets-0.7.3-LICENSE-LUCIDE.txt",
+      "bytes": 3208,
+      "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+    },
+    {
+      "path": "licenses/gpui-kit-assets-0.7.3-SOURCE.txt",
+      "bytes": 1467,
+      "sha256": "598be2eaf5420b93fb993c7667ec8029dcb36637dddaf04529f6264f9db23480"
+    },
+    {
+      "path": "licenses/gpui-kit-0.7.3-APACHE-2.0.txt",
+      "bytes": 10305,
+      "sha256": "d1b0449e5478c574ba4f686c2656df7fe77d66821a61f8b6ed3378a58ed9a811"
+    },
+    {
+      "path": "licenses/option-ext-0.2.0-MPL-2.0.txt",
+      "bytes": 16727,
+      "sha256": "66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172"
+    },
+    {
+      "path": "licenses/option-ext-0.2.0-SOURCE.txt",
+      "bytes": 1940,
+      "sha256": "197ded57f51ce28921c29e2708080a6f1289cf673d971b6f462a746630228f6e"
+    },
+    {
+      "path": "licenses/option-ext-0.2.0.crate",
+      "bytes": 7345,
+      "sha256": "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
     }
   ]
 }

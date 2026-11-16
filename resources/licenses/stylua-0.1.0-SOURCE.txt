@@ -1,0 +1,8 @@
+The unmodified dprint-plugin-stylua 0.1.0 wrapper is MIT licensed.
+https://github.com/dprint/dprint-plugin-stylua/tree/e1979d8137502523387aae472ae74dc599f8c49f
+
+StyLua 2.6.0 is MPL-2.0 licensed; corresponding unmodified source:
+https://github.com/JohnnyMorganz/StyLua/tree/56f9630407f6bf6ee524fb1d7fe71f005a570478
+https://github.com/JohnnyMorganz/StyLua/archive/56f9630407f6bf6ee524fb1d7fe71f005a570478.tar.gz
+Crate SHA-256: 266dd1a94f4f6743235c61d05836aac3e9ba034dadf9bf27b9f032f266f3b8eb
+Full transitive dependency and target-feature license audit remains pending.

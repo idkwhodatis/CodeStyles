@@ -1,0 +1,31 @@
+Corresponding Source Code Form for option-ext 0.2.0
+
+option-ext is licensed under the Mozilla Public License, version 2.0.
+The full license is included as option-ext-0.2.0-MPL-2.0.txt.
+
+The unmodified upstream Source Code Form is included alongside this notice:
+option-ext-0.2.0.crate (a gzip-compressed tar archive; includes Cargo.toml,
+Cargo.toml.orig, src/lib.rs, README.md and LICENSE.txt). Extract with a tar/gzip
+archive reader to inspect or modify it. No proprietary tool or payment is needed.
+
+The same source archive is available from the official crates.io registry:
+https://static.crates.io/crates/option-ext/option-ext-0.2.0.crate
+SHA-256: 04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d
+Upstream: https://github.com/soc/option-ext
+
+CodeStyles does not modify these source files. MPL-2.0 governs this covered
+source, including distributed modifications to it; it does not relicense
+unrelated CodeStyles files. Recipients' MPL rights to this source are preserved.
+
+Applicability: dirs-sys 0.4.1/0.5.0 use option-ext in their xdg_user_dirs module,
+which is enabled on Unix excluding macOS/iOS. Among the six supported native
+CodeStyles/dprint targets, the conservative notice/source requirement is Linux.
+The app package retains all checked-in legal resources, so copies may also be
+present on other targets; their presence does not assert option-ext linkage.
+The optional dprint package selects these resources for Linux only. The checked
+app/dprint call paths use home/config/cache/data directories, not XDG user-directory
+parsing. An app path through rust-embed-impl is also build-host-only. Thus even
+on Linux, option-ext code retention has not been established. These resources
+are conservative coverage, not a claim of executable inclusion. Lockfile
+presence alone is not final-link evidence. Recheck actual target/features and
+source modifications when updating dependencies or distributing another build.

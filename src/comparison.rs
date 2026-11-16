@@ -26,6 +26,12 @@ pub enum SourceLanguage {
     Scss,
     Yaml,
     Sql,
+    Shell,
+    Lua,
+    Luau,
+    Dockerfile,
+    Caddyfile,
+
     Java,
     CSharp,
     C,
@@ -33,7 +39,7 @@ pub enum SourceLanguage {
 }
 
 impl SourceLanguage {
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 28] = [
         Self::TypeScript,
         Self::JavaScript,
         Self::Tsx,
@@ -53,6 +59,11 @@ impl SourceLanguage {
         Self::Scss,
         Self::Yaml,
         Self::Sql,
+        Self::Shell,
+        Self::Lua,
+        Self::Luau,
+        Self::Dockerfile,
+        Self::Caddyfile,
         Self::Java,
         Self::CSharp,
         Self::C,
@@ -80,6 +91,12 @@ impl SourceLanguage {
             Self::Scss => "SCSS",
             Self::Yaml => "YAML",
             Self::Sql => "SQL",
+            Self::Shell => "Shell",
+            Self::Lua => "Lua",
+            Self::Luau => "Luau",
+            Self::Dockerfile => "Dockerfile",
+            Self::Caddyfile => "Caddyfile",
+
             Self::Java => "Java",
             Self::CSharp => "C#",
             Self::C => "C",
@@ -109,6 +126,12 @@ impl SourceLanguage {
             Self::Scss => "SCSS",
             Self::Yaml => "YAML",
             Self::Sql => "SQL",
+            Self::Shell => "Shell",
+            Self::Lua => "Lua",
+            Self::Luau => "Luau",
+            Self::Dockerfile => "Dockerfile",
+            Self::Caddyfile => "Caddyfile",
+
             Self::Java => "Java",
             Self::CSharp => "C#",
             Self::C => "C",
@@ -130,6 +153,11 @@ impl SourceLanguage {
             | Self::Html
             | Self::Css
             | Self::Scss
+            | Self::Shell
+            | Self::Lua
+            | Self::Luau
+            | Self::Dockerfile
+            | Self::Caddyfile
             | Self::Sql
             | Self::Java
             | Self::CSharp
@@ -164,6 +192,11 @@ impl SourceLanguage {
             Self::Css => include_str!("../resources/samples/sample.css"),
             Self::Scss => include_str!("../resources/samples/sample.scss"),
             Self::Yaml => include_str!("../resources/samples/sample.yaml"),
+            Self::Shell => include_str!("../resources/samples/sample.sh"),
+            Self::Lua => include_str!("../resources/samples/sample.lua"),
+            Self::Luau => include_str!("../resources/samples/sample.luau"),
+            Self::Dockerfile => include_str!("../resources/samples/sample.dockerfile"),
+            Self::Caddyfile => include_str!("../resources/samples/sample.caddyfile"),
             Self::Sql => include_str!("../resources/samples/sample.sql"),
         }
     }
@@ -192,6 +225,11 @@ impl SourceLanguage {
             Self::Css => "css",
             Self::Scss => "scss",
             Self::Yaml => "yaml",
+            Self::Shell => "sh",
+            Self::Lua => "lua",
+            Self::Luau => "luau",
+            Self::Dockerfile => "dockerfile",
+            Self::Caddyfile => "caddyfile",
             Self::Sql => "sql",
         }
     }
@@ -216,6 +254,11 @@ impl SourceLanguage {
             Self::Css => PinnedPlugin::Malva,
             Self::Scss => PinnedPlugin::Malva,
             Self::Yaml => PinnedPlugin::PrettyYaml,
+            Self::Shell => PinnedPlugin::Shfmt,
+            Self::Lua => PinnedPlugin::Stylua,
+            Self::Luau => PinnedPlugin::Stylua,
+            Self::Dockerfile => PinnedPlugin::Dockerfile,
+            Self::Caddyfile => PinnedPlugin::Caddyfmt,
             Self::Sql => PinnedPlugin::Sql,
         }
     }
@@ -239,6 +282,11 @@ impl SourceLanguage {
             Self::Css => Some("vue"),
             Self::Scss => Some("vue"),
             Self::Yaml => Some("yaml"),
+            Self::Shell => Some("shfmt"),
+            Self::Lua => Some("stylua"),
+            Self::Luau => Some("stylua"),
+            Self::Dockerfile => Some("dockerfile"),
+            Self::Caddyfile => Some("caddyfmt"),
             Self::Sql => Some("sql"),
             _ => None,
         }
@@ -272,6 +320,11 @@ impl SourceLanguage {
             (Self::Css, false) => "sample.css",
             (Self::Scss, false) => "sample.scss",
             (Self::Yaml, false) => "sample.yaml",
+            (Self::Shell, false) => "sample.sh",
+            (Self::Lua, false) => "sample.lua",
+            (Self::Luau, false) => "sample.luau",
+            (Self::Dockerfile, false) => "sample.dockerfile",
+            (Self::Caddyfile, false) => "sample.caddyfile",
             (Self::Sql, false) => "sample.sql",
             (Self::TypeScript, true) => "custom.ts",
             (Self::JavaScript, true) => "custom.js",
@@ -295,6 +348,11 @@ impl SourceLanguage {
             (Self::Css, true) => "custom.css",
             (Self::Scss, true) => "custom.scss",
             (Self::Yaml, true) => "custom.yaml",
+            (Self::Shell, true) => "custom.sh",
+            (Self::Lua, true) => "custom.lua",
+            (Self::Luau, true) => "custom.luau",
+            (Self::Dockerfile, true) => "custom.dockerfile",
+            (Self::Caddyfile, true) => "custom.caddyfile",
             (Self::Sql, true) => "custom.sql",
         }
     }
@@ -364,6 +422,11 @@ impl BuiltinSample {
                 | SourceLanguage::Css
                 | SourceLanguage::Scss
                 | SourceLanguage::Yaml
+                | SourceLanguage::Shell
+                | SourceLanguage::Lua
+                | SourceLanguage::Luau
+                | SourceLanguage::Dockerfile
+                | SourceLanguage::Caddyfile
                 | SourceLanguage::Sql),
                 _,
             ) => language.builtin_source(),
@@ -665,6 +728,11 @@ mod tests {
             (SourceLanguage::Scss, "@mixin", "scss"),
             (SourceLanguage::Yaml, "&defaults", "yaml"),
             (SourceLanguage::Sql, "select category", "sql"),
+            (SourceLanguage::Shell, "#!/bin/sh", "sh"),
+            (SourceLanguage::Lua, "local options=", "lua"),
+            (SourceLanguage::Luau, "type Options=", "luau"),
+            (SourceLanguage::Dockerfile, "FROM alpine:", "dockerfile"),
+            (SourceLanguage::Caddyfile, ":8080 {", "caddyfile"),
             (SourceLanguage::Java, "class Example", "java"),
             (SourceLanguage::CSharp, "public record Item", "cs"),
             (SourceLanguage::C, "struct item", "c"),
@@ -675,7 +743,7 @@ mod tests {
             assert!(!language.is_bundled());
             assert!(language.pack_id().is_some());
         }
-        assert_eq!(SourceLanguage::ALL.len(), 23);
+        assert_eq!(SourceLanguage::ALL.len(), 28);
     }
 
     #[test]
@@ -746,6 +814,11 @@ mod tests {
                 SourceLanguage::Css => PinnedPlugin::Malva,
                 SourceLanguage::Scss => PinnedPlugin::Malva,
                 SourceLanguage::Yaml => PinnedPlugin::PrettyYaml,
+                SourceLanguage::Shell => PinnedPlugin::Shfmt,
+                SourceLanguage::Lua => PinnedPlugin::Stylua,
+                SourceLanguage::Luau => PinnedPlugin::Stylua,
+                SourceLanguage::Dockerfile => PinnedPlugin::Dockerfile,
+                SourceLanguage::Caddyfile => PinnedPlugin::Caddyfmt,
                 SourceLanguage::Sql => PinnedPlugin::Sql,
             };
             assert_eq!(language.plugin(), expected);
@@ -839,6 +912,72 @@ mod tests {
         // These are coverage contracts, separate from the formatter parity test:
         // replacing a tour with a valid but trivial example must not pass.
         let coverage: &[(SourceLanguage, &[&str])] = &[
+            (
+                SourceLanguage::Shell,
+                &[
+                    "#!/bin/sh",
+                    "# Source",
+                    "greet() {",
+                    "printf '%s\\n'",
+                    "for item in",
+                    "if [ -n",
+                    "case ",
+                    ";;",
+                    "esac",
+                ],
+            ),
+            (
+                SourceLanguage::Lua,
+                &[
+                    "-- Tables",
+                    "local options={",
+                    "enabled=true",
+                    "values={1,2,3}",
+                    "local function",
+                    "ipairs(values)",
+                    "result=result+value",
+                    "return options",
+                ],
+            ),
+            (
+                SourceLanguage::Luau,
+                &[
+                    "-- Luau",
+                    "type Options=",
+                    "name:string",
+                    "values:{number}",
+                    "local options:Options",
+                    "):number",
+                    "result+=value",
+                    "return options",
+                ],
+            ),
+            (
+                SourceLanguage::Dockerfile,
+                &[
+                    "# Source",
+                    "FROM alpine:",
+                    " AS base",
+                    "WORKDIR /app",
+                    "COPY [",
+                    "ENV APP_MODE",
+                    "RUN printf",
+                    "EXPOSE 8080",
+                    "CMD [",
+                ],
+            ),
+            (
+                SourceLanguage::Caddyfile,
+                &[
+                    "# Source formatting",
+                    ":8080 {",
+                    "encode gzip",
+                    "handle /health {",
+                    r#"respond "ready" 200"#,
+                    "handle {",
+                    r#"respond "CodeStyles" 200"#,
+                ],
+            ),
             (
                 SourceLanguage::TypeScript,
                 &[

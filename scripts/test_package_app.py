@@ -34,6 +34,8 @@ class PackageTests(unittest.TestCase):
         (self.resources / 'README.md').write_text('Resource usage\n', encoding='utf-8')
         (self.resources / 'THIRD_PARTY_NOTICES.md').write_text('Third party notices\n', encoding='utf-8')
         self.manifest = {'artifacts': [], 'files': []}
+        for name in package.bundle_resources.dependency_notices('app', 'x86_64-unknown-linux-gnu'):
+            self.resource(name, b'pinned dependency notice or source fixture')
         for target in package.TARGETS:
             name = 'dprint.exe' if 'windows' in target else 'dprint'
             record = self.resource(f'bin/{target}/{name}', target.encode())
@@ -64,6 +66,8 @@ class PackageTests(unittest.TestCase):
         return output
 
     def assert_resources(self, names, prefix, target):
+        for name in package.bundle_resources.dependency_notices('app', target):
+            self.assertIn(prefix + name, names)
         executable = 'dprint.exe' if 'windows' in target else 'dprint'
         self.assertNotIn(f'{prefix}bin/{target}/{executable}', names)
         self.assertFalse(any(name.endswith('.wasm') for name in names))
@@ -75,6 +79,23 @@ class PackageTests(unittest.TestCase):
                 self.assertIn(prefix + relative, names)
         for relative in ('manifest.json', 'README.md', 'THIRD_PARTY_NOTICES.md'):
             self.assertIn(prefix + relative, names)
+
+    def test_removed_or_corrupt_required_dependency_notice_fails_closed(self):
+        for name in package.bundle_resources.dependency_notices('app', 'x86_64-unknown-linux-gnu'):
+            with self.subTest(name=name):
+                original = list(self.manifest['files'])
+                self.manifest['files'] = [a for a in original if a['path'] != name]
+                self.save_manifest()
+                with self.assertRaisesRegex(ValueError, 'License missing'):
+                    self.build('x86_64-unknown-linux-gnu', '.tar.gz')
+                self.manifest['files'] = original
+                self.save_manifest()
+                path = self.resources / name
+                data = path.read_bytes()
+                path.write_bytes(b'corrupt')
+                with self.assertRaisesRegex(ValueError, 'mismatch'):
+                    self.build('x86_64-unknown-linux-gnu', '.tar.gz')
+                path.write_bytes(data)
 
     def test_project_version_and_validated_artifact_names(self):
         self.assertEqual(package.project_version(self.root), '1.2.3')
@@ -169,6 +190,16 @@ class PackageTests(unittest.TestCase):
                     self.assertIn(f'Architecture: {expected}\n', text)
                     self.assertIn('Version: 1.2.3\n', text)
                     self.assertIn('Depends: libc6 (>= 2.28)', text)
+                    depends = next(line.removeprefix('Depends: ') for line in text.splitlines()
+                                   if line.startswith('Depends: '))
+                    dependency_groups = depends.split(', ')
+                    self.assertIn('xdg-desktop-portal (>= 1.0)', dependency_groups)
+                    self.assertIn('xdg-desktop-portal-gtk | xdg-desktop-portal-kde | '
+                                  'xdg-desktop-portal-gnome', dependency_groups)
+                    # A backend for another portal (e.g. wlr's screen capture)
+                    # must not satisfy the file picker's runtime requirement.
+                    self.assertNotIn('xdg-desktop-portal-backend', depends)
+                    self.assertNotIn('xdg-desktop-portal-wlr', depends)
                     checksums = control.extractfile('md5sums').read().decode().splitlines()
                 with tarfile.open(fileobj=io.BytesIO(members['data.tar.gz'])) as data:
                     names = data.getnames()
@@ -186,6 +217,8 @@ class PackageTests(unittest.TestCase):
                 if shutil.which('dpkg-deb'):
                     result = subprocess.check_output(['dpkg-deb', '--field', str(output), 'Architecture'], text=True)
                     self.assertEqual(result.strip(), expected)
+                    result = subprocess.check_output(['dpkg-deb', '--field', str(output), 'Depends'], text=True)
+                    self.assertEqual(result.strip(), depends)
                     subprocess.run(['dpkg-deb', '--contents', str(output)], check=True, stdout=subprocess.DEVNULL)
 
     def test_resource_corruption_missing_file_and_target_fail_closed(self):

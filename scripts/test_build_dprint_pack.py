@@ -26,6 +26,8 @@ class DprintPackTests(unittest.TestCase):
         self.file('licenses/dprint.txt', b'MIT license')
         for name in self.manifest['plugins']:
             self.file(f'licenses/dprint-plugin-{name}.txt', b'MIT license')
+        for name in builder.bundle_resources.dependency_notices('dprint', self.target):
+            self.file(name, b'pinned dependency notice or source fixture')
         self.save()
 
     def file(self, path, data):
@@ -75,6 +77,41 @@ class DprintPackTests(unittest.TestCase):
         self.save()
         with self.assertRaisesRegex(ValueError, 'License missing'):
             self.build()
+
+    def test_target_specific_transitive_notices_are_packaged(self):
+        for arch in ('x86_64', 'aarch64'):
+            for os in ('unknown-linux-gnu', 'apple-darwin', 'pc-windows-msvc'):
+                self.target = f'{arch}-{os}'
+                self.manifest['artifacts'][0]['target'] = self.target
+                self.save()
+                with self.subTest(target=self.target):
+                    spec = self.build()
+                    names = {m['path'] for m in spec['archives'][0]['members']}
+                    required = builder.bundle_resources.dependency_notices('dprint', self.target)
+                    self.assertTrue(set(required) <= names)
+                    for name in builder.bundle_resources.OPTION_EXT_NOTICES:
+                        self.assertEqual(name in names, 'linux' in os)
+                    self.assertFalse(set(builder.bundle_resources.APP_DEPENDENCY_NOTICES) & names)
+
+    def test_missing_unpinned_and_corrupt_dependency_notices_fail_closed(self):
+        for name in builder.bundle_resources.dependency_notices('dprint', self.target):
+            with self.subTest(name=name):
+                original = list(self.manifest['files'])
+                self.manifest['files'] = [a for a in original if a['path'] != name]
+                self.save()
+                with self.assertRaisesRegex(ValueError, 'License missing'):
+                    self.build()
+                self.manifest['files'] = original
+                self.save()
+                path = self.resources / name
+                data = path.read_bytes()
+                path.unlink()
+                with self.assertRaisesRegex(ValueError, 'Missing resource'):
+                    self.build()
+                path.write_bytes(b'corrupt')
+                with self.assertRaisesRegex(ValueError, 'mismatch'):
+                    self.build()
+                path.write_bytes(data)
 
 
 if __name__ == '__main__':

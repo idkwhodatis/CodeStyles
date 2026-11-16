@@ -17,6 +17,51 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 RESOURCES = ROOT / 'resources'
 
+# Minimum notices for the audited dependencies. This is not a complete SBOM or
+# an assertion that every dependency/target has passed its redistribution gate.
+APP_DEPENDENCY_NOTICES = (
+    'licenses/gpui-kit-0.7.3-APACHE-2.0.txt',
+    'licenses/gpui-kit-assets-0.7.3-LICENSE-LUCIDE.txt',
+    'licenses/gpui-kit-assets-0.7.3-SOURCE.txt',
+)
+DPRINT_DEPENDENCY_NOTICES = (
+    'licenses/wasmtime-49.0.2-cranelift-0.136.2.txt',
+    'licenses/dprint-0.63.0-dependencies-SOURCE.txt',
+)
+OPTION_EXT_NOTICES = (
+    'licenses/option-ext-0.2.0-MPL-2.0.txt',
+    'licenses/option-ext-0.2.0-SOURCE.txt',
+    'licenses/option-ext-0.2.0.crate',
+)
+
+
+def dependency_notices(component, target):
+    if component == 'app':
+        names = APP_DEPENDENCY_NOTICES
+    elif component == 'dprint':
+        names = DPRINT_DEPENDENCY_NOTICES
+    else:
+        raise ValueError(f'Unknown notice component: {component}')
+    # Conservative coverage, not proof of retained code: dirs-sys gates its
+    # option-ext-using xdg_user_dirs module to non-Apple Unix, but the reviewed
+    # app/dprint call sites do not reach it. Lock presence is not link evidence.
+    if target.endswith('-unknown-linux-gnu'):
+        names += OPTION_EXT_NOTICES
+    return names
+
+
+def pinned_notices(manifest, names):
+    records = {}
+    for entry in manifest['files']:
+        name = entry['path']
+        if name in records:
+            raise ValueError(f'Duplicate manifest file: {name}')
+        records[name] = entry
+    for name in names:
+        if name not in records:
+            raise ValueError(f'License missing from manifest: {name}')
+    return [records[name] for name in names]
+
 
 def verify(path, entry):
     if not path.is_file():
