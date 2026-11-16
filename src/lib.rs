@@ -25,3 +25,6 @@ pub mod web_source;
 pub mod caddyfmt;
 pub mod script_source;
 pub mod sql_scope;
+
+/// Public, transport-independent interface for future self-hosted/hosted adapters.
+pub mod server_interface;

@@ -354,3 +354,8 @@ checks, real packaged offline self-tests, and the opt-in Apple signing workflow.
 Compatibility goals are independent of CI runner versions. Artifacts remain
 unsigned development builds until signing is explicitly configured; old-OS GUI,
 font, clipboard, IME and scaling acceptance is tracked separately from headless CI.
+
+## Server interface foundation
+
+See [the public core interface](docs/server-interface.md) for the additive
+self-hosted/hosted adapter boundary. This does not yet provide a Web server or login.
