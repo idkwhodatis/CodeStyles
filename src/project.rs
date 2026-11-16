@@ -2546,7 +2546,16 @@ mod tests {
             let name = std::ffi::OsString::from_vec(name);
             assert!(!language.supports_path(Path::new(&name)));
             let (_dir, _doc, request) = native_fixture(language);
-            fs::write(request.root().join(name), "source").unwrap();
+            if let Err(error) = fs::write(request.root().join(name), "source") {
+                // macOS filesystems can reject non-UTF-8 names at creation.
+                // The in-memory routing assertion above still runs there;
+                // exercise directory traversal whenever the host accepts it.
+                #[cfg(target_os = "macos")]
+                if error.raw_os_error() == Some(libc::EILSEQ) {
+                    continue;
+                }
+                panic!("cannot create non-UTF-8 traversal fixture: {error}");
+            }
             assert!(
                 native_scope(&request, &AtomicBool::new(false))
                     .unwrap()
